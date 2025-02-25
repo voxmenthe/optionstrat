@@ -1,79 +1,91 @@
-# Options Scenario Analysis & Exploration App
+# OptionsStrat - Options Scenario Analysis & Exploration App
 
-A comprehensive tool for analyzing options positions, visualizing risk and return scenarios, and exploring market data.
+A comprehensive tool for options traders to analyze and visualize option strategies, calculate Greeks, and explore different market scenarios.
 
 ## Features
 
-- **Position Management**: Add, edit, and manage option positions in a spreadsheet-like interface
-- **Advanced Visualization**: Explore 3D surfaces showing price vs. volatility, price vs. time, and more
-- **Greeks Calculation**: Automatically calculate and display option Greeks (Delta, Gamma, Theta, Vega, Rho)
-- **Market Data**: Search and view current market data including option chains
-- **Scenario Analysis**: Test different market scenarios and see how they affect your positions
+- Option pricing and Greeks calculation using QuantLib
+- Scenario analysis for option strategies
+- Market data integration with Polygon.io
+- Interactive visualizations for option strategies
+- Position management and portfolio analysis
 
 ## Project Structure
 
-```
-OPTIONSTRAT/
-├── src
-   ├── frontend/              # Next.js application
-   │   ├── app/              # Next.js App Router
-   │   │   ├── page.tsx      # Home page
-   │   │   ├── positions/    # Position management pages
-   │   │   └── visualizations/ # Charts and analysis pages
-   │   ├── components/       # Reusable UI components
-   │   ├── lib/              # Frontend utilities
-   ├── backend/               # FastAPI application (planned)
-```
+- `src/frontend`: Next.js frontend application
+- `src/backend`: FastAPI backend application
 
-## Tech Stack
+## Requirements
 
-- **Frontend**: Next.js 14.2.24, React 18.2.0
-- **State Management**: Zustand 4.4.7
-- **UI**: Tailwind CSS 3.4.17
-- **Visualization**: Plotly.js 2.28.0
-- **Backend** (planned): FastAPI, QuantLib
-- **Data Source** (planned): Polygon.io
+- Python 3.11+
+- Node.js 18+
+- Poetry (for Python dependency management)
+- Docker and Docker Compose (optional, for containerized setup)
+- Redis (for caching)
 
 ## Getting Started
 
-### Prerequisites
-
-- Node.js 18+ and npm
-
-### Installation and Setup
+### Using Docker Compose (Recommended)
 
 1. Clone the repository
+2. Create a `.env` file in the root directory with your Polygon.io API key:
    ```
-   git clone https://github.com/yourusername/optionstrat.git
-   cd optionstrat
+   POLYGON_API_KEY=your_polygon_api_key_here
+   ```
+3. Start the application using Docker Compose:
+   ```
+   docker-compose up -d
+   ```
+4. Access the frontend at http://localhost:3000 and the backend API at http://localhost:8000
+
+### Manual Setup
+
+#### Backend
+
+1. Navigate to the backend directory:
+   ```
+   cd src/backend
+   ```
+2. Install dependencies using Poetry:
+   ```
+   poetry install
+   ```
+3. Copy `.env.example` to `.env` and update with your API keys:
+   ```
+   cp .env.example .env
+   ```
+4. Start the FastAPI server:
+   ```
+   poetry run uvicorn app.main:app --reload
    ```
 
-2. Install frontend dependencies
+#### Frontend
+
+1. Navigate to the frontend directory:
    ```
    cd src/frontend
+   ```
+2. Install dependencies:
+   ```
    npm install
    ```
-
-3. Start the development server
+3. Start the Next.js development server:
    ```
    npm run dev
    ```
 
-4. Open your browser and navigate to http://localhost:3000
+## Development
 
-## Current Status
+### Backend
 
-This project is under active development. The frontend implementation is complete with mock data, and we're currently working on:
+The backend is built with FastAPI and uses QuantLib for option pricing and Greeks calculation. It also integrates with Polygon.io for market data.
 
-1. Upgrading packages to the latest versions (Next.js 15.1.7, Tailwind CSS 4.0.8)
-2. Implementing the backend with FastAPI and QuantLib
-3. Connecting real market data through Polygon.io
+See the [backend README](src/backend/README.md) for more details.
 
-## Project Planning
+### Frontend
 
-- See [project_plan_updated.md](project_plan_updated.md) for current status and next steps
-- See [package_upgrade_plan.md](package_upgrade_plan.md) for details on upcoming package upgrades
+The frontend is built with Next.js and uses Tailwind CSS for styling. It provides a user-friendly interface for managing positions, visualizing option strategies, and exploring market data.
 
-## Disclaimer
+## License
 
-This tool is for educational purposes only. Options trading involves significant risk and is not suitable for all investors. The information provided by this application should not be considered financial advice.
+MIT

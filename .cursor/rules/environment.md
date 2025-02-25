@@ -1,0 +1,1 @@
+our venv is ~/venvs/opt3132 so may need to be activated before running some things such as tests - for example `source ~/venvs/opt3132/bin/activate && cd src/backend && python -m pytest`
