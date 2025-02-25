@@ -1,2 +1,8 @@
-_.*
-**/_.*
+._*
+**/._*
+node_modules
+.next
+__pycache__
+*.pyc
+.env
+.venv
