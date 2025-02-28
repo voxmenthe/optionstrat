@@ -108,6 +108,9 @@ class MarketDataService:
             return data
         except requests.exceptions.RequestException as e:
             raise HTTPException(status_code=500, detail=f"Polygon.io API error: {str(e)}")
+        except Exception as e:
+            # Handle any other exceptions that might occur
+            raise HTTPException(status_code=500, detail=f"Polygon.io API error: {str(e)}")
     
     def get_ticker_details(self, ticker: str) -> Dict:
         """

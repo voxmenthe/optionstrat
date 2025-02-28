@@ -274,7 +274,7 @@ class TestDatabaseOperations:
                 # Missing required fields
             )
             test_db.add(invalid_leg)
-            test_db.commit()  # This should fail
+            test_db.flush()  # This should fail due to missing required fields
             
             # If we get here, the test failed
             assert False, "Transaction should have failed"
@@ -282,10 +282,24 @@ class TestDatabaseOperations:
         except Exception:
             # Transaction should be rolled back
             test_db.rollback()
+            
+            # Explicitly clear the session to ensure no lingering objects
+            test_db.close()
+            
+            # Create a new session to verify no position was created
+            from sqlalchemy.orm import sessionmaker
+            TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_db.get_bind())
+            new_db = TestingSessionLocal()
+            
+            try:
+                # Verify no position was created
+                positions = new_db.query(Position).all()
+                assert len(positions) == 0
+            finally:
+                new_db.close()
         
-        # Verify no position was created
-        positions = test_db.query(Position).all()
-        assert len(positions) == 0
+        # Skip the verification here since we've already done it in a new session
+        return
 
     def test_query_positions_by_ticker(self, test_db):
         """Test querying positions by underlying ticker."""

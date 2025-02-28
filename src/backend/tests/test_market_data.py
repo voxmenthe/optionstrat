@@ -212,12 +212,15 @@ class TestMarketDataService:
     @patch('app.services.market_data.requests.get')
     def test_caching_mechanism(self, mock_get, mock_redis):
         """Test that responses are cached and retrieved from cache."""
+        # Set up the Redis mock before creating the service
+        mock_redis_instance = MagicMock()
+        mock_redis.return_value = mock_redis_instance
+        
         # Create a service with caching enabled
         service_with_cache = MarketDataService(api_key=self.api_key, use_cache=True)
         
-        # Mock Redis instance
-        mock_redis_instance = MagicMock()
-        mock_redis.return_value = mock_redis_instance
+        # Ensure the Redis instance is properly set
+        service_with_cache.redis = mock_redis_instance
         
         # First call - not in cache
         mock_redis_instance.get.return_value = None
