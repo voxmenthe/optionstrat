@@ -13,12 +13,22 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-option_pricer = OptionPricer()
-market_data_service = MarketDataService()
+# Create dependency functions instead of direct instantiation
+def get_option_pricer():
+    """Dependency to get the option pricer service."""
+    return OptionPricer()
+
+def get_market_data_service():
+    """Dependency to get the market data service."""
+    return MarketDataService()
 
 
 @router.post("/calculate", response_model=Dict[str, float])
-def calculate_greeks(request: GreeksCalculationRequest):
+def calculate_greeks(
+    request: GreeksCalculationRequest,
+    option_pricer: OptionPricer = Depends(get_option_pricer),
+    market_data_service: MarketDataService = Depends(get_market_data_service)
+):
     """
     Calculate Greeks for an option contract.
     
@@ -56,7 +66,9 @@ def calculate_implied_volatility(
     expiration: str,
     option_type: str,
     option_price: float,
-    american: bool = False
+    american: bool = False,
+    option_pricer: OptionPricer = Depends(get_option_pricer),
+    market_data_service: MarketDataService = Depends(get_market_data_service)
 ):
     """
     Calculate implied volatility from option price.
@@ -81,7 +93,12 @@ def calculate_implied_volatility(
 
 
 @router.get("/position/{position_id}", response_model=GreeksBase)
-def get_position_greeks(position_id: str, db: Session = Depends(get_db)):
+def get_position_greeks(
+    position_id: str, 
+    db: Session = Depends(get_db),
+    option_pricer: OptionPricer = Depends(get_option_pricer),
+    market_data_service: MarketDataService = Depends(get_market_data_service)
+):
     """
     Calculate Greeks for an existing position.
     """
@@ -121,7 +138,9 @@ def get_position_greeks(position_id: str, db: Session = Depends(get_db)):
 @router.get("/portfolio", response_model=GreeksBase)
 def get_portfolio_greeks(
     position_ids: List[str] = Query(...),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    option_pricer: OptionPricer = Depends(get_option_pricer),
+    market_data_service: MarketDataService = Depends(get_market_data_service)
 ):
     """
     Calculate aggregate Greeks for a portfolio of positions.

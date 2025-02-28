@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 
@@ -10,11 +10,13 @@ router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
-market_data_service = MarketDataService()
+def get_market_data_service():
+    """Dependency to get the market data service."""
+    return MarketDataService()
 
 
 @router.get("/ticker/{ticker}")
-def get_ticker_details(ticker: str):
+def get_ticker_details(ticker: str, market_data_service: MarketDataService = Depends(get_market_data_service)):
     """
     Get details for a ticker symbol.
     """
@@ -25,7 +27,7 @@ def get_ticker_details(ticker: str):
 
 
 @router.get("/price/{ticker}")
-def get_stock_price(ticker: str):
+def get_stock_price(ticker: str, market_data_service: MarketDataService = Depends(get_market_data_service)):
     """
     Get the latest price for a stock.
     """
@@ -39,7 +41,8 @@ def get_stock_price(ticker: str):
 @router.get("/option-chain/{ticker}")
 def get_option_chain(
     ticker: str,
-    expiration_date: Optional[str] = None
+    expiration_date: Optional[str] = None,
+    market_data_service: MarketDataService = Depends(get_market_data_service)
 ):
     """
     Get the option chain for a ticker.
@@ -63,7 +66,7 @@ def get_option_chain(
 
 
 @router.get("/option-price/{option_symbol}")
-def get_option_price(option_symbol: str):
+def get_option_price(option_symbol: str, market_data_service: MarketDataService = Depends(get_market_data_service)):
     """
     Get the latest price for an option.
     
@@ -82,7 +85,8 @@ def get_historical_prices(
     ticker: str,
     from_date: str,
     to_date: Optional[str] = None,
-    timespan: str = "day"
+    timespan: str = "day",
+    market_data_service: MarketDataService = Depends(get_market_data_service)
 ):
     """
     Get historical price data for a ticker.
@@ -122,7 +126,7 @@ def get_historical_prices(
 
 
 @router.get("/implied-volatility/{ticker}")
-def get_implied_volatility(ticker: str):
+def get_implied_volatility(ticker: str, market_data_service: MarketDataService = Depends(get_market_data_service)):
     """
     Get the implied volatility for a ticker.
     """
@@ -134,7 +138,7 @@ def get_implied_volatility(ticker: str):
 
 
 @router.get("/expirations/{ticker}")
-def get_option_expirations(ticker: str):
+def get_option_expirations(ticker: str, market_data_service: MarketDataService = Depends(get_market_data_service)):
     """
     Get available expiration dates for options on a ticker.
     """
@@ -157,7 +161,8 @@ def get_option_expirations(ticker: str):
 def get_option_strikes(
     ticker: str,
     expiration_date: str,
-    option_type: Optional[str] = None
+    option_type: Optional[str] = None,
+    market_data_service: MarketDataService = Depends(get_market_data_service)
 ):
     """
     Get available strike prices for options on a ticker.

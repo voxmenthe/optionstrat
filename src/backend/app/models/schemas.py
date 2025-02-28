@@ -52,6 +52,61 @@ class Position(PositionBase):
         orm_mode = True
 
 
+class OptionLegCreate(BaseModel):
+    """Model for creating a new option leg."""
+    option_type: Literal["call", "put"]
+    strike: float = Field(..., gt=0)
+    expiration_date: str
+    quantity: int = Field(..., gt=0)
+    underlying_ticker: str
+    underlying_price: float
+    option_price: float
+    volatility: float
+
+
+class OptionLegUpdate(BaseModel):
+    """Model for updating an option leg."""
+    option_type: Optional[Literal["call", "put"]] = None
+    strike: Optional[float] = Field(None, gt=0)
+    expiration_date: Optional[str] = None
+    quantity: Optional[int] = Field(None, gt=0)
+    underlying_ticker: Optional[str] = None
+    underlying_price: Optional[float] = None
+    option_price: Optional[float] = None
+    volatility: Optional[float] = None
+
+
+class OptionLeg(OptionLegCreate):
+    """Model for an option leg with additional fields."""
+    id: str
+    position_id: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        orm_mode = True
+
+
+class PositionWithLegsCreate(BaseModel):
+    """Model for creating a new position with multiple legs."""
+    name: str
+    description: Optional[str] = None
+    legs: List[OptionLegCreate]
+
+
+class PositionWithLegs(BaseModel):
+    """Model for a position with its option legs."""
+    id: str
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+    legs: List[OptionLeg]
+
+    class Config:
+        orm_mode = True
+
+
 class GreeksCalculationRequest(BaseModel):
     """Model for requesting Greeks calculation."""
     ticker: str
