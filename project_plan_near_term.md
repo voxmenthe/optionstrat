@@ -136,22 +136,22 @@ As of Feb 24, 2025, we have completed the frontend implementation of the Options
     - [x] Test implied volatility calculations with different models
     - [x] Benchmark performance with large datasets
 
-- [ ] Implement integration tests
+- [x] Implement integration tests
   - [x] Develop dedicated integration test suite
     - [x] Create separate integration test directory structure
     - [x] Set up integration test environment with test database
     - [x] Configure test fixtures for end-to-end testing
-  - [ ] Test end-to-end flows from API request to response
+  - [x] Test end-to-end flows from API request to response
     - [x] Test complete position creation to visualization pipeline
     - [x] Test market data retrieval to option chain display
     - [x] Test database persistence and retrieval operations
-    - [ ] Test complete strategy creation to scenario analysis flow
-  - [ ] Test error handling and edge cases
+    - [x] Test complete strategy creation to scenario analysis flow
+  - [x] Test error handling and edge cases
     - [x] Basic API error handling tests implemented
-    - [ ] Test system behavior during API outages
-    - [ ] Test database connection failures and recovery
-    - [ ] Verify graceful degradation for partial system failures
-  - [ ] Test performance with realistic datasets
+    - [x] Test system behavior during API outages
+    - [x] Test database connection failures and recovery
+    - [x] Verify graceful degradation for partial system failures
+  - [ ] Test performance with realistic datasets (To be implemented later)
     - [ ] Benchmark API response times with large option chains
     - [ ] Test system under load with concurrent requests
     - [ ] Identify and address performance bottlenecks
@@ -161,38 +161,72 @@ As of Feb 24, 2025, we have completed the frontend implementation of the Options
   - [ ] Create Postman collection for API testing
   - [ ] Add detailed descriptions for request/response schemas
 
+### Completed Integration Tests
+
+The following critical integration tests have been successfully implemented:
+
+1. **Options Strategy Pipeline Test** (test_strategy_pipeline.py)
+   - Creates multi-leg options strategies
+   - Calculates Greeks and pricing metrics
+   - Generates scenario analysis data
+   - Verifies visualization data output matches expected values
+   - Tests both European and American option types
+
+2. **Market Data Integration Test** (test_market_data_pipeline.py)
+   - Fetches ticker data with caching
+   - Retrieves option chains for multiple expirations
+   - Processes and transforms market data to internal models
+   - Verifies implied volatility surface calculation
+   - Tests fallback mechanisms for API failures
+
+3. **Database Persistence Test** (test_database_persistence.py)
+   - Creates complex positions with multiple option legs
+   - Saves to database with relationships intact
+   - Retrieves positions with different query parameters
+   - Modifies position attributes and verifies updates
+   - Deletes positions and verifies cascade behavior
+
+4. **Mock Provider Test** (test_mock_providers.py)
+   - Tests the mock data providers used for development
+   - Ensures consistent behavior between mock and real implementations
+   - Verifies data format consistency
+
+### Integration Tests Planned for Later
+
+The following tests will be implemented in a future phase:
+
+1. **Performance Testing**
+   - Benchmarking with large datasets
+   - Load testing with concurrent requests
+   - Identifying and addressing performance bottlenecks
+
+2. **Front-to-Back Integration Tests**
+   - Mock frontend API calls to backend endpoints
+   - Test complete data flow from user input to visualization
+   - Verify error handling and user feedback
+
+3. **Authentication and Rate Limiting Tests**
+   - Test authentication flow with token generation
+   - Verify permissions for different user roles
+   - Test rate limiting behavior under high request volume
+
 ### Priority Integration Tests to Implement
 
-The following integration tests should be implemented to verify critical end-to-end functionality:
+The following integration tests should be implemented after frontend-backend integration:
 
-1. **Options Strategy Full Pipeline Test**
-   - Create a multi-leg options strategy 
-   - Calculate all Greeks and pricing metrics
-   - Generate scenario analysis data
-   - Verify visualization data output matches expected values
-   - Test both European and American option types
-
-2. **Market Data Integration Test**
-   - Fetch real ticker data with caching enabled
-   - Retrieve complete option chain for multiple expirations
-   - Process and transform market data to internal models
-   - Verify implied volatility surface calculation from market data
-   - Test fallback mechanisms for API limits and failures
-
-3. **Database Persistence and Retrieval Test**
-   - Create complex position with multiple option legs
-   - Save to database with all relationships intact
-   - Retrieve position with different query parameters
-   - Modify position attributes and verify updates
-   - Delete position and verify cascade behavior
-
-4. **API Authentication and Rate Limiting Test**
+1. **API Authentication and Rate Limiting Test**
    - Test authentication flow with token generation
    - Verify permissions for different user roles
    - Test rate limiting behavior under high request volume
    - Verify token expiration and refresh mechanisms
 
-5. **Front-to-Back Integration Test**
+2. **Performance Testing with Large Datasets**
+   - Benchmark API response times with large option chains (100+ options)
+   - Test system under load with concurrent requests (10+ simultaneous users)
+   - Identify and address performance bottlenecks
+   - Optimize database queries and API response time
+
+3. **Front-to-Back Integration Test**
    - Mock frontend API calls to backend endpoints
    - Test complete data flow from user input to visualization
    - Verify error handling and user feedback
@@ -217,6 +251,333 @@ The following integration tests should be implemented to verify critical end-to-
   - [ ] Add error messages for failed requests
   - [ ] Create fallback UI for offline mode
 
+# Frontend-Backend Integration Detailed Plan
+
+## Phase 1: API Client Implementation
+
+### 1.1 Create API Client Service (Week 1)
+
+- [ ] Create a dedicated API client service in the frontend
+  - [ ] Create `src/frontend/lib/api/apiClient.ts` for the base API client
+  - [ ] Implement error handling, response parsing, and request formatting
+  - [ ] Implement caching strategy for API responses
+
+```typescript
+// Example implementation for apiClient.ts
+export class ApiClient {
+  private baseUrl: string;
+  
+  constructor(baseUrl = 'http://localhost:8000') {
+    this.baseUrl = baseUrl;
+  }
+  
+  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
+    const url = new URL(`${this.baseUrl}${endpoint}`);
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        url.searchParams.append(key, String(value));
+      });
+    }
+    
+    const response = await fetch(url.toString());
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+    
+    return response.json() as Promise<T>;
+  }
+  
+  async post<T>(endpoint: string, data: any): Promise<T> {
+    const response = await fetch(`${this.baseUrl}${endpoint}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status} ${response.statusText}`);
+    }
+    
+    return response.json() as Promise<T>;
+  }
+  
+  // Implement other methods (PUT, DELETE) similarly
+}
+
+export default new ApiClient();
+```
+
+### 1.2 Implement Domain-Specific API Services (Week 1)
+
+- [ ] Create service modules for each API domain:
+  - [ ] `src/frontend/lib/api/positionsApi.ts` - Position management
+  - [ ] `src/frontend/lib/api/greeksApi.ts` - Greeks calculations
+  - [ ] `src/frontend/lib/api/marketDataApi.ts` - Market data
+  - [ ] `src/frontend/lib/api/scenariosApi.ts` - Scenario analysis
+
+```typescript
+// Example implementation for positionsApi.ts
+import apiClient from './apiClient';
+import { OptionPosition, PositionWithLegs } from '../stores/positionStore';
+
+export const positionsApi = {
+  getPositions: (params?: { skip?: number; limit?: number; activeOnly?: boolean }) => {
+    return apiClient.get<OptionPosition[]>('/positions', params);
+  },
+  
+  getPosition: (id: string) => {
+    return apiClient.get<OptionPosition>(`/positions/${id}`);
+  },
+  
+  createPosition: (position: Omit<OptionPosition, 'id'>) => {
+    return apiClient.post<OptionPosition>('/positions', position);
+  },
+  
+  updatePosition: (id: string, position: Partial<OptionPosition>) => {
+    return apiClient.put<OptionPosition>(`/positions/${id}`, position);
+  },
+  
+  deletePosition: (id: string) => {
+    return apiClient.delete<OptionPosition>(`/positions/${id}`);
+  },
+  
+  // Add methods for position with legs
+};
+```
+
+## Phase 2: Store Integration with API Services (Week 1-2)
+
+### 2.1 Update Position Store
+
+- [ ] Modify `src/frontend/lib/stores/positionStore.ts` to use the API:
+  - [ ] Replace mock `fetchPositions` with real API call
+  - [ ] Replace mock `addPosition` with real API call
+  - [ ] Replace mock `updatePosition` with real API call
+  - [ ] Replace mock `removePosition` with real API call
+  - [ ] Replace mock `calculateGreeks` with real API call
+
+```typescript
+// Example update for positionStore.ts
+import { create } from 'zustand';
+import { positionsApi } from '../api/positionsApi';
+import { greeksApi } from '../api/greeksApi';
+
+// ... (existing types)
+
+export const usePositionStore = create<PositionStore>((set, get) => ({
+  positions: [],
+  loading: false,
+  error: null,
+  
+  fetchPositions: async () => {
+    set({ loading: true, error: null });
+    try {
+      const positions = await positionsApi.getPositions();
+      set({ positions, loading: false });
+    } catch (error) {
+      set({ error: `Failed to fetch positions: ${error instanceof Error ? error.message : String(error)}`, loading: false });
+    }
+  },
+  
+  addPosition: async (position) => {
+    set({ loading: true, error: null });
+    try {
+      const newPosition = await positionsApi.createPosition(position);
+      set(state => ({
+        positions: [...state.positions, newPosition],
+        loading: false
+      }));
+    } catch (error) {
+      set({ error: `Failed to add position: ${error instanceof Error ? error.message : String(error)}`, loading: false });
+    }
+  },
+  
+  // ... (similarly update other methods)
+  
+  calculateGreeks: async (position) => {
+    try {
+      const greeks = await greeksApi.calculateGreeks(position);
+      
+      set(state => ({
+        positions: state.positions.map(pos => 
+          pos.id === position.id ? { ...pos, greeks } : pos
+        )
+      }));
+      
+      return greeks;
+    } catch (error) {
+      set({ error: `Failed to calculate Greeks: ${error instanceof Error ? error.message : String(error)}` });
+      throw error;
+    }
+  }
+}));
+```
+
+### 2.2 Create Market Data Store
+
+- [ ] Implement `src/frontend/lib/stores/marketDataStore.ts`:
+  - [ ] Add state for ticker search results
+  - [ ] Add state for current stock price
+  - [ ] Add state for option chains
+  - [ ] Add state for option expirations
+  - [ ] Connect store methods to API services
+
+```typescript
+// Example implementation for marketDataStore.ts
+import { create } from 'zustand';
+import { marketDataApi } from '../api/marketDataApi';
+
+export interface MarketDataStore {
+  tickerData: any | null;
+  stockPrice: number | null;
+  optionChain: any[];
+  expirations: string[];
+  loading: boolean;
+  error: string | null;
+  
+  searchTicker: (ticker: string) => Promise<void>;
+  getStockPrice: (ticker: string) => Promise<number>;
+  getOptionChain: (ticker: string, expiration: string) => Promise<void>;
+  getExpirations: (ticker: string) => Promise<void>;
+}
+
+export const useMarketDataStore = create<MarketDataStore>((set, get) => ({
+  tickerData: null,
+  stockPrice: null,
+  optionChain: [],
+  expirations: [],
+  loading: false,
+  error: null,
+  
+  // Implement methods that call the API
+  // ...
+}));
+```
+
+### 2.3 Create Scenarios Store
+
+- [ ] Implement `src/frontend/lib/stores/scenariosStore.ts`:
+  - [ ] Add state for strategy analysis results
+  - [ ] Add methods for different scenario calculations
+  - [ ] Connect store methods to API services
+
+## Phase 3: Component Integration (Week 2)
+
+### 3.1 Update Position Management Components
+
+- [ ] Update `src/frontend/app/positions/page.tsx` to use real API:
+  - [ ] Ensure proper loading state handling
+  - [ ] Add error handling and user feedback
+  - [ ] Implement form validation
+  - [ ] Add support for multi-leg strategies
+
+### 3.2 Update Market Data Components
+
+- [ ] Update `src/frontend/app/market-data/page.tsx` to use real API:
+  - [ ] Implement real ticker search functionality
+  - [ ] Display real-time stock price data
+  - [ ] Show actual option chains from backend
+  - [ ] Add expiration date selector
+
+### 3.3 Update Visualization Components
+
+- [ ] Update visualization pages to use real scenario analysis:
+  - [ ] Implement `src/frontend/app/visualizations/page.tsx` with real data
+  - [ ] Update position detail visualization to use real calculations
+  - [ ] Implement Plotly.js 3D charts with actual API data
+
+## Phase 4: Error Handling and UX Improvement (Week 2-3)
+
+### 4.1 Implement Error Boundaries
+
+- [ ] Create error boundary components:
+  - [ ] Implement global error handling
+  - [ ] Add specific error boundaries for critical components
+  - [ ] Create fallback UI for error states
+
+### 4.2 Add Loading States
+
+- [ ] Add loading indicators:
+  - [ ] Implement skeleton loaders for data-dependent components
+  - [ ] Add progress indicators for long-running calculations
+  - [ ] Implement optimistic UI updates where appropriate
+
+### 4.3 Improve Error Feedback
+
+- [ ] Enhance error messaging:
+  - [ ] Create user-friendly error messages
+  - [ ] Add retry mechanisms for failed requests
+  - [ ] Implement toast notifications for async operations
+
+## Phase 5: Offline Support and Caching (Week 3)
+
+### 5.1 Implement Client-Side Caching
+
+- [ ] Add caching for API responses:
+  - [ ] Cache market data responses
+  - [ ] Cache position data
+  - [ ] Implement cache invalidation strategy
+
+### 5.2 Add Offline Mode Support
+
+- [ ] Create fallback for offline operation:
+  - [ ] Detect network status
+  - [ ] Queue operations for when network is available
+  - [ ] Provide user feedback about offline status
+
+## Phase 6: Performance Optimization (Week 3-4)
+
+### 6.1 Optimize API Requests
+
+- [ ] Implement request batching:
+  - [ ] Batch related API calls
+  - [ ] Add debouncing for search inputs
+  - [ ] Implement pagination for large datasets
+
+### 6.2 Optimize Rendering
+
+- [ ] Improve component rendering performance:
+  - [ ] Memoize expensive calculations
+  - [ ] Virtualize long lists
+  - [ ] Lazy load components and data
+
+## Phase 7: Testing and Validation (Throughout)
+
+### 7.1 Implement Integration Tests
+
+- [ ] Create integration tests for API-connected components:
+  - [ ] Test position management flow
+  - [ ] Test market data retrieval
+  - [ ] Test scenario analysis visualization
+
+### 7.2 Manual Testing
+
+- [ ] Create test scenarios:
+  - [ ] Test position creation and management
+  - [ ] Test market data retrieval and display
+  - [ ] Test scenario analysis and visualization
+  - [ ] Test error handling and recovery
+
+## Phase 8: Documentation and Deployment Preparation (Week 4)
+
+### 8.1 Create API Documentation
+
+- [ ] Document API usage in frontend:
+  - [ ] Create usage examples
+  - [ ] Document error handling patterns
+  - [ ] Provide troubleshooting guide
+
+### 8.2 Update Developer Documentation
+
+- [ ] Update docs with integration details:
+  - [ ] Document API client architecture
+  - [ ] Explain store integration approach
+  - [ ] Provide examples for extending the integration
+
+
+
 ### 3. Development Environment Refinement
 
 - [ ] Finalize Docker Compose setup
@@ -236,25 +597,31 @@ The following integration tests should be implemented to verify critical end-to-
 
 ## Timeline and Priorities
 
-1. **Week 1 (Current)**: Backend testing and validation
-   - Create test scripts for key components
-   - Ensure all backend services work correctly
-   - Document API endpoints
+1. ~~**Week 1 (Completed)**: Backend testing and validation~~
+   - ~~Create test scripts for key components~~
+   - ~~Ensure all backend services work correctly~~
+   - ~~Implement critical integration tests~~
 
-2. **Week 2**: Frontend-backend integration
+2. **Current Priority**: Frontend-backend integration
    - Connect frontend to real backend API
    - Implement real visualizations
    - Replace mock data with actual calculations
 
-3. **Week 3**: User experience refinement
+3. **Next Week**: User experience refinement
    - Add error handling and loading states
    - Improve UI/UX based on real data
    - Optimize performance
 
-4. **Week 4**: Deployment preparation
+4. **Following Week**: Deployment preparation
    - Finalize Docker configuration
    - Set up CI/CD pipeline
    - Prepare for initial deployment
+
+5. **Later Phase**: Additional testing and documentation
+   - Implement performance tests with realistic datasets
+   - Create comprehensive API documentation
+   - Add authentication and rate limiting tests
+   - Develop front-to-back integration tests
 
 ## Technical Debt & Improvements
 
