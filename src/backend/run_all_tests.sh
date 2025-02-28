@@ -1,11 +1,12 @@
 #!/bin/bash
 
 # Comprehensive test runner for OptionsStrat backend
-# Usage: ./run_all_tests.sh [test_path] [--no-mock] [--html] [--verbose]
+# Usage: ./run_all_tests.sh [test_path] [--no-mock] [--html] [--verbose] [--with-integration]
 #   test_path: Optional path to specific test file or module
 #   --no-mock: Don't use mock API key
 #   --html: Generate HTML coverage report
 #   --verbose: Show verbose output with full tracebacks
+#   --with-integration: Also run integration tests (requires more dependencies)
 
 # Set the working directory to the script's directory
 cd "$(dirname "$0")"
@@ -22,6 +23,7 @@ USE_MOCK=true
 GENERATE_HTML=false
 VERBOSE=false
 TEST_PATH="tests/"
+RUN_INTEGRATION=false
 
 # Parse arguments
 for arg in "$@"; do
@@ -31,6 +33,8 @@ for arg in "$@"; do
         GENERATE_HTML=true
     elif [[ "$arg" == "--verbose" || "$arg" == "-v" ]]; then
         VERBOSE=true
+    elif [[ "$arg" == "--with-integration" ]]; then
+        RUN_INTEGRATION=true
     elif [[ "$arg" != --* && "$arg" != -* ]]; then
         TEST_PATH="$arg"
     fi
@@ -55,6 +59,12 @@ if ! python -c "import coverage" &> /dev/null; then
     exit 1
 fi
 
+# Check if redis is installed if running integration tests
+if [ "$RUN_INTEGRATION" = true ] && ! python -c "import redis" &> /dev/null; then
+    echo -e "${YELLOW}Warning: redis package is not installed. Some integration tests may be skipped.${NC}"
+    echo "Consider installing with: pip install redis"
+fi
+
 # Set up mock API key if needed
 if [ "$USE_MOCK" = true ]; then
     export POLYGON_API_KEY="test_api_key_for_mocking"
@@ -65,7 +75,12 @@ fi
 
 # Show what we're testing
 if [ "$TEST_PATH" = "tests/" ]; then
-    echo -e "${YELLOW}Running all tests...${NC}"
+    if [ "$RUN_INTEGRATION" = true ]; then
+        echo -e "${YELLOW}Running all tests including integration tests...${NC}"
+        TEST_PATH="tests/ tests/integration_tests/"
+    else
+        echo -e "${YELLOW}Running all unit tests (use --with-integration to include integration tests)...${NC}"
+    fi
 else
     echo -e "${YELLOW}Running specified test: ${TEST_PATH}${NC}"
 fi

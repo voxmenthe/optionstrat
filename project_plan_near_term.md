@@ -137,14 +137,66 @@ As of Feb 24, 2025, we have completed the frontend implementation of the Options
     - [x] Benchmark performance with large datasets
 
 - [ ] Implement integration tests
+  - [x] Develop dedicated integration test suite
+    - [x] Create separate integration test directory structure
+    - [x] Set up integration test environment with test database
+    - [x] Configure test fixtures for end-to-end testing
   - [ ] Test end-to-end flows from API request to response
+    - [x] Test complete position creation to visualization pipeline
+    - [x] Test market data retrieval to option chain display
+    - [x] Test database persistence and retrieval operations
+    - [ ] Test complete strategy creation to scenario analysis flow
   - [ ] Test error handling and edge cases
-  - [ ] Test performance with large datasets
+    - [x] Basic API error handling tests implemented
+    - [ ] Test system behavior during API outages
+    - [ ] Test database connection failures and recovery
+    - [ ] Verify graceful degradation for partial system failures
+  - [ ] Test performance with realistic datasets
+    - [ ] Benchmark API response times with large option chains
+    - [ ] Test system under load with concurrent requests
+    - [ ] Identify and address performance bottlenecks
 
 - [ ] Create API documentation
   - [ ] Document all endpoints with examples
   - [ ] Create Postman collection for API testing
   - [ ] Add detailed descriptions for request/response schemas
+
+### Priority Integration Tests to Implement
+
+The following integration tests should be implemented to verify critical end-to-end functionality:
+
+1. **Options Strategy Full Pipeline Test**
+   - Create a multi-leg options strategy 
+   - Calculate all Greeks and pricing metrics
+   - Generate scenario analysis data
+   - Verify visualization data output matches expected values
+   - Test both European and American option types
+
+2. **Market Data Integration Test**
+   - Fetch real ticker data with caching enabled
+   - Retrieve complete option chain for multiple expirations
+   - Process and transform market data to internal models
+   - Verify implied volatility surface calculation from market data
+   - Test fallback mechanisms for API limits and failures
+
+3. **Database Persistence and Retrieval Test**
+   - Create complex position with multiple option legs
+   - Save to database with all relationships intact
+   - Retrieve position with different query parameters
+   - Modify position attributes and verify updates
+   - Delete position and verify cascade behavior
+
+4. **API Authentication and Rate Limiting Test**
+   - Test authentication flow with token generation
+   - Verify permissions for different user roles
+   - Test rate limiting behavior under high request volume
+   - Verify token expiration and refresh mechanisms
+
+5. **Front-to-Back Integration Test**
+   - Mock frontend API calls to backend endpoints
+   - Test complete data flow from user input to visualization
+   - Verify error handling and user feedback
+   - Test data consistency across the entire application
 
 ### 2. Frontend-Backend Integration
 
