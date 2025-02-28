@@ -21,8 +21,21 @@ def get_ticker_details(ticker: str, market_data_service: MarketDataService = Dep
     Get details for a ticker symbol.
     """
     try:
-        return market_data_service.get_ticker_details(ticker)
+        # Add debug print
+        print(f"Fetching ticker details for {ticker}")
+        
+        # Get ticker details from service
+        result = market_data_service.get_ticker_details(ticker)
+        
+        # Debug print the result
+        print(f"Ticker details result: {result}")
+        
+        return result
     except Exception as e:
+        # Enhanced error logging
+        import traceback
+        print(f"Error in get_ticker_details: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error fetching ticker details: {str(e)}")
 
 
@@ -52,15 +65,15 @@ def get_option_chain(
         expiration_date: Option expiration date (YYYY-MM-DD)
     """
     try:
-        # Convert expiration date string to datetime if provided
-        exp_date = None
-        if expiration_date:
-            exp_date = datetime.strptime(expiration_date, "%Y-%m-%d")
+        # Get option chain - pass the expiration_date directly as a string
+        options = market_data_service.get_option_chain(ticker, expiration_date)
         
-        # Get option chain
-        options = market_data_service.get_option_chain(ticker, exp_date)
-        
-        return {"ticker": ticker, "options": options}
+        # Format response to match expected structure in tests
+        return {
+            "ticker": ticker,
+            "expiration_date": expiration_date,
+            "options": options
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching option chain: {str(e)}")
 
@@ -143,16 +156,9 @@ def get_option_expirations(ticker: str, market_data_service: MarketDataService =
     Get available expiration dates for options on a ticker.
     """
     try:
-        # Get option chain without specifying expiration
-        options = market_data_service.get_option_chain(ticker)
-        
-        # Extract unique expiration dates
-        expirations = set()
-        for option in options:
-            if "expiration_date" in option:
-                expirations.add(option["expiration_date"])
-        
-        return {"ticker": ticker, "expirations": sorted(list(expirations))}
+        # Use the get_option_expirations method directly
+        expirations_data = market_data_service.get_option_expirations(ticker)
+        return {"ticker": ticker, "expirations": expirations_data["expirations"]}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching option expirations: {str(e)}")
 

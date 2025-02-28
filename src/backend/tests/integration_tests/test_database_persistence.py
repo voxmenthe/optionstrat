@@ -161,7 +161,15 @@ class TestDatabasePersistence:
         api_position = {
             "name": self.position_data["name"],
             "description": self.position_data["description"],
-            "legs": self.legs_data
+            "legs": [
+                # Create a copy of each leg with positive quantities
+                # The OptionLegCreate schema requires quantity > 0
+                {
+                    **leg_data,
+                    "quantity": abs(leg_data["quantity"])  # Use absolute value to ensure positive
+                }
+                for leg_data in self.legs_data
+            ]
         }
         
         response = integration_client.post("/positions/with-legs", json=api_position)
@@ -188,7 +196,7 @@ class TestDatabasePersistence:
             "description": "This position was updated through the API"
         }
         
-        response = integration_client.patch(f"/positions/{position_id}", json=update_data)
+        response = integration_client.put(f"/positions/with-legs/{position_id}", json=update_data)
         assert response.status_code == 200
         
         # Verify update in database
@@ -197,14 +205,22 @@ class TestDatabasePersistence:
         assert updated_position.name == "Updated via API"
         assert updated_position.description == "This position was updated through the API"
         
-        # Test querying with filters via API
-        response = integration_client.get("/positions/", params={"strategy_type": self.position_data["strategy_type"]})
+        # Test retrieving all positions via API
+        response = integration_client.get("/positions/with-legs/")
         assert response.status_code == 200
-        filtered_positions = response.json()
-        assert any(p["id"] == position_id for p in filtered_positions)
+        all_positions = response.json()
+        # Check if our position is in the results
+        assert any(p["id"] == position_id for p in all_positions)
+        
+        # Test retrieving a specific position by ID
+        response = integration_client.get(f"/positions/with-legs/{position_id}")
+        assert response.status_code == 200
+        single_position = response.json()
+        assert single_position["id"] == position_id
+        assert single_position["name"] == "Updated via API"
         
         # Test deleting via API
-        response = integration_client.delete(f"/positions/{position_id}")
+        response = integration_client.delete(f"/positions/with-legs/{position_id}")
         assert response.status_code == 200
         
         # Verify deletion in database

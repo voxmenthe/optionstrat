@@ -20,7 +20,7 @@ class TestMarketDataService:
         # Sample test data
         self.sample_ticker = "AAPL"
         self.sample_option_symbol = "O:AAPL230616C00150000"
-        self.sample_expiration_date = datetime.now() + timedelta(days=30)
+        self.sample_expiration_date = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
 
     @patch('app.services.market_data.requests.get')
     def test_get_ticker_details(self, mock_get):
@@ -154,7 +154,7 @@ class TestMarketDataService:
         call_kwargs = mock_get.call_args[1]['params']
         assert call_kwargs["underlying_ticker"] == self.sample_ticker
         assert call_kwargs["limit"] == 1000
-        assert call_kwargs["expiration_date"] == self.sample_expiration_date.strftime("%Y-%m-%d")
+        assert call_kwargs["expiration_date"] == self.sample_expiration_date
         
         # Verify the result
         assert len(result) == 2

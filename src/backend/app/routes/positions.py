@@ -208,6 +208,36 @@ def update_position(
     return db_position
 
 
+@router.put("/with-legs/{position_id}", response_model=PositionWithLegs)
+def update_position_with_legs(
+    position_id: str, 
+    position_update: dict, 
+    db: Session = Depends(get_db)
+):
+    """
+    Update a position with legs.
+    """
+    # Find the position with the given ID
+    db_position = db.query(Position).filter(Position.id == position_id).first()
+    
+    if db_position is None:
+        raise HTTPException(status_code=404, detail="Position not found")
+    
+    # Update the basic position fields
+    if "name" in position_update:
+        db_position.name = position_update["name"]
+    if "description" in position_update:
+        db_position.description = position_update["description"]
+    
+    # Update the updated_at timestamp
+    db_position.updated_at = datetime.utcnow()
+    
+    db.commit()
+    db.refresh(db_position)
+    
+    return db_position
+
+
 @router.delete("/{position_id}", response_model=PositionSchema)
 def delete_position(position_id: str, db: Session = Depends(get_db)):
     """
@@ -225,4 +255,56 @@ def delete_position(position_id: str, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(db_position)
     
-    return db_position 
+    return db_position
+
+
+@router.get("/with-legs/", response_model=List[PositionWithLegs])
+def read_positions_with_legs(
+    skip: int = 0, 
+    limit: int = 100,
+    strategy_type: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all positions with legs with optional filtering.
+    """
+    query = db.query(Position)
+    
+    # Apply filters if provided
+    if strategy_type:
+        # Case-insensitive search on name - convert both sides to lower case for comparison
+        # SQLite specific function for case-insensitive comparison
+        query = query.filter(Position.name.ilike(f'%{strategy_type}%'))
+    
+    positions = query.offset(skip).limit(limit).all()
+    return positions
+
+
+@router.get("/with-legs/{position_id}", response_model=PositionWithLegs)
+def read_position_with_legs(position_id: str, db: Session = Depends(get_db)):
+    """
+    Get a specific position with legs by ID.
+    """
+    position = db.query(Position).filter(Position.id == position_id).first()
+    
+    if position is None:
+        raise HTTPException(status_code=404, detail="Position not found")
+    
+    return position
+
+
+@router.delete("/with-legs/{position_id}")
+def delete_position_with_legs(position_id: str, db: Session = Depends(get_db)):
+    """
+    Delete a position with legs.
+    """
+    position = db.query(Position).filter(Position.id == position_id).first()
+    
+    if position is None:
+        raise HTTPException(status_code=404, detail="Position not found")
+    
+    # Hard delete the position and all its legs (cascade delete)
+    db.delete(position)
+    db.commit()
+    
+    return {"detail": "Position deleted"} 
