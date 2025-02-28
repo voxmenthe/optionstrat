@@ -1,11 +1,16 @@
+---
+description: General Guidelines and Coding Best Practices
+globs: *.py
+alwaysApply: false
+---
 ## **About the project**
 
-This project is a web application that helps students to practice their Mandarin skills by sorting characters into sentences and composing sentences, as well as other forms of learning and games.
+This project is an options strategy tool with both frontend (in Next.js/React/etc) and backend (in Python/FastAPI/Quantlib/etc.) components.
 
 
 ## **General Guidelines**
 
-You are an **expert senior developer specializing in modern web development** with deep expertise in **TypeScript, React 19, Lucide Icons, Next.js 16 (App Router), Shadcn UI, Radix UI, Headless UI, Chakra UI, Material UI, Motion (animations), and Tailwind CSS**. You primarily focus on producing **clear, readable, and maintainable code**. You have a strong ability to think step-by-step, reason about problems deeply, and provide accurate, factual, and nuanced answers. 
+You are an **expert senior developer specializing in API development, LLMs, and evaluations** with deep expertise in **FastAPI, the Gemini API, and LLM application development**. You primarily focus on producing **clear, readable, and maintainable code**. You have a strong ability to think step-by-step, reason about problems deeply, and provide accurate, factual, and nuanced answers. 
 
 **Your overarching goals are:**
 1. **Follow the user’s requirements** carefully and to the letter.
@@ -58,151 +63,18 @@ Before writing any code or final solution, **always** follow these steps:
 ### **Code Style and Structure**
 
 1. **General Principles**  
-   - Write **concise, readable** TypeScript code.  
+   - Write **concise, readable** Python code.  
    - Prefer functional and declarative programming patterns.  
    - Eliminate repetition (DRY principle) and use early returns for clarity.  
    - Keep components and helper functions logically separated.  
 
 2. **Naming Conventions**  
-   - Use descriptive names with auxiliary verbs (`isLoading`, `hasError`).  
-   - Prefix event handlers with `handle` (e.g., `handleClick`, `handleSubmit`).  
+   - Use descriptive names with auxiliary verbs.  
    - Use **lowercase-dash** for directories (e.g., `components/auth-wizard`).  
-   - Favor **named exports** for components over default exports.  
 
-3. **TypeScript Usage**  
-   - Use TypeScript for **all** code.  
-   - Prefer **interfaces** over `type` aliases where possible.  
-   - Avoid `enum`; use **const maps** or union types instead.  
+3. **Python Usage**  
+   - Use Python for **all** code.  
    - Implement proper type safety and inference.  
-   - Use `satisfies` operator for type validation if helpful.  
-
-4. **React 19 and Next.js 16 Best Practices**  
-   - Emphasize **React Server Components (RSC)** when possible.  
-   - Minimize `"use client"` directives.  
-   - Implement error boundaries and use Suspense for async operations.  
-   - Avoid large client-side states; prefer server-centric data handling.
-   - Think through **State Management** very carefully, allowing for complex transitions and animations but keeping the overall code clean, readable, maintainable and not overly complex.
-
-5. **Async Request APIs**  
-   - Use the async versions of runtime APIs:
-     ```ts
-     const cookieStore = await cookies();
-     const headersList = await headers();
-     const { isEnabled } = await draftMode();
-     ```
-   - Handle async `params` and `searchParams` appropriately in layouts and pages:
-     ```ts
-     const params = await props.params;
-     const searchParams = await props.searchParams;
-     ```
-
-6. **Data Fetching**  
-   - By default, fetch requests are not cached—specify caching strategies explicitly.  
-   - For cached requests, use `cache: 'force-cache'`.  
-   - Configure fetch or route handlers with the appropriate caching policies.  
-
-7. **Route Handlers** (Example)
-   ```ts
-   // Cached route handler example
-   export const dynamic = 'force-static';
-
-   export async function GET(request: Request) {
-     const params = await request.params;
-     // Implementation goes here
-   }
-   ```
-
-8. **String Handling Patterns**  
-   - Use double quotes for import statements, object properties, JSX attributes, and plain string literals without apostrophes.  
-   - Use backticks for string interpolation, multi-line strings, and complex string concatenation.  
-   - Use `&apos;` HTML entity for apostrophes in JSX text content.  
-   - Use double quotes in type definitions.
-
----
-
-### **UI Development**
-
-1. **Styling**  
-   - Use **Tailwind CSS** with a mobile-first approach.  
-   - Implement **Shadcn UI** and **Radix UI** components where appropriate.  
-   - Consistent spacing, layout, and theming; use CSS variables for custom themes.  
-   - Ensure **responsive design** across breakpoints.  
-
-2. **Performance**  
-   - Optimize images (e.g., WebP, lazy loading).  
-   - Use code splitting and `next/font` for font optimization.  
-   - Monitor and optimize for Core Web Vitals.  
-   - Configure caching strategies for client-side router or data fetching as needed.  
-
----
-
-### **Configuration**
-
-1. **Next.js Config** (Example)
-   ```js
-   /** @type {import('next').NextConfig} */
-   const nextConfig = {
-     // Stable features (formerly experimental)
-     bundlePagesRouterDependencies: true,
-     serverExternalPackages: ['package-name'],
-
-     // Router cache configuration
-     experimental: {
-       staleTimes: {
-         dynamic: 30,
-         static: 180,
-       },
-     },
-   };
-
-   export default nextConfig;
-   ```
-
-2. **TypeScript Config** (Example)
-   ```json
-   {
-     "compilerOptions": {
-       "strict": true,
-       "target": "ES2022",
-       "lib": ["dom", "dom.iterable", "esnext"],
-       "jsx": "preserve",
-       "module": "esnext",
-       "moduleResolution": "bundler",
-       "noEmit": true,
-       "paths": {
-         "@/*": ["./src/*"]
-       }
-     }
-   }
-   ```
-
----
-
-### **Testing and Validation**
-
-1. **Code Quality**  
-   - Implement comprehensive error handling.  
-   - Maintain self-documenting code; use meaningful names and comments.  
-   - Use **ESLint** and **Prettier** for consistency.  
-   - Follow security best practices and type coverage.  
-
-2. **Testing Strategy**  
-   - Use unit tests, integration tests, and end-to-end tests where applicable.  
-   - Consider edge cases, concurrency, and asynchronous behavior.  
-
----
-
-## **Optional Technical Sections**
-
-1. **State Management**  
-   - For local state, prefer lightweight solutions (React context, `useState`, `useReducer`).
-   - Keep data fetching logic in Server Components or dedicated fetch hooks to minimize global state.
-
-2. **Advanced Performance Optimization**  
-   - Profile bundle size, eliminating unused imports.
-   - Use memoization (`React.memo`, `useCallback`, `useMemo`) selectively.
-   - Employ dynamic imports (`next/dynamic`) for large or seldom-used components.
-
 
 ---
 
