@@ -77,11 +77,22 @@ def calculate_implied_volatility(
         # Get spot price
         spot_price = market_data_service.get_stock_price(ticker)
         
+        # Convert expiration string to datetime
+        try:
+            from datetime import datetime
+            expiration_date = datetime.strptime(expiration, "%Y-%m-%d")
+            print(f"Converted expiration string '{expiration}' to datetime: {expiration_date}")
+        except ValueError as e:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid date format for expiration. Expected YYYY-MM-DD, got: {expiration}. Error: {str(e)}"
+            )
+        
         # Calculate implied volatility
         implied_vol = option_pricer.calculate_implied_volatility(
             option_type=option_type,
             strike=strike,
-            expiration_date=expiration,
+            expiration_date=expiration_date,  # Now passing a datetime object
             spot_price=spot_price,
             option_price=option_price,
             american=american

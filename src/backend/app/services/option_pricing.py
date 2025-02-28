@@ -230,31 +230,66 @@ class OptionPricer:
         Returns:
             Implied volatility
         """
-        # Create option
-        option, maturity_date = self._create_option(option_type, strike, expiration_date, american)
-        
-        # Calculate time to expiry in years
-        time_to_expiry = self.day_count.yearFraction(self.calculation_date, maturity_date)
-        
-        # Create process with initial volatility guess
-        initial_vol = 0.3  # 30% initial guess
-        process = self._create_process(spot_price, risk_free_rate, initial_vol, dividend_yield)
-        
         try:
-            # Set pricing engine based on option type
-            if american:
-                engine = ql.BinomialVanillaEngine(process, "crr", 1000)
-            else:
-                engine = ql.AnalyticEuropeanEngine(process)
+            print(f"Starting implied volatility calculation with parameters:")
+            print(f"  - option_type: {option_type}")
+            print(f"  - strike: {strike}")
+            print(f"  - expiration_date: {expiration_date}")
+            print(f"  - spot_price: {spot_price}")
+            print(f"  - option_price: {option_price}")
+            print(f"  - risk_free_rate: {risk_free_rate}")
+            print(f"  - american: {american}")
             
-            option.setPricingEngine(engine)
+            # Create option
+            try:
+                option, maturity_date = self._create_option(option_type, strike, expiration_date, american)
+                print(f"Option created successfully, maturity_date: {maturity_date}")
+            except Exception as e:
+                print(f"Error creating option: {e}")
+                raise
+            
+            # Calculate time to expiry in years
+            try:
+                time_to_expiry = self.day_count.yearFraction(self.calculation_date, maturity_date)
+                print(f"Time to expiry calculated: {time_to_expiry} years")
+            except Exception as e:
+                print(f"Error calculating time to expiry: {e}")
+                raise
+            
+            # Create process with initial volatility guess
+            initial_vol = 0.3  # 30% initial guess
+            try:
+                process = self._create_process(spot_price, risk_free_rate, initial_vol, dividend_yield)
+                print(f"Black-Scholes process created successfully")
+            except Exception as e:
+                print(f"Error creating process: {e}")
+                raise
+            
+            # Set pricing engine based on option type
+            try:
+                if american:
+                    engine = ql.BinomialVanillaEngine(process, "crr", 1000)
+                    print(f"Created binomial (CRR) engine for American option")
+                else:
+                    engine = ql.AnalyticEuropeanEngine(process)
+                    print(f"Created analytic engine for European option")
+                    
+                option.setPricingEngine(engine)
+            except Exception as e:
+                print(f"Error setting pricing engine: {e}")
+                raise
             
             # Calculate implied volatility
-            implied_vol = option.impliedVolatility(
-                option_price, process, 1e-6, 1000, 0.001, 4.0
-            )
-            return implied_vol
+            try:
+                implied_vol = option.impliedVolatility(
+                    option_price, process, 1e-6, 1000, 0.001, 4.0
+                )
+                print(f"Implied volatility calculated successfully: {implied_vol}")
+                return implied_vol
+            except Exception as e:
+                print(f"Error in impliedVolatility calculation: {e}")
+                raise
         except Exception as e:
-            # If calculation fails, return the error message and a default value
-            print(f"Error calculating implied volatility: {e}")
+            # If calculation fails, log the error and return a default value
+            print(f"Error calculating implied volatility: {str(e)}")
             return 0.0 

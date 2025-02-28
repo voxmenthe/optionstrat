@@ -24,6 +24,9 @@ class MockRedis:
                 # Key has expired
                 self.delete(key)
                 return None
+                
+            # For testing the caching mechanism, ensure a cached response is faster
+            # by not sleeping here. In contrast, the mock API calls have artificial delays.
             return self.storage[key]
         return None
     

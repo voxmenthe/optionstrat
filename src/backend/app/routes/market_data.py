@@ -30,6 +30,7 @@ def get_ticker_details(ticker: str, market_data_service: MarketDataService = Dep
         # Debug print the result
         print(f"Ticker details result: {result}")
         
+        # Return result directly without additional wrapping
         return result
     except Exception as e:
         # Enhanced error logging
@@ -46,6 +47,7 @@ def get_stock_price(ticker: str, market_data_service: MarketDataService = Depend
     """
     try:
         price = market_data_service.get_stock_price(ticker)
+        # Return directly without results wrapper
         return {"ticker": ticker, "price": price}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching stock price: {str(e)}")
@@ -65,8 +67,14 @@ def get_option_chain(
         expiration_date: Option expiration date (YYYY-MM-DD)
     """
     try:
+        # Log the request parameters
+        print(f"Getting option chain for {ticker}, expiration: {expiration_date}")
+        
         # Get option chain - pass the expiration_date directly as a string
         options = market_data_service.get_option_chain(ticker, expiration_date)
+        
+        # Log what we got back from the service
+        print(f"Received options data with {len(options)} options")
         
         # Format response to match expected structure in tests
         return {
@@ -75,6 +83,10 @@ def get_option_chain(
             "options": options
         }
     except Exception as e:
+        # Enhanced error logging
+        import traceback
+        print(f"Error in get_option_chain: {str(e)}")
+        print(traceback.format_exc())
         raise HTTPException(status_code=500, detail=f"Error fetching option chain: {str(e)}")
 
 
@@ -88,6 +100,7 @@ def get_option_price(option_symbol: str, market_data_service: MarketDataService 
     """
     try:
         price_data = market_data_service.get_option_price(option_symbol)
+        # Return directly without results wrapper
         return {"symbol": option_symbol, **price_data}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching option price: {str(e)}")
@@ -127,6 +140,7 @@ def get_historical_prices(
             timespan=timespan
         )
         
+        # Return directly without results wrapper
         return {
             "ticker": ticker,
             "from_date": from_date,
@@ -145,6 +159,7 @@ def get_implied_volatility(ticker: str, market_data_service: MarketDataService =
     """
     try:
         iv = market_data_service.get_implied_volatility(ticker)
+        # Return directly without results wrapper
         return {"ticker": ticker, "implied_volatility": iv}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching implied volatility: {str(e)}")
@@ -158,7 +173,8 @@ def get_option_expirations(ticker: str, market_data_service: MarketDataService =
     try:
         # Use the get_option_expirations method directly
         expirations_data = market_data_service.get_option_expirations(ticker)
-        return {"ticker": ticker, "expirations": expirations_data["expirations"]}
+        # Return in the format that the service already provides
+        return expirations_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error fetching option expirations: {str(e)}")
 
@@ -195,6 +211,7 @@ def get_option_strikes(
             if "strike_price" in option:
                 strikes.add(option["strike_price"])
         
+        # Return directly without results wrapper
         return {
             "ticker": ticker,
             "expiration_date": expiration_date,

@@ -57,7 +57,7 @@ class OptionLegCreate(BaseModel):
     option_type: Literal["call", "put"]
     strike: float = Field(..., gt=0)
     expiration_date: str
-    quantity: int = Field(..., gt=0)
+    quantity: int
     underlying_ticker: str
     underlying_price: float
     option_price: float
@@ -69,7 +69,7 @@ class OptionLegUpdate(BaseModel):
     option_type: Optional[Literal["call", "put"]] = None
     strike: Optional[float] = Field(None, gt=0)
     expiration_date: Optional[str] = None
-    quantity: Optional[int] = Field(None, gt=0)
+    quantity: Optional[int] = None
     underlying_ticker: Optional[str] = None
     underlying_price: Optional[float] = None
     option_price: Optional[float] = None
