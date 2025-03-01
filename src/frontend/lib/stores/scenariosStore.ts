@@ -9,7 +9,8 @@ import {
   PricePoint, 
   VolatilityPoint, 
   TimePoint, 
-  PriceVsVolatilityPoint 
+  PriceVsVolatilityPoint,
+  PnLScenarioPoint
 } from '../api';
 import { OptionPosition } from './positionStore';
 
@@ -29,6 +30,10 @@ export interface ScenarioSettings {
   maxDays: number;
   daysSteps: number;
   
+  // P&L scenario settings
+  daysForward: number;
+  priceChangePercent: number;
+  
   // Common settings
   basePrice?: number;
   baseVolatility?: number;
@@ -43,6 +48,7 @@ export interface ScenariosStore {
   volatilityScenario: VolatilityPoint[];
   timeDecayScenario: TimePoint[];
   priceVsVolatilitySurface: PriceVsVolatilityPoint[];
+  pnlScenario: PnLScenarioPoint | null;
   loading: boolean;
   error: string | null;
   
@@ -52,6 +58,7 @@ export interface ScenariosStore {
   analyzeVolatilityScenario: (positions: OptionPosition[]) => Promise<void>;
   analyzeTimeDecayScenario: (positions: OptionPosition[]) => Promise<void>;
   analyzePriceVsVolatilitySurface: (positions: OptionPosition[]) => Promise<void>;
+  analyzePnLScenario: (positions: OptionPosition[]) => Promise<void>;
   clearScenarios: () => void;
   clearError: () => void;
 }
@@ -70,6 +77,9 @@ const DEFAULT_SETTINGS: ScenarioSettings = {
   maxDays: 30,    // 30 days from now
   daysSteps: 30,
   
+  daysForward: 7,       // Default 7 days forward for P&L
+  priceChangePercent: 0, // Default 0% price change for P&L
+  
   basePrice: undefined,
   baseVolatility: 0.3,  // 30% volatility
   riskFreeRate: 0.05,   // 5% risk-free rate
@@ -83,6 +93,7 @@ export const useScenariosStore = create<ScenariosStore>((set, get) => ({
   volatilityScenario: [],
   timeDecayScenario: [],
   priceVsVolatilitySurface: [],
+  pnlScenario: null,
   loading: false,
   error: null,
   
@@ -207,13 +218,37 @@ export const useScenariosStore = create<ScenariosStore>((set, get) => ({
     }
   },
   
+  // Analyze P&L scenario
+  analyzePnLScenario: async (positions: OptionPosition[]) => {
+    const { settings } = get();
+    
+    set({ loading: true, error: null });
+    try {
+      const pnlScenario = await scenariosApi.analyzePnLScenario(
+        positions,
+        {
+          days_forward: settings.daysForward,
+          price_change_percent: settings.priceChangePercent
+        }
+      );
+      
+      set({ pnlScenario, loading: false });
+    } catch (error) {
+      set({ 
+        error: `Failed to analyze P&L scenario: ${error instanceof Error ? error.message : String(error)}`, 
+        loading: false 
+      });
+    }
+  },
+  
   // Clear all scenarios
   clearScenarios: () => {
     set({
       priceScenario: [],
       volatilityScenario: [],
       timeDecayScenario: [],
-      priceVsVolatilitySurface: []
+      priceVsVolatilitySurface: [],
+      pnlScenario: null
     });
   },
   

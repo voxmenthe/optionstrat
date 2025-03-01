@@ -1,13 +1,16 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
+import math
 
-from app.models.database import get_db, DBPosition, Position, OptionLeg
+from app.models.database import get_db, DBPosition, Position, OptionLeg, PositionPnLResult
 from app.models.schemas import Position as PositionSchema, PositionCreate, PositionUpdate, PositionWithLegsCreate, PositionWithLegs
+from app.models.schemas import PnLResult, PnLCalculationParams, BulkPnLCalculationRequest
 from app.services.option_pricing import OptionPricer
 from app.services.market_data import MarketDataService
+from app.services.scenario_engine import ScenarioEngine
 
 router = APIRouter(
     prefix="/positions",
@@ -23,6 +26,10 @@ def get_option_pricer():
 def get_market_data_service():
     """Dependency to get the market data service."""
     return MarketDataService()
+
+def get_scenario_engine():
+    """Dependency to get the scenario engine service."""
+    return ScenarioEngine()
 
 
 @router.post("/", response_model=PositionSchema)
@@ -390,3 +397,348 @@ def delete_position_with_legs(position_id: str, db: Session = Depends(get_db)):
     db.commit()
     
     return {"detail": "Position deleted"} 
+
+
+@router.get("/{position_id}/pnl", response_model=PnLResult)
+def calculate_position_pnl(
+    position_id: str, 
+    recalculate: bool = Query(False, description="Force recalculation instead of using saved values"),
+    db: Session = Depends(get_db), 
+    market_data_service = Depends(get_market_data_service)
+):
+    """
+    Calculate current profit and loss for a specific position.
+    If recalculate is False, will attempt to use previously saved values.
+    """
+    # Check if we have a saved result and recalculation is not requested
+    if not recalculate:
+        saved_result = db.query(PositionPnLResult).filter(
+            PositionPnLResult.position_id == position_id,
+            PositionPnLResult.is_theoretical == False
+        ).order_by(PositionPnLResult.calculation_timestamp.desc()).first()
+        
+        if saved_result:
+            # Return saved result - include all fields from the database
+            result = PnLResult(
+                position_id=saved_result.position_id,
+                pnl_amount=saved_result.pnl_amount,
+                pnl_percent=saved_result.pnl_percent,
+                initial_value=saved_result.initial_value,
+                current_value=saved_result.current_value,
+                implied_volatility=saved_result.implied_volatility,
+                underlying_price=saved_result.underlying_price,
+                calculation_timestamp=saved_result.calculation_timestamp,
+                days_forward=saved_result.days_forward,
+                price_change_percent=saved_result.price_change_percent
+            )
+            print(f"Using cached PnL result for position {position_id} from {saved_result.calculation_timestamp}")
+            return result
+    
+    # Get the position
+    position = db.query(DBPosition).filter(DBPosition.id == position_id).first()
+    
+    if position is None:
+        raise HTTPException(status_code=404, detail="Position not found")
+    
+    # Get the current market price for the underlying
+    try:
+        current_spot_price = market_data_service.get_stock_price(position.ticker)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching market data: {str(e)}")
+    
+    # Calculate initial value (what was paid for the position)
+    initial_value = 0
+    if position.premium is not None:
+        initial_value = abs(position.premium * position.quantity * 100)  # Convert to dollar amount (100 shares per contract)
+        # Calculate current option value with implied volatility
+    option_pricer = get_option_pricer()
+    try:
+        # Get current implied volatility or use default
+        implied_volatility = 0.3  # Default volatility
+        
+        # Try to estimate implied volatility if we have enough market data
+        try:
+            # This is a simplified approach - in reality you'd use a more sophisticated IV calculation
+            if position.premium is not None and position.premium > 0:
+                iv_result = option_pricer.calculate_implied_volatility(
+                    option_type=position.option_type,
+                    strike=position.strike,
+                    expiration_date=position.expiration,
+                    spot_price=current_spot_price,
+                    option_price=position.premium
+                )
+                if iv_result and "implied_volatility" in iv_result:
+                    implied_volatility = iv_result["implied_volatility"]
+        except Exception as e:
+            print(f"Could not calculate implied volatility: {str(e)}")
+            # Continue with default volatility
+        
+        # Calculate the current option price
+        price_result = option_pricer.price_option(
+            option_type=position.option_type,
+            strike=position.strike,
+            expiration_date=position.expiration,
+            spot_price=current_spot_price,
+            volatility=implied_volatility
+        )
+        current_option_price = price_result["price"]
+        
+        # Current value of the position
+        current_value = current_option_price * abs(position.quantity) * 100  # 100 shares per contract
+        
+        # Calculate P&L
+        if position.action == "buy":
+            pnl_amount = current_value - initial_value
+        else:  # sell/short position
+            pnl_amount = initial_value - current_value
+        
+        # Calculate P&L percentage
+        pnl_percent = 0
+        if initial_value > 0:
+            pnl_percent = (pnl_amount / initial_value) * 100
+        
+        # Create PnL result object
+        pnl_result = PnLResult(
+            position_id=position_id,
+            pnl_amount=pnl_amount,
+            pnl_percent=pnl_percent,
+            initial_value=initial_value,
+            current_value=current_value,
+            implied_volatility=implied_volatility,
+            underlying_price=current_spot_price,
+            calculation_timestamp=datetime.utcnow()
+        )
+        
+        # Save to database for persistence
+        try:
+            # Wrap in transaction to ensure atomicity
+            # First delete any existing results for this position
+            db.query(PositionPnLResult).filter(
+                PositionPnLResult.position_id == position_id,
+                PositionPnLResult.is_theoretical == False
+            ).delete()
+            
+            # Then save the new result
+            db_pnl_result = PositionPnLResult(
+                position_id=position_id,
+                pnl_amount=pnl_amount,
+                pnl_percent=pnl_percent,
+                initial_value=initial_value,
+                current_value=current_value,
+                implied_volatility=implied_volatility,
+                underlying_price=current_spot_price,
+                calculation_timestamp=datetime.utcnow(),
+                is_theoretical=False
+            )
+            db.add(db_pnl_result)
+            db.commit()
+            print(f"Successfully saved PnL result for position {position_id} with ID {db_pnl_result.id}")
+        except Exception as e:
+            db.rollback()
+            print(f"Error saving PnL result to database: {str(e)}")
+            # We'll still return the result even if saving fails
+        
+        return pnl_result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error calculating P&L: {str(e)}")
+
+
+@router.post("/{position_id}/theoretical-pnl", response_model=PnLResult)
+def calculate_theoretical_position_pnl(
+    position_id: str, 
+    params: PnLCalculationParams, 
+    recalculate: bool = Query(False, description="Force recalculation instead of using saved values"),
+    db: Session = Depends(get_db),
+    market_data_service = Depends(get_market_data_service),
+    option_pricer = Depends(get_option_pricer)
+):
+    """
+    Calculate theoretical profit and loss for a specific position based on days forward and price change percentage.
+    If recalculate is False, will attempt to use previously saved values.
+    """
+    # Check if we have a saved result with the same parameters and recalculation is not requested
+    if not recalculate:
+        saved_result = db.query(PositionPnLResult).filter(
+            PositionPnLResult.position_id == position_id,
+            PositionPnLResult.is_theoretical == True,
+            PositionPnLResult.days_forward == params.days_forward,
+            PositionPnLResult.price_change_percent == params.price_change_percent
+        ).order_by(PositionPnLResult.calculation_timestamp.desc()).first()
+        
+        if saved_result:
+            # Return saved result - include all fields from the database
+            result = PnLResult(
+                position_id=saved_result.position_id,
+                pnl_amount=saved_result.pnl_amount,
+                pnl_percent=saved_result.pnl_percent,
+                initial_value=saved_result.initial_value,
+                current_value=saved_result.current_value,
+                implied_volatility=saved_result.implied_volatility,
+                underlying_price=saved_result.underlying_price,
+                calculation_timestamp=saved_result.calculation_timestamp,
+                days_forward=saved_result.days_forward,
+                price_change_percent=saved_result.price_change_percent
+            )
+            print(f"Using cached theoretical PnL result for position {position_id} with days_forward={params.days_forward}, price_change={params.price_change_percent}")
+            return result
+    
+    # Get the position
+    position = db.query(DBPosition).filter(DBPosition.id == position_id).first()
+    
+    if position is None:
+        raise HTTPException(status_code=404, detail="Position not found")
+    
+    # Get the current market price for the underlying
+    try:
+        current_spot_price = market_data_service.get_stock_price(position.ticker)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching market data: {str(e)}")
+    
+    # Calculate the projected spot price
+    projected_spot_price = current_spot_price * (1 + params.price_change_percent / 100)
+    
+    # Calculate initial value (what was paid for the position)
+    initial_value = 0
+    if position.premium is not None:
+        initial_value = abs(position.premium * position.quantity * 100)  # Convert to dollar amount (100 shares per contract)
+    
+    # Calculate the projected expiration date
+    original_expiry = position.expiration
+    days_to_expiry = (original_expiry - datetime.now()).days
+    projected_days_to_expiry = max(0, days_to_expiry - params.days_forward)
+    projected_expiry = datetime.now() + timedelta(days=projected_days_to_expiry)
+    
+    try:
+        # Get current implied volatility or use default
+        implied_volatility = 0.3  # Default volatility
+        
+        # Try to estimate implied volatility if we have enough market data
+        try:
+            # This is a simplified approach - in reality you'd use a more sophisticated IV calculation
+            if position.premium is not None and position.premium > 0:
+                iv_result = option_pricer.calculate_implied_volatility(
+                    option_type=position.option_type,
+                    strike=position.strike,
+                    expiration_date=position.expiration,
+                    spot_price=current_spot_price,
+                    option_price=position.premium
+                )
+                if iv_result and "implied_volatility" in iv_result:
+                    implied_volatility = iv_result["implied_volatility"]
+        except Exception as e:
+            print(f"Could not calculate implied volatility: {str(e)}")
+            # Continue with default volatility
+        
+        # Calculate theoretical option price
+        price_result = option_pricer.price_option(
+            option_type=position.option_type,
+            strike=position.strike,
+            expiration_date=projected_expiry,
+            spot_price=projected_spot_price,
+            volatility=implied_volatility
+        )
+        theoretical_option_price = price_result["price"]
+        
+        # Theoretical value of the position
+        theoretical_value = theoretical_option_price * abs(position.quantity) * 100  # 100 shares per contract
+        
+        # Calculate P&L
+        if position.action == "buy":
+            pnl_amount = theoretical_value - initial_value
+        else:  # sell/short position
+            pnl_amount = initial_value - theoretical_value
+        
+        # Calculate P&L percentage
+        pnl_percent = 0
+        if initial_value > 0:
+            pnl_percent = (pnl_amount / initial_value) * 100
+        
+        # Create result object
+        pnl_result = PnLResult(
+            position_id=position_id,
+            pnl_amount=pnl_amount,
+            pnl_percent=pnl_percent,
+            initial_value=initial_value,
+            current_value=theoretical_value,
+            implied_volatility=implied_volatility,
+            underlying_price=projected_spot_price,
+            calculation_timestamp=datetime.utcnow(),
+            days_forward=params.days_forward,
+            price_change_percent=params.price_change_percent
+        )
+        
+        # Save to database for persistence
+        try:
+            # Wrap in transaction to ensure atomicity
+            # First delete any existing theoretical results with same parameters
+            db.query(PositionPnLResult).filter(
+                PositionPnLResult.position_id == position_id,
+                PositionPnLResult.is_theoretical == True,
+                PositionPnLResult.days_forward == params.days_forward,
+                PositionPnLResult.price_change_percent == params.price_change_percent
+            ).delete()
+            
+            # Then save the new result
+            db_pnl_result = PositionPnLResult(
+                position_id=position_id,
+                pnl_amount=pnl_amount,
+                pnl_percent=pnl_percent,
+                initial_value=initial_value,
+                current_value=theoretical_value,
+                implied_volatility=implied_volatility,
+                underlying_price=projected_spot_price,
+                calculation_timestamp=datetime.utcnow(),
+                is_theoretical=True,
+                days_forward=params.days_forward,
+                price_change_percent=params.price_change_percent
+            )
+            db.add(db_pnl_result)
+            db.commit()
+            print(f"Successfully saved theoretical PnL result for position {position_id} with ID {db_pnl_result.id}")
+        except Exception as e:
+            db.rollback()
+            print(f"Error saving theoretical PnL result to database: {str(e)}")
+            # We'll still return the result even if saving fails
+        
+        return pnl_result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error calculating theoretical P&L: {str(e)}")
+
+
+@router.post("/bulk-theoretical-pnl", response_model=List[PnLResult])
+def calculate_bulk_theoretical_pnl(
+    request: BulkPnLCalculationRequest,
+    db: Session = Depends(get_db),
+    market_data_service = Depends(get_market_data_service),
+    option_pricer = Depends(get_option_pricer)
+):
+    """
+    Calculate theoretical profit and loss for multiple positions based on days forward and price change percentage.
+    """
+    results = []
+    
+    # Create PnL calculation params
+    params = PnLCalculationParams(
+        days_forward=request.days_forward,
+        price_change_percent=request.price_change_percent
+    )
+    
+    # Process each position
+    for position_id in request.position_ids:
+        try:
+            # Use the single position theoretical P&L endpoint
+            result = calculate_theoretical_position_pnl(
+                position_id=position_id,
+                params=params,
+                db=db,
+                market_data_service=market_data_service,
+                option_pricer=option_pricer
+            )
+            results.append(result)
+        except HTTPException as e:
+            # Skip positions that weren't found or had calculation errors
+            print(f"Error calculating theoretical P&L for position {position_id}: {e.detail}")
+        except Exception as e:
+            print(f"Unexpected error for position {position_id}: {str(e)}")
+    
+    return results

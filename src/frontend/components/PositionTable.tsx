@@ -1,7 +1,7 @@
 'use client';
 
 import React, { FC, useState, useEffect } from 'react';
-import { OptionPosition, usePositionStore, GroupedPosition } from '../lib/stores/positionStore';
+import { OptionPosition, usePositionStore, GroupedPosition, TheoreticalPnLSettings } from '../lib/stores/positionStore';
 import PositionForm from './PositionForm';
 
 const PositionTable: FC = () => {
@@ -11,9 +11,13 @@ const PositionTable: FC = () => {
     removePosition,
     recalculateAllGreeks,
     calculatingAllGreeks,
-    groupByUnderlying,
-    toggleGrouping,
     getGroupedPositions,
+    theoreticalPnLSettings,
+    updateTheoreticalPnLSettings,
+    recalculateAllTheoreticalPnL,
+    calculatingTheoreticalPnL,
+    recalculateAllPnL,
+    calculatingPnL
   } = usePositionStore();
   
   const [isLoading, setIsLoading] = useState(true);
@@ -45,11 +49,13 @@ const PositionTable: FC = () => {
     loadPositions();
     
     // Set up a refresh interval to periodically fetch positions and recalculate Greeks
+    // Note: This will preserve the existing PnL data and not force recalculation
     const intervalId = setInterval(() => {
-      console.log('Refreshing positions and Greeks');
+      console.log('Refreshing positions and Greeks (preserving PnL data)');
       fetchPositions()
         .then(() => {
           if (positions.length > 0) {
+            // Don't force recalculation on regular interval refresh
             return recalculateAllGreeks();
           }
         })
@@ -85,11 +91,19 @@ const PositionTable: FC = () => {
     }
   };
 
-  const handleRecalculateGreeks = async () => {
+  const handleRecalculateGreeks = async (forceRecalculate: boolean = false) => {
     try {
+      // Always recalculate Greeks (they're not cached anyway)
       await recalculateAllGreeks();
+      
+      // Only force recalculation of P&L if explicitly requested
+      await recalculateAllPnL(forceRecalculate);
+      await recalculateAllTheoreticalPnL(forceRecalculate);
+      
       setToastMessage({
-        title: 'Greeks recalculated successfully',
+        title: forceRecalculate 
+          ? 'Forced complete recalculation of Greeks and P&L - all cache ignored'
+          : 'Greeks and P&L recalculated (using cache where available)',
         status: 'success'
       });
       
@@ -97,7 +111,7 @@ const PositionTable: FC = () => {
       setTimeout(() => setToastMessage(null), 3000);
     } catch (error) {
       setToastMessage({
-        title: 'Error recalculating Greeks',
+        title: 'Error recalculating',
         status: 'error',
         message: error instanceof Error ? error.message : String(error)
       });
@@ -107,12 +121,27 @@ const PositionTable: FC = () => {
     }
   };
 
+  const handleTheoreticalSettingsChange = (settings: Partial<TheoreticalPnLSettings>) => {
+    updateTheoreticalPnLSettings(settings);
+    recalculateAllTheoreticalPnL();
+  };
+
   const formatGreeks = (value?: number) => {
     if (value === undefined) return 'N/A';
     
     // Values should already be properly normalized from the backend
     // We don't need to rescale them, just ensure consistent display format
     return value.toFixed(4);
+  };
+
+  const formatMoney = (value?: number) => {
+    if (value === undefined || value === null) return '-';
+    return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  };
+
+  const formatPercent = (value?: number) => {
+    if (value === undefined || value === null) return '-';
+    return `${value.toFixed(2)}%`;
   };
 
   // Custom toast component
@@ -156,6 +185,23 @@ const PositionTable: FC = () => {
     );
   }
 
+  const formatIV = (value?: number) => {
+    if (value === undefined || value === null) return '-';
+    return `${(value * 100).toFixed(1)}%`;
+  };
+  
+  const calculateCostBasis = (position: OptionPosition): number => {
+    // Calculate cost basis as quantity * premium * 100 (standard contract size)
+    // If premium is missing, return 0
+    if (position.premium === undefined || position.premium === null) return 0;
+    
+    // For buying options, cost basis is positive (money spent)
+    // For selling options, cost basis is negative (money received)
+    const sign = position.action === 'buy' ? 1 : -1;
+    const contractSize = 100; // Standard contract size is 100 shares
+    return sign * Math.abs(position.quantity) * position.premium * contractSize;
+  };
+
   const renderPositionRow = (position: OptionPosition) => (
     <tr key={position.id} className="border-b hover:bg-gray-50">
       <td className="py-2 px-3">{position.ticker}</td>
@@ -165,11 +211,18 @@ const PositionTable: FC = () => {
       <td className="py-2 px-3">{position.action}</td>
       <td className="py-2 px-3 text-right">{position.quantity}</td>
       <td className="py-2 px-3 text-right">{position.premium}</td>
+      <td className="py-2 px-3 text-right">{formatMoney(calculateCostBasis(position))}</td>
+      <td className="py-2 px-3 text-right">{formatIV(position.pnl?.impliedVolatility)}</td>
+      <td className="py-2 px-3 text-right">{formatMoney(position.pnl?.currentValue)}</td>
       <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.delta)}</td>
       <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.gamma)}</td>
       <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.theta)}</td>
       <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.vega)}</td>
       <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.rho)}</td>
+      <td className="py-2 px-3 text-right">{formatMoney(position.pnl?.pnlAmount)}</td>
+      <td className="py-2 px-3 text-right">{formatPercent(position.pnl?.pnlPercent)}</td>
+      <td className="py-2 px-3 text-right">{formatMoney(position.theoreticalPnl?.pnlAmount)}</td>
+      <td className="py-2 px-3 text-right">{formatPercent(position.theoreticalPnl?.pnlPercent)}</td>
       <td className="py-2 px-3">
         <div className="flex space-x-2">
           <button 
@@ -195,16 +248,22 @@ const PositionTable: FC = () => {
     return groupedPositions.map((group: GroupedPosition) => (
       <React.Fragment key={group.underlying}>
         <tr className="bg-gray-100 font-semibold">
-          <td colSpan={7} className="py-3 px-3">
+          <td colSpan={8} className="py-3 px-3">
             <span className="text-lg">
-              {group.underlying} ({group.positions.length} positions)
+              {group.underlying} {group.underlyingPrice ? `@ $${group.underlyingPrice.toFixed(2)}` : ''} ({group.positions.length} positions)
             </span>
           </td>
+          <td className="py-3 px-3 text-right">{formatIV(group.totalPnl?.impliedVolatility)}</td>
+          <td className="py-3 px-3 text-right">{formatMoney(group.totalPnl?.currentValue)}</td>
           <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.delta)}</td>
           <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.gamma)}</td>
           <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.theta)}</td>
           <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.vega)}</td>
           <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.rho)}</td>
+          <td className="py-3 px-3 text-right">{formatMoney(group.totalPnl?.pnlAmount)}</td>
+          <td className="py-3 px-3 text-right">{formatPercent(group.totalPnl?.pnlPercent)}</td>
+          <td className="py-3 px-3 text-right">{formatMoney(group.totalTheoreticalPnl?.pnlAmount)}</td>
+          <td className="py-3 px-3 text-right">{formatPercent(group.totalTheoreticalPnl?.pnlPercent)}</td>
           <td></td>
         </tr>
         {group.positions.map(renderPositionRow)}
@@ -216,50 +275,60 @@ const PositionTable: FC = () => {
     <div className="flex flex-col space-y-4">
       <div className="flex justify-between items-center">
         <div className="flex space-x-4 items-center">
-          <button 
-            onClick={handleRecalculateGreeks} 
-            className={`px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600 ${calculatingAllGreeks ? 'opacity-75 cursor-not-allowed' : ''}`}
-            disabled={calculatingAllGreeks}
-          >
-            {calculatingAllGreeks ? (
-              <>
-                <span className="inline-block animate-spin mr-2">⟳</span>
-                Recalculating...
-              </>
-            ) : 'Recalculate Greeks'}
-          </button>
-          <div className="flex items-center space-x-2">
-            <span>Group by underlying:</span>
-            <div className="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
-              <input 
-                type="checkbox" 
-                name="toggle" 
-                id="toggle"
-                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10"
-                checked={groupByUnderlying}
-                onChange={toggleGrouping}
-              />
-              <label 
-                htmlFor="toggle" 
-                className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${groupByUnderlying ? 'bg-teal-500' : 'bg-gray-300'}`}
-              ></label>
-            </div>
-            <style jsx>{`
-              .toggle-checkbox {
-                transition: transform 0.3s ease-in-out;
-                border-color: #D1D5DB;
-              }
-              .toggle-checkbox:checked {
-                right: 0;
-                transform: translateX(100%);
-                border-color: #0D9488;
-              }
-              .toggle-label {
-                width: 2.5rem;
-                transition: background-color 0.3s ease;
-              }
-            `}</style>
+          <div className="flex items-center mr-4">
+            <label htmlFor="daysForward" className="mr-2 text-sm text-gray-600">
+              Days Forward:
+            </label>
+            <input
+              id="daysForward"
+              type="number"
+              value={theoreticalPnLSettings.daysForward}
+              onChange={(e) => handleTheoreticalSettingsChange({ daysForward: parseInt(e.target.value) || 0 })}
+              className="w-16 px-2 py-1 border border-gray-300 rounded"
+              min="0"
+            />
           </div>
+          <div className="flex items-center mr-4">
+            <label htmlFor="priceChange" className="mr-2 text-sm text-gray-600">
+              Price Change %:
+            </label>
+            <input
+              id="priceChange"
+              type="number"
+              value={theoreticalPnLSettings.priceChangePercent}
+              onChange={(e) => handleTheoreticalSettingsChange({ priceChangePercent: parseFloat(e.target.value) || 0 })}
+              className="w-16 px-2 py-1 border border-gray-300 rounded"
+              step="0.1"
+            />
+          </div>
+          <div className="flex space-x-2">
+            <button 
+              onClick={() => handleRecalculateGreeks(false)} 
+              className={`px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600 ${(calculatingAllGreeks || calculatingPnL || calculatingTheoreticalPnL) ? 'opacity-75 cursor-not-allowed' : ''}`}
+              disabled={calculatingAllGreeks || calculatingPnL || calculatingTheoreticalPnL}
+            >
+              {(calculatingAllGreeks || calculatingPnL || calculatingTheoreticalPnL) ? (
+                <>
+                  <span className="inline-block animate-spin mr-2">⟳</span>
+                  Recalculating...
+                </>
+              ) : 'Recalculate (Use Cache)'}
+            </button>
+            <button 
+              onClick={() => handleRecalculateGreeks(true)} 
+              className={`px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 font-bold ${(calculatingAllGreeks || calculatingPnL || calculatingTheoreticalPnL) ? 'opacity-75 cursor-not-allowed' : ''}`}
+              disabled={calculatingAllGreeks || calculatingPnL || calculatingTheoreticalPnL}
+              title="Forces complete recalculation from scratch, ignoring cache"
+            >
+              {(calculatingAllGreeks || calculatingPnL || calculatingTheoreticalPnL) ? (
+                <>
+                  <span className="inline-block animate-spin mr-2">⟳</span>
+                  Recalculating...
+                </>
+              ) : 'Force Recalculate'}
+            </button>
+          </div>
+          {/* Positions are now always grouped by underlying by default */}
         </div>
       </div>
       
@@ -274,25 +343,30 @@ const PositionTable: FC = () => {
               <th className="py-3 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Premium</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Basis</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">IV</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Current Value</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Delta</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Gamma</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Theta</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Vega</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Rho</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Current P&L ($)</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Current P&L (%)</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Theo. P&L ($)</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Theo. P&L (%)</th>
               <th className="py-3 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {positions.length === 0 ? (
               <tr>
-                <td colSpan={13} className="py-4 px-3 text-center text-sm text-gray-500">
+                <td colSpan={17} className="py-4 px-3 text-center text-sm text-gray-500">
                   No positions found. Add one to get started.
                 </td>
               </tr>
-            ) : groupByUnderlying ? (
-              renderGroupedPositions()
             ) : (
-              positions.map(renderPositionRow)
+              renderGroupedPositions()
             )}
           </tbody>
         </table>

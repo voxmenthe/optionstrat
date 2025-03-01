@@ -67,6 +67,8 @@ export interface TimePoint {
   theta: number;
   vega: number;
   rho: number;
+  pnl_amount?: number;
+  pnl_percent?: number;
 }
 
 export interface PriceVsVolatilityPoint {
@@ -75,11 +77,20 @@ export interface PriceVsVolatilityPoint {
   value: number;
 }
 
+export interface PnLScenarioPoint {
+  days: number;
+  price_change_percent: number;
+  pnl_amount: number;
+  pnl_percent: number;
+  value: number;
+}
+
 export interface ScenarioResult {
   price_points?: PricePoint[];
   volatility_points?: VolatilityPoint[];
   time_points?: TimePoint[];
   price_vs_volatility?: PriceVsVolatilityPoint[];
+  pnl_scenarios?: PnLScenarioPoint[];
 }
 
 // Convert frontend positions to backend format for scenarios
@@ -99,6 +110,29 @@ const toScenarioPositions = (positions: OptionPosition[]) => {
  * Scenarios API service
  */
 export const scenariosApi = {
+  /**
+   * Analyze theoretical P&L scenarios
+   * @param positions - Option positions
+   * @param params - Scenario parameters
+   * @returns Promise with P&L scenario results
+   */
+  analyzePnLScenario: async (
+    positions: OptionPosition[],
+    params: {
+      days_forward: number;
+      price_change_percent: number;
+    }
+  ): Promise<PnLScenarioPoint> => {
+    const request = {
+      positions: toScenarioPositions(positions),
+      days_forward: params.days_forward,
+      price_change_percent: params.price_change_percent
+    };
+    
+    const response = await apiClient.post<PnLScenarioPoint>('/scenarios/pnl', request);
+    return response;
+  },
+  
   /**
    * Analyze price scenarios
    * @param positions - Option positions

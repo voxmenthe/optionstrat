@@ -132,3 +132,30 @@ class MarketDataRequest(BaseModel):
     """Model for requesting market data."""
     ticker: str
     date: Optional[datetime] = None 
+
+
+class PnLResult(BaseModel):
+    """Model for P&L calculation results."""
+    position_id: str
+    pnl_amount: float
+    pnl_percent: float
+    initial_value: float
+    current_value: float
+    implied_volatility: Optional[float] = None
+    underlying_price: Optional[float] = None
+    calculation_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    days_forward: Optional[int] = None
+    price_change_percent: Optional[float] = None
+
+
+class PnLCalculationParams(BaseModel):
+    """Model for P&L calculation parameters."""
+    days_forward: Optional[int] = 0
+    price_change_percent: Optional[float] = 0.0
+
+
+class BulkPnLCalculationRequest(BaseModel):
+    """Model for requesting bulk P&L calculations."""
+    position_ids: List[str]
+    days_forward: Optional[int] = 0
+    price_change_percent: Optional[float] = 0.0

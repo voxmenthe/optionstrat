@@ -89,6 +89,26 @@ class CacheEntry(Base):
     updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), onupdate=lambda: datetime.datetime.now(datetime.UTC))
 
 
+class PositionPnLResult(Base):
+    """Database model for position P&L calculation results."""
+    __tablename__ = "position_pnl_results"
+    
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    position_id = Column(String, index=True)
+    pnl_amount = Column(Float)
+    pnl_percent = Column(Float)
+    initial_value = Column(Float)
+    current_value = Column(Float)
+    implied_volatility = Column(Float, nullable=True)
+    underlying_price = Column(Float, nullable=True)
+    calculation_timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC))
+    is_theoretical = Column(Boolean, default=False)  # Whether this is a theoretical or actual P&L
+    days_forward = Column(Integer, nullable=True)     # For theoretical P&L
+    price_change_percent = Column(Float, nullable=True)  # For theoretical P&L
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), onupdate=lambda: datetime.datetime.now(datetime.UTC))
+
+
 # Create tables
 # Only remove the database file if it doesn't exist yet, otherwise we'd lose existing data
 if not os.path.exists("./options.db"):
