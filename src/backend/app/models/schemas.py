@@ -19,7 +19,7 @@ class PositionBase(BaseModel):
     strike: float = Field(..., gt=0)
     option_type: Literal["call", "put"]
     action: Literal["buy", "sell"]
-    quantity: int = Field(..., gt=0)
+    quantity: int = Field(..., description="Positive for long positions, negative for short positions. Cannot be zero.")
     premium: Optional[float] = None
 
 
@@ -35,7 +35,7 @@ class PositionUpdate(BaseModel):
     strike: Optional[float] = Field(None, gt=0)
     option_type: Optional[Literal["call", "put"]] = None
     action: Optional[Literal["buy", "sell"]] = None
-    quantity: Optional[int] = Field(None, gt=0)
+    quantity: Optional[int] = Field(None, description="Positive for long positions, negative for short positions. Cannot be zero.")
     premium: Optional[float] = None
     is_active: Optional[bool] = None
 
@@ -57,7 +57,7 @@ class OptionLegCreate(BaseModel):
     option_type: Literal["call", "put"]
     strike: float = Field(..., gt=0)
     expiration_date: str
-    quantity: int
+    quantity: int = Field(..., description="Positive for long positions, negative for short positions. Cannot be zero.")
     underlying_ticker: str
     underlying_price: float
     option_price: float
@@ -116,6 +116,8 @@ class GreeksCalculationRequest(BaseModel):
     spot_price: Optional[float] = None
     volatility: Optional[float] = None
     risk_free_rate: Optional[float] = 0.05
+    action: Optional[Literal["buy", "sell"]] = None
+    quantity: Optional[int] = None
 
 
 class ScenarioAnalysisRequest(BaseModel):

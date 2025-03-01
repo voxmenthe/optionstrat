@@ -17,6 +17,13 @@ export interface BackendPosition {
   action: 'buy' | 'sell';
   quantity: number;
   premium?: number;
+  greeks?: {
+    delta: number;
+    gamma: number;
+    theta: number;
+    vega: number;
+    rho: number;
+  };
   is_active: boolean;
   created_at?: string;
   updated_at?: string;
@@ -62,6 +69,8 @@ const toFrontendPosition = (position: BackendPosition): OptionPosition => ({
   action: position.action,
   quantity: position.quantity,
   premium: position.premium,
+  // Include Greeks if they exist in the backend response
+  greeks: position.greeks,
 });
 
 /**
@@ -79,7 +88,9 @@ export const positionsApi = {
     active_only?: boolean;
     ticker?: string;
   }): Promise<OptionPosition[]> => {
-    const response = await apiClient.get<BackendPosition[]>('/positions', params);
+    console.log('API: Fetching positions with params:', params);
+    const response = await apiClient.get<BackendPosition[]>('/positions/', params);
+    console.log('API: Received positions response:', response);
     return response.map(toFrontendPosition);
   },
   
@@ -100,7 +111,9 @@ export const positionsApi = {
    */
   createPosition: async (position: Omit<OptionPosition, 'id'>): Promise<OptionPosition> => {
     const backendPosition = toBackendPosition(position);
-    const response = await apiClient.post<BackendPosition>('/positions', backendPosition);
+    console.log('API: Creating position with data:', backendPosition);
+    const response = await apiClient.post<BackendPosition>('/positions/', backendPosition);
+    console.log('API: Created position response:', response);
     return toFrontendPosition(response);
   },
   
@@ -122,7 +135,9 @@ export const positionsApi = {
     if (position.quantity !== undefined) backendUpdate.quantity = position.quantity;
     if (position.premium !== undefined) backendUpdate.premium = position.premium;
     
-    const response = await apiClient.put<BackendPosition>(`/positions/${id}`, backendUpdate);
+    console.log(`API: Updating position ${id} with data:`, backendUpdate);
+    const response = await apiClient.put<BackendPosition>(`/positions/${id}/`, backendUpdate);
+    console.log('API: Updated position response:', response);
     return toFrontendPosition(response);
   },
   
@@ -132,7 +147,9 @@ export const positionsApi = {
    * @returns Promise with deleted position
    */
   deletePosition: async (id: string): Promise<OptionPosition> => {
-    const response = await apiClient.delete<BackendPosition>(`/positions/${id}`);
+    console.log(`API: Deleting position ${id}`);
+    const response = await apiClient.delete<BackendPosition>(`/positions/${id}/`);
+    console.log('API: Deleted position response:', response);
     return toFrontendPosition(response);
   },
 };

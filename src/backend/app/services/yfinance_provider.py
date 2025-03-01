@@ -7,14 +7,20 @@ import redis
 from fastapi import HTTPException
 import pandas as pd
 import numpy as np
+import logging
+from sqlalchemy.orm import Session
 
 from app.services.market_data_provider import MarketDataProvider
+from app.models.database import CacheEntry, get_db
 
+# Set up logging
+logger = logging.getLogger(__name__)
 
 class YFinanceProvider(MarketDataProvider):
     """
     Implementation of MarketDataProvider using Yahoo Finance (yfinance) API.
     Includes caching with Redis to minimize API calls.
+    Falls back to database storage if Redis is unavailable.
     """
     
     def __init__(self, use_cache: bool = True):
@@ -22,12 +28,16 @@ class YFinanceProvider(MarketDataProvider):
         Initialize the Yahoo Finance market data provider.
         
         Args:
-            use_cache: Whether to use Redis caching
+            use_cache: Whether to use caching (Redis or DB)
         """
         self.use_cache = use_cache
+        self.redis_available = False
+        self.redis = None
+        # Don't store a persistent database session - we'll get a fresh one when needed
+        self.cache_expiry = 3600  # Cache for 1 hour - set this regardless of Redis availability
         
-        # Initialize Redis connection if caching is enabled
-        if self.use_cache:
+        # Initialize Redis connection if caching is enabled and Redis is available
+        if self.use_cache and os.environ.get("REDIS_ENABLED", "true").lower() == "true":
             try:
                 self.redis = redis.Redis(
                     host=os.environ.get("REDIS_HOST", "localhost"),
@@ -35,38 +45,118 @@ class YFinanceProvider(MarketDataProvider):
                     db=0,
                     decode_responses=True
                 )
-                self.cache_expiry = 3600  # Cache for 1 hour
+                # Test the connection
+                self.redis.ping()
+                self.redis_available = True
+                logger.info("Redis caching enabled")
             except Exception as e:
-                print(f"Warning: Redis connection failed: {e}. Caching disabled.")
-                self.use_cache = False
+                logger.warning(f"Redis connection failed: {e}. Falling back to database caching.")
+                self.redis_available = False
     
     def _get_from_cache(self, cache_key: str) -> Optional[Dict]:
-        """Get data from Redis cache."""
+        """
+        Get data from cache (Redis or database).
+        
+        Args:
+            cache_key: The cache key to retrieve
+            
+        Returns:
+            Cached data or None if not found
+        """
         if not self.use_cache:
             return None
+            
+        # Try Redis first if available
+        if self.redis_available:
+            try:
+                cached_data = self.redis.get(cache_key)
+                if cached_data:
+                    logger.debug(f"Redis cache hit for {cache_key}")
+                    return json.loads(cached_data)
+            except Exception as e:
+                logger.warning(f"Redis cache retrieval error: {e}. Falling back to database.")
+                self.redis_available = False
         
+        # Fallback to database if Redis failed or is not available
+        db = None
         try:
-            cached_data = self.redis.get(cache_key)
-            if cached_data:
-                return json.loads(cached_data)
+            # Get a fresh session for each database operation
+            db = next(get_db())
+            db_cache = db.query(CacheEntry).filter(CacheEntry.key == cache_key).first()
+            if db_cache and db_cache.expires_at > datetime.now():
+                logger.debug(f"Database cache hit for {cache_key}")
+                result = json.loads(db_cache.value)
+                return result
+            elif db_cache:
+                # Remove expired entry
+                db.delete(db_cache)
+                db.commit()
         except Exception as e:
-            print(f"Cache retrieval error: {e}")
+            logger.warning(f"Database cache retrieval error: {e}")
+            if db and db.is_active:
+                db.rollback()
+        finally:
+            # Always close the session
+            if db:
+                db.close()
         
         return None
     
     def _save_to_cache(self, cache_key: str, data: Dict) -> None:
-        """Save data to Redis cache."""
+        """
+        Save data to cache (Redis or database).
+        
+        Args:
+            cache_key: The cache key
+            data: The data to save
+        """
         if not self.use_cache:
             return
+            
+        serialized_data = json.dumps(data)
+        expiry_time = datetime.now() + timedelta(seconds=self.cache_expiry)
         
+        # Try Redis first if available
+        if self.redis_available:
+            try:
+                self.redis.setex(
+                    cache_key,
+                    self.cache_expiry,
+                    serialized_data
+                )
+                logger.debug(f"Saved data to Redis cache: {cache_key}")
+                return
+            except Exception as e:
+                logger.warning(f"Redis cache save error: {e}. Falling back to database.")
+                self.redis_available = False
+        
+        # Fallback to database if Redis failed or is not available
+        db = None
         try:
-            self.redis.setex(
-                cache_key,
-                self.cache_expiry,
-                json.dumps(data)
-            )
+            # Get a fresh session for each database operation
+            db = next(get_db())
+            # Check if entry exists
+            existing_cache = db.query(CacheEntry).filter(CacheEntry.key == cache_key).first()
+            if existing_cache:
+                existing_cache.value = serialized_data
+                existing_cache.expires_at = expiry_time
+            else:
+                new_cache = CacheEntry(
+                    key=cache_key,
+                    value=serialized_data,
+                    expires_at=expiry_time
+                )
+                db.add(new_cache)
+            db.commit()
+            logger.debug(f"Saved data to database cache: {cache_key}")
         except Exception as e:
-            print(f"Cache save error: {e}")
+            logger.warning(f"Database cache save error: {e}")
+            if db and db.is_active:
+                db.rollback()
+        finally:
+            # Always close the session
+            if db:
+                db.close()
     
     def _convert_dataframe_to_list(self, df: pd.DataFrame) -> List[Dict]:
         """Convert a pandas DataFrame to a list of dictionaries."""

@@ -16,6 +16,8 @@ export interface GreeksRequest {
   volatility?: number;
   risk_free_rate?: number;
   dividend_yield?: number;
+  action?: 'buy' | 'sell';
+  quantity?: number;
 }
 
 export interface GreeksResponse {
@@ -39,6 +41,8 @@ const toGreeksRequest = (position: OptionPosition, params?: {
   expiration: position.expiration,
   strike: position.strike,
   option_type: position.type,
+  action: position.action,
+  quantity: position.quantity,
   ...params
 });
 
@@ -61,8 +65,40 @@ export const greeksApi = {
       dividend_yield?: number;
     }
   ): Promise<Greeks> => {
+    // Make sure we include action and quantity in the request
+    // to ensure the backend can properly adjust for short positions
     const request = toGreeksRequest(position, params);
+    
+    // Ensure action and quantity are explicitly set
+    if (!request.action) {
+      request.action = position.action;
+    }
+    
+    if (!request.quantity) {
+      request.quantity = position.quantity;
+    }
+    
     const response = await apiClient.post<GreeksResponse>('/greeks/calculate', request);
+    
+    return {
+      delta: response.delta,
+      gamma: response.gamma,
+      theta: response.theta,
+      vega: response.vega,
+      rho: response.rho
+    };
+  },
+  
+  /**
+   * Get Greeks for a position directly from the backend using position ID
+   * This is preferred when the position already exists in the database
+   * @param positionId - ID of the position
+   * @param forceRecalculate - Whether to force recalculation of Greeks
+   * @returns Promise with Greeks
+   */
+  getPositionGreeks: async (positionId: string, forceRecalculate: boolean = true): Promise<Greeks> => {
+    // Always force recalculation to ensure fresh values
+    const response = await apiClient.get<GreeksResponse>(`/greeks/position/${positionId}?force_recalculate=${forceRecalculate}`);
     
     return {
       delta: response.delta,

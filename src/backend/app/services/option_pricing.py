@@ -1,6 +1,6 @@
 import QuantLib as ql
 from datetime import datetime, date
-from typing import Dict, Literal, Optional, Tuple
+from typing import Dict, Literal, Optional, Tuple, Union
 
 
 class OptionPricer:
@@ -18,7 +18,7 @@ class OptionPricer:
         self, 
         option_type: Literal["call", "put"], 
         strike: float, 
-        expiration_date: datetime,
+        expiration_date: Union[datetime, date, str],
         american: bool = False
     ) -> Tuple[ql.VanillaOption, ql.Date]:
         """
@@ -27,7 +27,7 @@ class OptionPricer:
         Args:
             option_type: "call" or "put"
             strike: Strike price
-            expiration_date: Option expiration date
+            expiration_date: Option expiration date (datetime, date, or string in format 'YYYY-MM-DD')
             american: Whether the option is American (True) or European (False)
             
         Returns:
@@ -39,10 +39,18 @@ class OptionPricer:
         # Create payoff
         payoff = ql.PlainVanillaPayoff(ql_option_type, strike)
         
-        # Convert expiration date to QuantLib date
-        if isinstance(expiration_date, datetime):
+        # Convert expiration date to a date object if it's not already
+        if isinstance(expiration_date, str):
+            # Parse string date (expect YYYY-MM-DD format)
+            try:
+                expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d').date()
+            except ValueError:
+                # Try with time component if simple date parse fails
+                expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d %H:%M:%S').date()
+        elif isinstance(expiration_date, datetime):
             expiration_date = expiration_date.date()
         
+        # Now we should have a date object
         year = expiration_date.year
         month = expiration_date.month
         day = expiration_date.day
@@ -101,7 +109,7 @@ class OptionPricer:
         self,
         option_type: Literal["call", "put"],
         strike: float,
-        expiration_date: datetime,
+        expiration_date: Union[datetime, date, str],
         spot_price: float,
         volatility: float,
         risk_free_rate: float = 0.05,
@@ -145,11 +153,18 @@ class OptionPricer:
             
             # Calculate price and Greeks
             price = option.NPV()
-            delta = option.delta()
-            gamma = option.gamma()
-            theta = option.theta() / 365.0  # Daily theta
+            
+            # QuantLib returns Greeks in large decimal form - we need to scale them properly
+            # Scale to standard financial decimal form (0-1 range for delta)
+            delta = option.delta() / 100.0
+            gamma = option.gamma() / 100.0
+            theta = (option.theta() / 365.0) / 100.0  # Daily theta, scaled
             vega = option.vega() / 100.0    # Vega per 1% vol change
             rho = option.rho() / 100.0      # Rho per 1% rate change
+            
+            # Print raw values for debugging
+            print(f"Raw Greeks from QuantLib: Delta={option.delta()}, Gamma={option.gamma()}, Theta={option.theta()}, Vega={option.vega()}, Rho={option.rho()}")
+            print(f"Scaled Greeks: Delta={delta}, Gamma={gamma}, Theta={theta}, Vega={vega}, Rho={rho}")
             
             return {
                 "price": price,
@@ -173,11 +188,17 @@ class OptionPricer:
                     european_option.setPricingEngine(european_engine)
                     
                     price = european_option.NPV()
-                    delta = european_option.delta()
-                    gamma = european_option.gamma()
-                    theta = european_option.theta() / 365.0
+                    
+                    # Apply the same scaling as the main calculation
+                    delta = european_option.delta() / 100.0
+                    gamma = european_option.gamma() / 100.0
+                    theta = (european_option.theta() / 365.0) / 100.0  # Daily theta, scaled
                     vega = european_option.vega() / 100.0
                     rho = european_option.rho() / 100.0
+                    
+                    # Print raw values for debugging
+                    print(f"European fallback - Raw Greeks from QuantLib: Delta={european_option.delta()}, Gamma={european_option.gamma()}, Theta={european_option.theta()}, Vega={european_option.vega()}, Rho={european_option.rho()}")
+                    print(f"European fallback - Scaled Greeks: Delta={delta}, Gamma={gamma}, Theta={theta}, Vega={vega}, Rho={rho}")
                     
                     return {
                         "price": price,
@@ -207,7 +228,7 @@ class OptionPricer:
         self,
         option_type: Literal["call", "put"],
         strike: float,
-        expiration_date: datetime,
+        expiration_date: Union[datetime, date, str],
         spot_price: float,
         option_price: float,
         risk_free_rate: float = 0.05,

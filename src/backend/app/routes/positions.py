@@ -30,14 +30,31 @@ def create_position(position: PositionCreate, db: Session = Depends(get_db)):
     """
     Create a new option position.
     """
+    # Validate quantity - it can't be zero, but can be negative for short positions
+    if position.quantity == 0:
+        raise HTTPException(status_code=422, detail="Quantity cannot be zero")
+    
+    # Ensure consistency between action and quantity sign
+    action = position.action
+    quantity = position.quantity
+    
+    # If action is 'sell' but quantity is positive, make quantity negative
+    if action == 'sell' and quantity > 0:
+        quantity = -abs(quantity)
+    
+    # If quantity is negative but action is 'buy', change action to 'sell'
+    if quantity < 0 and action == 'buy':
+        action = 'sell'
+        quantity = -abs(quantity)  # Ensure quantity is negative
+    
     db_position = DBPosition(
         id=str(uuid.uuid4()),
         ticker=position.ticker,
         expiration=position.expiration,
         strike=position.strike,
         option_type=position.option_type,
-        action=position.action,
-        quantity=position.quantity,
+        action=action,
+        quantity=quantity,
         premium=position.premium,
         is_active=True
     )
@@ -54,6 +71,11 @@ def create_position_with_legs(position: PositionWithLegsCreate, db: Session = De
     """
     Create a new position with multiple option legs.
     """
+    # Validate all leg quantities - they can't be zero
+    for i, leg in enumerate(position.legs):
+        if leg.quantity == 0:
+            raise HTTPException(status_code=422, detail=f"Quantity for leg {i+1} cannot be zero")
+    
     # Create the position
     db_position = Position(
         id=str(uuid.uuid4()),
@@ -66,13 +88,19 @@ def create_position_with_legs(position: PositionWithLegsCreate, db: Session = De
     
     # Create the legs
     for leg_data in position.legs:
+        # For option legs, ensure consistency of quantity
+        # Since OptionLeg doesn't have an 'action' field like DBPosition does,
+        # we'll just ensure that negative quantities represent short positions
+        quantity = leg_data.quantity
+        
+        # Store the adjusted leg
         db_leg = OptionLeg(
             id=str(uuid.uuid4()),
             position_id=db_position.id,
             option_type=leg_data.option_type,
             strike=leg_data.strike,
             expiration_date=leg_data.expiration_date,
-            quantity=leg_data.quantity,
+            quantity=quantity,
             underlying_ticker=leg_data.underlying_ticker,
             underlying_price=leg_data.underlying_price,
             option_price=leg_data.option_price,
@@ -196,8 +224,29 @@ def update_position(
     # Update fields if provided
     update_data = position_update.dict(exclude_unset=True)
     
+    # Check if we need to ensure consistency between action and quantity
+    need_quantity_action_sync = False
+    new_action = update_data.get('action', db_position.action)
+    new_quantity = update_data.get('quantity', db_position.quantity)
+    
+    # If we're updating just one of action or quantity, we may need to sync them
+    if ('action' in update_data and 'quantity' not in update_data) or \
+       ('quantity' in update_data and 'action' not in update_data):
+        need_quantity_action_sync = True
+    
+    # Apply all updates
     for key, value in update_data.items():
         setattr(db_position, key, value)
+    
+    # Ensure consistency between action and quantity
+    if need_quantity_action_sync:
+        # If action is 'sell' but quantity is positive, make quantity negative
+        if db_position.action == 'sell' and db_position.quantity > 0:
+            db_position.quantity = -abs(db_position.quantity)
+        
+        # If quantity is negative but action is 'buy', change action to 'sell'
+        if db_position.quantity < 0 and db_position.action == 'buy':
+            db_position.action = 'sell'
     
     # Update the updated_at timestamp
     db_position.updated_at = datetime.utcnow()
@@ -228,6 +277,39 @@ def update_position_with_legs(
         db_position.name = position_update["name"]
     if "description" in position_update:
         db_position.description = position_update["description"]
+    
+    # If legs are provided, update them
+    if "legs" in position_update and isinstance(position_update["legs"], list):
+        # Loop through each leg update
+        for leg_update in position_update["legs"]:
+            if "id" in leg_update:
+                # Find the existing leg
+                leg = db.query(OptionLeg).filter(OptionLeg.id == leg_update["id"]).first()
+                if leg:
+                    # Update the existing leg
+                    for key, value in leg_update.items():
+                        if key != "id":
+                            setattr(leg, key, value)
+                    
+                    # Ensure quantity is properly signed (no action field exists in OptionLeg)
+                    # Negative quantity implies a short position
+            else:
+                # This is a new leg, add it to the position
+                quantity = leg_update.get("quantity", 0)
+                
+                new_leg = OptionLeg(
+                    id=str(uuid.uuid4()),
+                    position_id=db_position.id,
+                    option_type=leg_update.get("option_type"),
+                    strike=leg_update.get("strike"),
+                    expiration_date=leg_update.get("expiration_date"),
+                    quantity=quantity,
+                    underlying_ticker=leg_update.get("underlying_ticker"),
+                    underlying_price=leg_update.get("underlying_price"),
+                    option_price=leg_update.get("option_price"),
+                    volatility=leg_update.get("volatility")
+                )
+                db.add(new_leg)
     
     # Update the updated_at timestamp
     db_position.updated_at = datetime.utcnow()

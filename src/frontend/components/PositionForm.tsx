@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { usePositionStore } from '../lib/stores/positionStore';
+import { usePositionStore, OptionPosition } from '../lib/stores/positionStore';
 import { ApiError } from '../lib/api';
 
 type PositionFormData = {
@@ -71,8 +71,8 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
       newErrors.strike = 'Strike must be greater than 0';
     }
     
-    if (!position.quantity || position.quantity <= 0) {
-      newErrors.quantity = 'Quantity must be greater than 0';
+    if (position.quantity === undefined || position.quantity === 0) {
+      newErrors.quantity = 'Quantity cannot be zero';
     } else if (!Number.isInteger(position.quantity)) {
       newErrors.quantity = 'Quantity must be a whole number';
     }
@@ -133,10 +133,59 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
       setFormError(null);
     }
     
-    setPosition(prev => ({
-      ...prev,
-      [name]: type === 'number' ? (value === '' ? '' : parseFloat(value)) : value
-    }));
+    // Handle special logic for quantity and action synchronization
+    if (name === 'quantity') {
+      const quantityValue = value === '' ? '' : parseFloat(value);
+      
+      // Only process if it's a valid number
+      if (quantityValue !== '' && !isNaN(quantityValue)) {
+        if (quantityValue < 0) {
+          // If quantity is negative, automatically set action to 'sell'
+          setPosition(prev => ({
+            ...prev,
+            quantity: quantityValue,
+            action: 'sell'
+          }));
+        } else {
+          // Just update the quantity without changing action
+          setPosition(prev => ({
+            ...prev,
+            quantity: quantityValue
+          }));
+        }
+      } else {
+        // Handle empty or invalid input
+        setPosition(prev => ({
+          ...prev,
+          quantity: quantityValue
+        }));
+      }
+    } else if (name === 'action') {
+      // If action changes to 'sell', make quantity negative if it's positive
+      // If action changes to 'buy', make quantity positive if it's negative
+      setPosition(prev => {
+        const currentQuantity = prev.quantity || 0;
+        let newQuantity = currentQuantity;
+        
+        if (value === 'sell' && currentQuantity > 0) {
+          newQuantity = -Math.abs(currentQuantity);
+        } else if (value === 'buy' && currentQuantity < 0) {
+          newQuantity = Math.abs(currentQuantity);
+        }
+        
+        return {
+          ...prev,
+          action: value as 'buy' | 'sell',
+          quantity: newQuantity
+        };
+      });
+    } else {
+      // Handle all other fields normally
+      setPosition(prev => ({
+        ...prev,
+        [name]: type === 'number' ? (value === '' ? '' : parseFloat(value)) : value
+      }));
+    }
   };
   
   return (
@@ -239,10 +288,10 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
             name="quantity"
             value={position.quantity || ''}
             onChange={handleChange}
-            min="1"
             step="1"
             className={`form-input ${errors.quantity ? 'border-red-500' : ''}`}
             disabled={isSubmitting || storeLoading}
+            placeholder="Enter positive or negative number"
           />
           {errors.quantity && <p className="text-red-500 text-xs mt-1">{errors.quantity}</p>}
         </div>

@@ -1,17 +1,12 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import PositionForm from '../../components/PositionForm';
 import PositionTable from '../../components/PositionTable';
 import { usePositionStore } from '../../lib/stores/positionStore';
 
 export default function PositionsPage() {
-  const { fetchPositions, loading, error } = usePositionStore();
-  
-  useEffect(() => {
-    // Fetch positions when the component mounts
-    fetchPositions();
-  }, [fetchPositions]);
+  const { loading, error } = usePositionStore();
   
   return (
     <div>
@@ -25,14 +20,7 @@ export default function PositionsPage() {
       
       <PositionForm />
       
-      {loading ? (
-        <div className="flex justify-center p-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-          <p className="ml-2">Loading positions...</p>
-        </div>
-      ) : (
-        <PositionTable />
-      )}
+      <PositionTable />
     </div>
   );
 } 

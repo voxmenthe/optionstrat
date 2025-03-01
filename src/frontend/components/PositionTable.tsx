@@ -1,209 +1,307 @@
 'use client';
 
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { usePositionStore, OptionPosition } from '../lib/stores/positionStore';
-import { ApiError } from '../lib/api';
+import React, { FC, useState, useEffect } from 'react';
+import { OptionPosition, usePositionStore, GroupedPosition } from '../lib/stores/positionStore';
 import PositionForm from './PositionForm';
 
-export default function PositionTable() {
-  const { positions, removePosition, calculateGreeks, loading } = usePositionStore();
-  const [calculatingGreeks, setCalculatingGreeks] = useState<Record<string, boolean>>({});
-  const [greeksErrors, setGreeksErrors] = useState<Record<string, string>>({});
-  const [deletingPositions, setDeletingPositions] = useState<Record<string, boolean>>({});
-  const [editingPosition, setEditingPosition] = useState<string | null>(null);
+const PositionTable: FC = () => {
+  const {
+    positions,
+    fetchPositions,
+    removePosition,
+    recalculateAllGreeks,
+    calculatingAllGreeks,
+    groupByUnderlying,
+    toggleGrouping,
+    getGroupedPositions,
+  } = usePositionStore();
   
-  const formatCurrency = (value?: number) => {
-    if (value === undefined) return '-';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(value);
-  };
-  
-  const formatNumber = (value?: number, decimals = 2) => {
-    if (value === undefined) return '-';
-    return value.toFixed(decimals);
-  };
-  
-  const handleCalculateGreeks = async (position: OptionPosition) => {
-    setCalculatingGreeks(prev => ({ ...prev, [position.id]: true }));
-    setGreeksErrors(prev => {
-      const newErrors = { ...prev };
-      delete newErrors[position.id];
-      return newErrors;
-    });
-    
-    try {
-      await calculateGreeks(position);
-    } catch (error) {
-      let errorMessage = 'Failed to calculate Greeks';
-      if (error instanceof ApiError) {
-        errorMessage = `API Error (${error.status}): ${error.message}`;
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      setGreeksErrors(prev => ({ ...prev, [position.id]: errorMessage }));
-    } finally {
-      setCalculatingGreeks(prev => ({ ...prev, [position.id]: false }));
-    }
-  };
-  
-  const handleDeletePosition = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this position?')) {
-      setDeletingPositions(prev => ({ ...prev, [id]: true }));
+  const [isLoading, setIsLoading] = useState(true);
+  const [editingPosition, setEditingPosition] = useState<OptionPosition | null>(null);
+  const [toastMessage, setToastMessage] = useState<{title: string, status: 'success' | 'error', message?: string} | null>(null);
+
+  useEffect(() => {
+    const loadPositions = async () => {
+      setIsLoading(true);
       try {
-        await removePosition(id);
+        await fetchPositions();
+        // Immediately recalculate Greeks after loading positions
+        if (positions.length > 0) {
+          console.log('Auto-recalculating Greeks for loaded positions');
+          await recalculateAllGreeks();
+        }
       } catch (error) {
-        console.error('Failed to delete position:', error);
-        alert(`Failed to delete position: ${error instanceof Error ? error.message : String(error)}`);
+        console.error('Error loading positions:', error);
+        setToastMessage({
+          title: 'Error loading positions',
+          status: 'error',
+          message: error instanceof Error ? error.message : String(error)
+        });
       } finally {
-        setDeletingPositions(prev => ({ ...prev, [id]: false }));
+        setIsLoading(false);
       }
+    };
+
+    loadPositions();
+    
+    // Set up a refresh interval to periodically fetch positions and recalculate Greeks
+    const intervalId = setInterval(() => {
+      console.log('Refreshing positions and Greeks');
+      fetchPositions()
+        .then(() => {
+          if (positions.length > 0) {
+            return recalculateAllGreeks();
+          }
+        })
+        .catch(console.error);
+    }, 60000); // Refresh every minute
+    
+    return () => clearInterval(intervalId);
+  }, [fetchPositions, recalculateAllGreeks]);
+
+  const handleEdit = (position: OptionPosition) => {
+    setEditingPosition(position);
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await removePosition(id);
+      setToastMessage({
+        title: 'Position removed',
+        status: 'success'
+      });
+      
+      // Auto clear toast after 3 seconds
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (error) {
+      setToastMessage({
+        title: 'Error removing position',
+        status: 'error',
+        message: error instanceof Error ? error.message : String(error)
+      });
+      
+      // Auto clear toast after 5 seconds
+      setTimeout(() => setToastMessage(null), 5000);
     }
   };
-  
-  if (loading) {
+
+  const handleRecalculateGreeks = async () => {
+    try {
+      await recalculateAllGreeks();
+      setToastMessage({
+        title: 'Greeks recalculated successfully',
+        status: 'success'
+      });
+      
+      // Auto clear toast after 3 seconds
+      setTimeout(() => setToastMessage(null), 3000);
+    } catch (error) {
+      setToastMessage({
+        title: 'Error recalculating Greeks',
+        status: 'error',
+        message: error instanceof Error ? error.message : String(error)
+      });
+      
+      // Auto clear toast after 5 seconds
+      setTimeout(() => setToastMessage(null), 5000);
+    }
+  };
+
+  const formatGreeks = (value?: number) => {
+    if (value === undefined) return 'N/A';
+    
+    // Values should already be properly normalized from the backend
+    // We don't need to rescale them, just ensure consistent display format
+    return value.toFixed(4);
+  };
+
+  // Custom toast component
+  const Toast = () => {
+    if (!toastMessage) return null;
+    
     return (
-      <div className="flex justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-        <p className="ml-2">Loading positions...</p>
+      <div className={`fixed bottom-4 right-4 p-4 rounded shadow-lg ${toastMessage.status === 'success' ? 'bg-green-500' : 'bg-red-500'} text-white`}>
+        <div className="font-bold">{toastMessage.title}</div>
+        {toastMessage.message && <div className="text-sm">{toastMessage.message}</div>}
       </div>
     );
-  }
-  
+  };
+
   if (editingPosition) {
-    const positionToEdit = positions.find(p => p.id === editingPosition);
-    if (!positionToEdit) {
-      return null;
-    }
-    
     return (
-      <div className="mt-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-semibold">Edit Position</h2>
+      <div>
+        <div className="mb-4">
           <button 
-            onClick={() => setEditingPosition(null)}
-            className="text-gray-500 hover:text-gray-700"
+            onClick={() => setEditingPosition(null)} 
+            className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-100"
           >
-            Cancel
+            Back to Positions
           </button>
         </div>
         <PositionForm 
-          existingPosition={positionToEdit} 
-          onSuccess={() => setEditingPosition(null)} 
+          existingPosition={editingPosition} 
+          onSuccess={() => setEditingPosition(null)}
         />
+        <Toast />
       </div>
     );
   }
 
-  if (positions.length === 0) {
+  if (isLoading) {
     return (
-      <div className="bg-gray-50 p-6 rounded-lg text-center">
-        <p className="text-gray-500">No positions added yet. Use the form above to add your first position.</p>
+      <div className="flex justify-center p-8">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+        <span className="ml-2">Loading positions...</span>
       </div>
     );
   }
-  
+
+  const renderPositionRow = (position: OptionPosition) => (
+    <tr key={position.id} className="border-b hover:bg-gray-50">
+      <td className="py-2 px-3">{position.ticker}</td>
+      <td className="py-2 px-3">{position.expiration}</td>
+      <td className="py-2 px-3 text-right">{position.strike}</td>
+      <td className="py-2 px-3">{position.type}</td>
+      <td className="py-2 px-3">{position.action}</td>
+      <td className="py-2 px-3 text-right">{position.quantity}</td>
+      <td className="py-2 px-3 text-right">{position.premium}</td>
+      <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.delta)}</td>
+      <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.gamma)}</td>
+      <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.theta)}</td>
+      <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.vega)}</td>
+      <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.rho)}</td>
+      <td className="py-2 px-3">
+        <div className="flex space-x-2">
+          <button 
+            className="px-2 py-1 bg-blue-500 text-white text-xs rounded hover:bg-blue-600" 
+            onClick={() => handleEdit(position)}
+          >
+            Edit
+          </button>
+          <button 
+            className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600" 
+            onClick={() => handleDelete(position.id)}
+          >
+            Delete
+          </button>
+        </div>
+      </td>
+    </tr>
+  );
+
+  const renderGroupedPositions = () => {
+    const groupedPositions = getGroupedPositions();
+    
+    return groupedPositions.map((group: GroupedPosition) => (
+      <React.Fragment key={group.underlying}>
+        <tr className="bg-gray-100 font-semibold">
+          <td colSpan={7} className="py-3 px-3">
+            <span className="text-lg">
+              {group.underlying} ({group.positions.length} positions)
+            </span>
+          </td>
+          <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.delta)}</td>
+          <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.gamma)}</td>
+          <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.theta)}</td>
+          <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.vega)}</td>
+          <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.rho)}</td>
+          <td></td>
+        </tr>
+        {group.positions.map(renderPositionRow)}
+      </React.Fragment>
+    ));
+  };
+
   return (
-    <div className="overflow-x-auto rounded-lg border border-gray-200">
-      <table className="positions-table">
-        <thead className="bg-gray-50">
-          <tr>
-            <th>Ticker</th>
-            <th>Expiration</th>
-            <th>Strike</th>
-            <th>Type</th>
-            <th>Action</th>
-            <th>Qty</th>
-            <th>Premium</th>
-            <th>Delta</th>
-            <th>Gamma</th>
-            <th>Theta</th>
-            <th>Vega</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {positions.map(position => (
-            <tr key={position.id} className={deletingPositions[position.id] ? 'opacity-50' : ''}>
-              <td className="font-medium">{position.ticker}</td>
-              <td>{new Date(position.expiration).toLocaleDateString()}</td>
-              <td>{formatCurrency(position.strike)}</td>
-              <td className={position.type === 'call' ? 'text-green-600' : 'text-red-600'}>
-                {position.type.toUpperCase()}
-              </td>
-              <td className={position.action === 'buy' ? 'text-green-600' : 'text-red-600'}>
-                {position.action.toUpperCase()}
-              </td>
-              <td>{position.quantity}</td>
-              <td>{formatCurrency(position.premium)}</td>
-              <td>{position.greeks ? formatNumber(position.greeks.delta) : '-'}</td>
-              <td>{position.greeks ? formatNumber(position.greeks.gamma, 4) : '-'}</td>
-              <td>{position.greeks ? formatNumber(position.greeks.theta) : '-'}</td>
-              <td>{position.greeks ? formatNumber(position.greeks.vega) : '-'}</td>
-              <td className="space-x-2">
-                {greeksErrors[position.id] && (
-                  <div className="text-red-500 text-xs mb-1">{greeksErrors[position.id]}</div>
-                )}
-                
-                {!position.greeks && !calculatingGreeks[position.id] && (
-                  <button
-                    onClick={() => handleCalculateGreeks(position)}
-                    className="text-blue-500 hover:text-blue-700 font-medium text-sm"
-                    disabled={deletingPositions[position.id]}
-                  >
-                    Calculate Greeks
-                  </button>
-                )}
-                
-                {calculatingGreeks[position.id] && (
-                  <span className="text-blue-500 text-sm flex items-center">
-                    <svg className="animate-spin -ml-1 mr-1 h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Calculating...
-                  </span>
-                )}
-                
-                <div className="flex space-x-2">
-                  <Link 
-                    href={`/visualizations/${position.id}`} 
-                    className={`text-green-500 hover:text-green-700 font-medium text-sm ${deletingPositions[position.id] ? 'pointer-events-none opacity-50' : ''}`}
-                  >
-                    Visualize
-                  </Link>
-                  
-                  <button
-                    onClick={() => setEditingPosition(position.id)}
-                    className="text-blue-500 hover:text-blue-700 font-medium text-sm"
-                    disabled={deletingPositions[position.id]}
-                  >
-                    Edit
-                  </button>
-                  
-                  <button
-                    onClick={() => handleDeletePosition(position.id)}
-                    className="text-red-500 hover:text-red-700 font-medium text-sm"
-                    disabled={deletingPositions[position.id]}
-                  >
-                    {deletingPositions[position.id] ? (
-                      <span className="flex items-center">
-                        <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Deleting...
-                      </span>
-                    ) : 'Delete'}
-                  </button>
-                </div>
-              </td>
+    <div className="flex flex-col space-y-4">
+      <div className="flex justify-between items-center">
+        <div className="flex space-x-4 items-center">
+          <button 
+            onClick={handleRecalculateGreeks} 
+            className={`px-4 py-2 bg-teal-500 text-white rounded hover:bg-teal-600 ${calculatingAllGreeks ? 'opacity-75 cursor-not-allowed' : ''}`}
+            disabled={calculatingAllGreeks}
+          >
+            {calculatingAllGreeks ? (
+              <>
+                <span className="inline-block animate-spin mr-2">⟳</span>
+                Recalculating...
+              </>
+            ) : 'Recalculate Greeks'}
+          </button>
+          <div className="flex items-center space-x-2">
+            <span>Group by underlying:</span>
+            <div className="relative inline-block w-10 align-middle select-none transition duration-200 ease-in">
+              <input 
+                type="checkbox" 
+                name="toggle" 
+                id="toggle"
+                className="toggle-checkbox absolute block w-6 h-6 rounded-full bg-white border-4 appearance-none cursor-pointer z-10"
+                checked={groupByUnderlying}
+                onChange={toggleGrouping}
+              />
+              <label 
+                htmlFor="toggle" 
+                className={`toggle-label block overflow-hidden h-6 rounded-full cursor-pointer ${groupByUnderlying ? 'bg-teal-500' : 'bg-gray-300'}`}
+              ></label>
+            </div>
+            <style jsx>{`
+              .toggle-checkbox {
+                transition: transform 0.3s ease-in-out;
+                border-color: #D1D5DB;
+              }
+              .toggle-checkbox:checked {
+                right: 0;
+                transform: translateX(100%);
+                border-color: #0D9488;
+              }
+              .toggle-label {
+                width: 2.5rem;
+                transition: background-color 0.3s ease;
+              }
+            `}</style>
+          </div>
+        </div>
+      </div>
+      
+      <div className="overflow-x-auto rounded border border-gray-200">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="py-3 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticker</th>
+              <th className="py-3 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expiration</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Strike</th>
+              <th className="py-3 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th className="py-3 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Premium</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Delta</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Gamma</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Theta</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Vega</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Rho</th>
+              <th className="py-3 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {positions.length === 0 ? (
+              <tr>
+                <td colSpan={13} className="py-4 px-3 text-center text-sm text-gray-500">
+                  No positions found. Add one to get started.
+                </td>
+              </tr>
+            ) : groupByUnderlying ? (
+              renderGroupedPositions()
+            ) : (
+              positions.map(renderPositionRow)
+            )}
+          </tbody>
+        </table>
+      </div>
+      
+      {/* Toast Notification */}
+      <Toast />
     </div>
   );
-} 
+};
+
+export default PositionTable;

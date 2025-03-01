@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, create_engine, Boolean, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, create_engine, Boolean, ForeignKey, Text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 import datetime
@@ -9,7 +9,17 @@ import os
 SQLALCHEMY_DATABASE_URL = "sqlite:///./options.db"
 
 # Create engine with check_same_thread=False for SQLite
-engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
+# Set pool_size to 20 and max_overflow to 30 to handle more concurrent connections
+# Set pool_recycle to 3600 (1 hour) to prevent stale connections
+engine = create_engine(
+    SQLALCHEMY_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    pool_size=20,
+    max_overflow=30,
+    pool_recycle=3600,
+    pool_pre_ping=True,  # Verify connections before using them
+    pool_timeout=60      # Increase timeout to 60 seconds
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -67,13 +77,27 @@ class DBPosition(Base):
     updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), onupdate=lambda: datetime.datetime.now(datetime.UTC))
 
 
-# Create tables
-# Check if the database file exists and remove it if it does (for testing purposes)
-if os.path.exists("./options.db"):
-    os.remove("./options.db")
+class CacheEntry(Base):
+    """Database model for caching when Redis is unavailable."""
+    __tablename__ = "cache_entries"
 
-# Create all tables
-Base.metadata.create_all(bind=engine)
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    key = Column(String, unique=True, index=True)
+    value = Column(Text)  # Stores JSON serialized data
+    expires_at = Column(DateTime)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC))
+    updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), onupdate=lambda: datetime.datetime.now(datetime.UTC))
+
+
+# Create tables
+# Only remove the database file if it doesn't exist yet, otherwise we'd lose existing data
+if not os.path.exists("./options.db"):
+    # Create all tables
+    Base.metadata.create_all(bind=engine)
+else:
+    # Just make sure the schema is up to date without recreating the entire database
+    # This allows adding new tables/columns without losing data
+    Base.metadata.create_all(bind=engine)
 
 
 # Dependency to get DB session
