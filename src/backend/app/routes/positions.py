@@ -11,6 +11,7 @@ from app.models.schemas import PnLResult, PnLCalculationParams, BulkPnLCalculati
 from app.services.option_pricing import OptionPricer
 from app.services.market_data import MarketDataService
 from app.services.scenario_engine import ScenarioEngine
+from app.services.volatility_service import VolatilityService
 
 router = APIRouter(
     prefix="/positions",
@@ -30,6 +31,11 @@ def get_market_data_service():
 def get_scenario_engine():
     """Dependency to get the scenario engine service."""
     return ScenarioEngine()
+
+def get_volatility_service():
+    """Dependency to get the volatility service."""
+    market_data = get_market_data_service()
+    return VolatilityService(market_data)
 
 
 @router.post("/", response_model=PositionSchema)
@@ -426,10 +432,12 @@ def calculate_position_pnl(
                 initial_value=saved_result.initial_value,
                 current_value=saved_result.current_value,
                 implied_volatility=saved_result.implied_volatility,
+                historical_volatility=getattr(saved_result, 'historical_volatility', None),
                 underlying_price=saved_result.underlying_price,
                 calculation_timestamp=saved_result.calculation_timestamp,
                 days_forward=saved_result.days_forward,
-                price_change_percent=saved_result.price_change_percent
+                price_change_percent=saved_result.price_change_percent,
+                volatility_days=getattr(saved_result, 'volatility_days', None)
             )
             print(f"Using cached PnL result for position {position_id} from {saved_result.calculation_timestamp}")
             return result
@@ -550,7 +558,8 @@ def calculate_theoretical_position_pnl(
     recalculate: bool = Query(False, description="Force recalculation instead of using saved values"),
     db: Session = Depends(get_db),
     market_data_service = Depends(get_market_data_service),
-    option_pricer = Depends(get_option_pricer)
+    option_pricer = Depends(get_option_pricer),
+    volatility_service = Depends(get_volatility_service)
 ):
     """
     Calculate theoretical profit and loss for a specific position based on days forward and price change percentage.
@@ -558,12 +567,18 @@ def calculate_theoretical_position_pnl(
     """
     # Check if we have a saved result with the same parameters and recalculation is not requested
     if not recalculate:
-        saved_result = db.query(PositionPnLResult).filter(
+        query = db.query(PositionPnLResult).filter(
             PositionPnLResult.position_id == position_id,
             PositionPnLResult.is_theoretical == True,
             PositionPnLResult.days_forward == params.days_forward,
             PositionPnLResult.price_change_percent == params.price_change_percent
-        ).order_by(PositionPnLResult.calculation_timestamp.desc()).first()
+        )
+        
+        # Add volatility_days filter if provided
+        if params.volatility_days is not None:
+            query = query.filter(PositionPnLResult.volatility_days == params.volatility_days)
+            
+        saved_result = query.order_by(PositionPnLResult.calculation_timestamp.desc()).first()
         
         if saved_result:
             # Return saved result - include all fields from the database
@@ -574,12 +589,15 @@ def calculate_theoretical_position_pnl(
                 initial_value=saved_result.initial_value,
                 current_value=saved_result.current_value,
                 implied_volatility=saved_result.implied_volatility,
+                historical_volatility=getattr(saved_result, 'historical_volatility', None),
                 underlying_price=saved_result.underlying_price,
                 calculation_timestamp=saved_result.calculation_timestamp,
                 days_forward=saved_result.days_forward,
-                price_change_percent=saved_result.price_change_percent
+                price_change_percent=saved_result.price_change_percent,
+                volatility_days=getattr(saved_result, 'volatility_days', None)
             )
-            print(f"Using cached theoretical PnL result for position {position_id} with days_forward={params.days_forward}, price_change={params.price_change_percent}")
+            volatility_days_str = f", volatility_days={params.volatility_days}" if params.volatility_days else ""
+            print(f"Using cached theoretical PnL result for position {position_id} with days_forward={params.days_forward}, price_change={params.price_change_percent}{volatility_days_str}")
             return result
     
     # Get the position
@@ -661,22 +679,30 @@ def calculate_theoretical_position_pnl(
             initial_value=initial_value,
             current_value=theoretical_value,
             implied_volatility=implied_volatility,
+            historical_volatility=historical_volatility,
             underlying_price=projected_spot_price,
             calculation_timestamp=datetime.utcnow(),
             days_forward=params.days_forward,
-            price_change_percent=params.price_change_percent
+            price_change_percent=params.price_change_percent,
+            volatility_days=volatility_days
         )
         
         # Save to database for persistence
         try:
             # Wrap in transaction to ensure atomicity
             # First delete any existing theoretical results with same parameters
-            db.query(PositionPnLResult).filter(
+            delete_query = db.query(PositionPnLResult).filter(
                 PositionPnLResult.position_id == position_id,
                 PositionPnLResult.is_theoretical == True,
                 PositionPnLResult.days_forward == params.days_forward,
                 PositionPnLResult.price_change_percent == params.price_change_percent
-            ).delete()
+            )
+            
+            # Also match volatility_days if specified
+            if params.volatility_days is not None:
+                delete_query = delete_query.filter(PositionPnLResult.volatility_days == params.volatility_days)
+                
+            delete_query.delete()
             
             # Then save the new result
             db_pnl_result = PositionPnLResult(
@@ -686,11 +712,13 @@ def calculate_theoretical_position_pnl(
                 initial_value=initial_value,
                 current_value=theoretical_value,
                 implied_volatility=implied_volatility,
+                historical_volatility=historical_volatility,
                 underlying_price=projected_spot_price,
                 calculation_timestamp=datetime.utcnow(),
                 is_theoretical=True,
                 days_forward=params.days_forward,
-                price_change_percent=params.price_change_percent
+                price_change_percent=params.price_change_percent,
+                volatility_days=volatility_days
             )
             db.add(db_pnl_result)
             db.commit()
@@ -710,7 +738,8 @@ def calculate_bulk_theoretical_pnl(
     request: BulkPnLCalculationRequest,
     db: Session = Depends(get_db),
     market_data_service = Depends(get_market_data_service),
-    option_pricer = Depends(get_option_pricer)
+    option_pricer = Depends(get_option_pricer),
+    volatility_service = Depends(get_volatility_service)
 ):
     """
     Calculate theoretical profit and loss for multiple positions based on days forward and price change percentage.
@@ -720,7 +749,8 @@ def calculate_bulk_theoretical_pnl(
     # Create PnL calculation params
     params = PnLCalculationParams(
         days_forward=request.days_forward,
-        price_change_percent=request.price_change_percent
+        price_change_percent=request.price_change_percent,
+        volatility_days=request.volatility_days
     )
     
     # Process each position
@@ -732,7 +762,8 @@ def calculate_bulk_theoretical_pnl(
                 params=params,
                 db=db,
                 market_data_service=market_data_service,
-                option_pricer=option_pricer
+                option_pricer=option_pricer,
+                volatility_service=volatility_service
             )
             results.append(result)
         except HTTPException as e:

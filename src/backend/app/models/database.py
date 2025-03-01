@@ -100,11 +100,13 @@ class PositionPnLResult(Base):
     initial_value = Column(Float)
     current_value = Column(Float)
     implied_volatility = Column(Float, nullable=True)
+    historical_volatility = Column(Float, nullable=True)  # Store the historical volatility calculation
     underlying_price = Column(Float, nullable=True)
     calculation_timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC))
     is_theoretical = Column(Boolean, default=False)  # Whether this is a theoretical or actual P&L
     days_forward = Column(Integer, nullable=True)     # For theoretical P&L
     price_change_percent = Column(Float, nullable=True)  # For theoretical P&L
+    volatility_days = Column(Integer, nullable=True)  # Number of days used for volatility calculation
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC))
     updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), onupdate=lambda: datetime.datetime.now(datetime.UTC))
 

@@ -97,6 +97,7 @@ const toFrontendPosition = (position: BackendPosition): OptionPosition => {
 export interface PnLCalculationParams {
   days_forward?: number;
   price_change_percent?: number;
+  volatility_days?: number;
 }
 
 export interface BackendPnLResult {

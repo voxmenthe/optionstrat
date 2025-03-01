@@ -55,7 +55,14 @@ def override_get_db():
 @pytest.fixture
 def client():
     """Create a test client with the overridden dependency."""
-    app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as test_client:
-        yield test_client
-    app.dependency_overrides = {} 
+    try:
+        # Set up dependency override
+        app.dependency_overrides[get_db] = override_get_db
+        
+        # Create client without context manager
+        client = TestClient(app)
+        
+        yield client
+    finally:
+        # Clean up dependencies
+        app.dependency_overrides = {} 

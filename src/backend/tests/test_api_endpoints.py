@@ -7,11 +7,12 @@ import uuid
 from app.main import app
 from app.services.market_data import MarketDataService
 from app.services.option_pricing import OptionPricer
+from app.services.option_chain_service import OptionChainService
 from app.models.database import get_db
+from tests.conftest import override_get_db
 
 
 # Use the client fixture from conftest.py
-# client = TestClient(app)
 
 
 @pytest.fixture
@@ -28,12 +29,149 @@ class TestAPIEndpoints:
         self.sample_ticker = "AAPL"
         self.sample_option_symbol = "O:AAPL230616C00150000"
         self.sample_expiration_date = (datetime.now() + timedelta(days=30)).strftime("%Y-%m-%d")
+        
+        # Sample option chain data
+        self.sample_options = [
+            {
+                "ticker": "AAPL",
+                "expiration": "2025-06-20T00:00:00",
+                "strike": 200.0,
+                "option_type": "call",
+                "bid": 10.5,
+                "ask": 11.2,
+                "volume": 1000,
+                "open_interest": 5000,
+                "implied_volatility": 0.35,
+                "delta": 0.65,
+            },
+            {
+                "ticker": "AAPL",
+                "expiration": "2025-06-20T00:00:00",
+                "strike": 200.0,
+                "option_type": "put",
+                "bid": 8.4,
+                "ask": 8.9,
+                "volume": 800,
+                "open_interest": 4200,
+                "implied_volatility": 0.33,
+                "delta": -0.35,
+            }
+        ]
+        
+        # Sample expiration dates
+        self.sample_expirations = [
+            {
+                "date": "2025-03-21T00:00:00",
+                "formatted_date": "2025-03-21"
+            },
+            {
+                "date": "2025-06-20T00:00:00",
+                "formatted_date": "2025-06-20"
+            }
+        ]
 
     def test_health_check(self, test_client):
         """Test the health check endpoint."""
         response = test_client.get("/health")
         assert response.status_code == 200
         assert response.json() == {"status": "healthy"}
+        
+    @patch.object(OptionChainService, 'get_option_chain')
+    def test_get_options_chain(self, mock_get_chain, test_client):
+        """Test the get options chain endpoint."""
+        # Configure the mock
+        mock_get_chain.return_value = self.sample_options
+        
+        # Make the request
+        response = test_client.get(f"/options/chains/{self.sample_ticker}")
+        
+        # Verify the response
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["ticker"] == self.sample_ticker
+        assert data[0]["strike"] == 200.0
+        
+        # Verify the mock was called correctly
+        mock_get_chain.assert_called_once()
+    
+    @patch.object(OptionChainService, 'get_option_chain')
+    def test_get_options_chain_with_filters(self, mock_get_chain, test_client):
+        """Test the get options chain endpoint with filters."""
+        # Configure the mock to return only calls
+        filtered_options = [opt for opt in self.sample_options if opt["option_type"] == "call"]
+        mock_get_chain.return_value = filtered_options
+        
+        # Make the request with filters
+        response = test_client.get(
+            f"/options/chains/{self.sample_ticker}",
+            params={"option_type": "call", "min_strike": 200.0}
+        )
+        
+        # Verify the response
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 1
+        assert data[0]["option_type"] == "call"
+        
+    @patch.object(OptionChainService, 'get_expirations')
+    def test_get_option_expirations(self, mock_get_expirations, test_client):
+        """Test the get option expirations endpoint."""
+        # Configure the mock
+        exp_dates = [datetime.strptime(exp["formatted_date"], "%Y-%m-%d") for exp in self.sample_expirations]
+        mock_get_expirations.return_value = exp_dates
+        
+        # Make the request
+        response = test_client.get(f"/options/chains/{self.sample_ticker}/expirations")
+        
+        # Verify the response
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert "2025-03-21" in [exp["formatted_date"] for exp in data]
+        assert "2025-06-20" in [exp["formatted_date"] for exp in data]
+        
+    @patch.object(OptionChainService, 'get_option_chain')
+    def test_get_options_for_expiration(self, mock_get_chain, test_client):
+        """Test the get options for expiration endpoint."""
+        # Configure the mock
+        mock_get_chain.return_value = self.sample_options
+        
+        # Make the request
+        response = test_client.get(
+            f"/options/chains/{self.sample_ticker}/2025-06-20"
+        )
+        
+        # Verify the response
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert all(opt["expiration"].startswith("2025-06-20") for opt in data)
+        
+    @patch.object(MarketDataService, 'search_tickers')
+    def test_search_tickers(self, mock_search_tickers, test_client):
+        """Test the search tickers endpoint."""
+        # Sample ticker search results
+        search_results = [
+            {"symbol": "AAPL", "name": "Apple Inc."},
+            {"symbol": "APLS", "name": "Apellis Pharmaceuticals, Inc."}
+        ]
+        
+        # Configure the mock
+        mock_search_tickers.return_value = search_results
+        
+        # Make the request
+        response = test_client.get("/options/search/APL")
+        
+        # Verify the response
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data) == 2
+        assert data[0]["symbol"] == "AAPL"
+        assert data[1]["symbol"] == "APLS"
+        
+        # Verify the mock was called correctly
+        mock_search_tickers.assert_called_once_with("APL")
 
     def test_api_version(self, test_client):
         """Test the API version endpoint."""

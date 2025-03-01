@@ -61,6 +61,7 @@ export interface GroupedPosition {
 export interface TheoreticalPnLSettings {
   daysForward: number;
   priceChangePercent: number;
+  volatilityDays: number;
 }
 
 interface PositionStore {
@@ -104,6 +105,7 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
   theoreticalPnLSettings: {
     daysForward: 7,
     priceChangePercent: 0,
+    volatilityDays: 30, // Default to 30-day historical volatility
   },
   
   fetchPositions: async () => {

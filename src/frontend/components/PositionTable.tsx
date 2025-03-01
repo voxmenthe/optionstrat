@@ -299,6 +299,21 @@ const PositionTable: FC = () => {
               step="0.1"
             />
           </div>
+          <div className="flex items-center mr-4">
+            <label htmlFor="volatilityDays" className="mr-2 text-sm text-gray-600">
+              Volatility Days:
+            </label>
+            <input
+              id="volatilityDays"
+              type="number"
+              value={theoreticalPnLSettings.volatilityDays}
+              onChange={(e) => handleTheoreticalSettingsChange({ volatilityDays: parseInt(e.target.value) || 30 })}
+              className="w-16 px-2 py-1 border border-gray-300 rounded"
+              min="1"
+              max="252"
+              title="Number of trading days to use for volatility calculation"
+            />
+          </div>
           <div className="flex space-x-2">
             <button 
               onClick={() => handleRecalculateGreeks(false)} 
