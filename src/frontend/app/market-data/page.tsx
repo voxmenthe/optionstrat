@@ -19,6 +19,25 @@ interface MarketData {
   companyName?: string;
 }
 
+// Create formatters outside of component to ensure consistency
+const currencyFormatter = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
+const percentFormatter = new Intl.NumberFormat('en-US', {
+  style: 'percent',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2
+});
+
+const numberFormatter = new Intl.NumberFormat('en-US', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 0
+});
+
 export default function MarketDataPage() {
   const { 
     getTickerInfo, 
@@ -71,15 +90,27 @@ export default function MarketDataPage() {
     
     try {
       await getTickerInfo(ticker);
-      await getStockPrice(ticker);
-      await getExpirationDates(ticker);
       
-      // If we have expiration dates, get the option chain for the first one
-      if (expirationDates.length > 0 && expirationDates[0].date) {
-        await getOptionChain(ticker, expirationDates[0].date);
+      try {
+        await getStockPrice(ticker);
+      } catch (err) {
+        console.warn('Error fetching stock price:', err);
+        // Continue with other requests even if stock price fails
+      }
+      
+      try {
+        await getExpirationDates(ticker);
+        
+        // If we have expiration dates, get the option chain for the first one
+        if (expirationDates.length > 0 && expirationDates[0].date) {
+          await getOptionChain(ticker, expirationDates[0].date);
+        }
+      } catch (err) {
+        console.warn('Error fetching option data:', err);
+        // Continue even if option data fails
       }
     } catch (err) {
-      console.error('Error fetching market data:', err);
+      console.error('Error fetching ticker info:', err);
       let errorMessage = 'Failed to fetch market data';
       if (err instanceof Error) {
         errorMessage = err.message;
@@ -89,10 +120,7 @@ export default function MarketDataPage() {
   };
   
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-    }).format(value);
+    return currencyFormatter.format(value);
   };
   
   const formatLargeNumber = (value: number) => {
@@ -105,7 +133,7 @@ export default function MarketDataPage() {
     if (value >= 1000000) {
       return `${(value / 1000000).toFixed(2)}M`;
     }
-    return value.toLocaleString();
+    return numberFormatter.format(value);
   };
   
   // Transform option chain data for display
@@ -200,6 +228,13 @@ export default function MarketDataPage() {
             <p>{displayError}</p>
           </div>
         )}
+        
+        {searchedTicker && !loading && (
+          <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg">
+            <p className="font-medium">Note: This is a development environment</p>
+            <p className="text-sm mt-1">Some market data features require a valid Polygon.io API key. You may see mock data or errors.</p>
+          </div>
+        )}
       </div>
       
       {searchedTicker && !loading && marketData && (
@@ -214,7 +249,7 @@ export default function MarketDataPage() {
                 <p className="text-3xl font-bold">{formatCurrency(marketData.currentPrice)}</p>
                 <p className={`text-lg ${marketData.priceChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                   {marketData.priceChange >= 0 ? '+' : ''}
-                  {formatCurrency(marketData.priceChange)} ({marketData.priceChangePercent.toFixed(2)}%)
+                  {formatCurrency(marketData.priceChange)} ({(marketData.priceChangePercent).toFixed(2)}%)
                 </p>
               </div>
             </div>

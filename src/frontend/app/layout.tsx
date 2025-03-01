@@ -13,7 +13,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>
+      <body className="min-h-screen flex flex-col">
         <header className="bg-gray-800 text-white p-4">
           <div className="container mx-auto flex justify-between items-center">
             <h1 className="text-xl font-bold">Options Analysis Tool</h1>
@@ -27,12 +27,12 @@ export default function RootLayout({
             </nav>
           </div>
         </header>
-        <div className="container mx-auto py-6">
+        <main className="container mx-auto py-6 flex-grow">
           {children}
-        </div>
-        <footer className="bg-gray-100 border-t mt-12 py-6">
+        </main>
+        <footer className="bg-gray-100 border-t py-6">
           <div className="container mx-auto text-center text-gray-600">
-            <p>Options Analysis Tool © {new Date().getFullYear()}</p>
+            <p>Options Analysis Tool © 2024</p>
             <p className="text-sm mt-2">Disclaimer: This tool is for educational purposes only. Not financial advice.</p>
           </div>
         </footer>

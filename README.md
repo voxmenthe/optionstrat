@@ -89,3 +89,33 @@ The frontend is built with Next.js and uses Tailwind CSS for styling. It provide
 ## License
 
 MIT
+
+## Running the Application
+
+You can run both the frontend and backend servers with a single command:
+
+```bash
+./run_app.sh
+```
+
+This script will:
+1. Check for required dependencies and install them if needed
+2. Start the backend server on port 8003
+3. Start the frontend server on port 3000
+4. Provide URLs to access both servers
+
+Alternatively, you can start the servers manually:
+
+### Backend
+
+```bash
+cd src/backend
+python -m app.main
+```
+
+### Frontend
+
+```bash
+cd src/frontend
+npm run dev
+```

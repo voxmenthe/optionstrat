@@ -13,6 +13,7 @@ uvicorn = "^0.27.0"
 sqlalchemy = "^2.0.25"
 pydantic = "^2.5.3"
 quantlib = "^1.32"
+yfinance = "^0.2.54"
 numpy = "^1.26.3"
 pandas = "^2.1.4"
 requests = "^2.31.0"
@@ -20,7 +21,7 @@ redis = "^5.0.1"
 python-dotenv = "^1.0.0"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^7.4.0"
+pytest = "^8.3.4"
 pytest-cov = "^4.1.0"
 black = "^23.7.0"
 isort = "^5.12.0"
@@ -40,7 +41,7 @@ profile = "black"
 line_length = 88
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true

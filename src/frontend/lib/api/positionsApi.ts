@@ -45,7 +45,7 @@ export interface BackendPositionWithLegs {
 // Conversion functions between frontend and backend models
 const toBackendPosition = (position: Omit<OptionPosition, 'id'>): BackendPositionCreate => ({
   ticker: position.ticker,
-  expiration: position.expiration,
+  expiration: new Date(position.expiration).toISOString(),
   strike: position.strike,
   option_type: position.type,
   action: position.action,
