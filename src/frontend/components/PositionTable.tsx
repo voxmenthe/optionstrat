@@ -4,12 +4,14 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePositionStore, OptionPosition } from '../lib/stores/positionStore';
 import { ApiError } from '../lib/api';
+import PositionForm from './PositionForm';
 
 export default function PositionTable() {
   const { positions, removePosition, calculateGreeks, loading } = usePositionStore();
   const [calculatingGreeks, setCalculatingGreeks] = useState<Record<string, boolean>>({});
   const [greeksErrors, setGreeksErrors] = useState<Record<string, string>>({});
   const [deletingPositions, setDeletingPositions] = useState<Record<string, boolean>>({});
+  const [editingPosition, setEditingPosition] = useState<string | null>(null);
   
   const formatCurrency = (value?: number) => {
     if (value === undefined) return '-';
@@ -70,6 +72,31 @@ export default function PositionTable() {
     );
   }
   
+  if (editingPosition) {
+    const positionToEdit = positions.find(p => p.id === editingPosition);
+    if (!positionToEdit) {
+      return null;
+    }
+    
+    return (
+      <div className="mt-8">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold">Edit Position</h2>
+          <button 
+            onClick={() => setEditingPosition(null)}
+            className="text-gray-500 hover:text-gray-700"
+          >
+            Cancel
+          </button>
+        </div>
+        <PositionForm 
+          existingPosition={positionToEdit} 
+          onSuccess={() => setEditingPosition(null)} 
+        />
+      </div>
+    );
+  }
+
   if (positions.length === 0) {
     return (
       <div className="bg-gray-50 p-6 rounded-lg text-center">
@@ -140,28 +167,38 @@ export default function PositionTable() {
                   </span>
                 )}
                 
-                <Link 
-                  href={`/visualizations/${position.id}`} 
-                  className={`text-green-500 hover:text-green-700 font-medium text-sm ${deletingPositions[position.id] ? 'pointer-events-none opacity-50' : ''}`}
-                >
-                  Visualize
-                </Link>
-                
-                <button
-                  onClick={() => handleDeletePosition(position.id)}
-                  className="text-red-500 hover:text-red-700 font-medium text-sm"
-                  disabled={deletingPositions[position.id]}
-                >
-                  {deletingPositions[position.id] ? (
-                    <span className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Deleting...
-                    </span>
-                  ) : 'Delete'}
-                </button>
+                <div className="flex space-x-2">
+                  <Link 
+                    href={`/visualizations/${position.id}`} 
+                    className={`text-green-500 hover:text-green-700 font-medium text-sm ${deletingPositions[position.id] ? 'pointer-events-none opacity-50' : ''}`}
+                  >
+                    Visualize
+                  </Link>
+                  
+                  <button
+                    onClick={() => setEditingPosition(position.id)}
+                    className="text-blue-500 hover:text-blue-700 font-medium text-sm"
+                    disabled={deletingPositions[position.id]}
+                  >
+                    Edit
+                  </button>
+                  
+                  <button
+                    onClick={() => handleDeletePosition(position.id)}
+                    className="text-red-500 hover:text-red-700 font-medium text-sm"
+                    disabled={deletingPositions[position.id]}
+                  >
+                    {deletingPositions[position.id] ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-1 h-3 w-3 text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Deleting...
+                      </span>
+                    ) : 'Delete'}
+                  </button>
+                </div>
               </td>
             </tr>
           ))}

@@ -24,9 +24,24 @@ const initialPosition: PositionFormData = {
   premium: undefined
 };
 
-export default function PositionForm() {
-  const { addPosition, loading: storeLoading, error: storeError } = usePositionStore();
-  const [position, setPosition] = useState<PositionFormData>(initialPosition);
+interface PositionFormProps {
+  existingPosition?: OptionPosition;
+  onSuccess?: () => void;
+}
+
+export default function PositionForm({ existingPosition, onSuccess }: PositionFormProps) {
+  const { addPosition, updatePosition, loading: storeLoading, error: storeError } = usePositionStore();
+  const [position, setPosition] = useState<PositionFormData>(
+    existingPosition ? {
+      ticker: existingPosition.ticker,
+      expiration: new Date(existingPosition.expiration).toISOString().split('T')[0],
+      strike: existingPosition.strike,
+      type: existingPosition.type,
+      action: existingPosition.action,
+      quantity: existingPosition.quantity,
+      premium: existingPosition.premium,
+    } : initialPosition
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -77,13 +92,23 @@ export default function PositionForm() {
     if (validateForm()) {
       setIsSubmitting(true);
       try {
-        await addPosition(position);
-        setPosition(initialPosition); // Reset form after successful submission
+        if (existingPosition) {
+          // Update existing position
+          await updatePosition(existingPosition.id, position);
+          if (onSuccess) {
+            onSuccess();
+          }
+        } else {
+          // Create new position
+          await addPosition(position);
+          setPosition(initialPosition); // Reset form after successful submission
+        }
       } catch (error) {
         if (error instanceof ApiError) {
           setFormError(`API Error (${error.status}): ${error.message}`);
         } else {
-          setFormError(`Error adding position: ${error instanceof Error ? error.message : String(error)}`);
+          const action = existingPosition ? 'updating' : 'adding';
+          setFormError(`Error ${action} position: ${error instanceof Error ? error.message : String(error)}`);
         }
       } finally {
         setIsSubmitting(false);
@@ -116,7 +141,7 @@ export default function PositionForm() {
   
   return (
     <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-gray-200">
-      <h2 className="text-xl font-semibold mb-4">Add New Position</h2>
+      <h2 className="text-xl font-semibold mb-4">{existingPosition ? 'Edit Position' : 'Add New Position'}</h2>
       
       {formError && (
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4">
@@ -251,9 +276,9 @@ export default function PositionForm() {
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
               </svg>
-              Adding...
+              {existingPosition ? 'Updating...' : 'Adding...'}
             </span>
-          ) : 'Add Position'}
+          ) : existingPosition ? 'Update Position' : 'Add Position'}
         </button>
       </div>
     </form>
