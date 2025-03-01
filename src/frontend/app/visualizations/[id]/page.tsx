@@ -3,14 +3,20 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { usePositionStore, OptionPosition } from '../../../lib/stores/positionStore';
-import { useScenarioStore } from '../../../lib/stores/scenarioStore';
+import { useScenariosStore } from '../../../lib/stores/scenariosStore';
 import { ApiError } from '../../../lib/api';
 
 export default function PositionDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { positions, fetchPositions, loading: positionsLoading, error: positionsError } = usePositionStore();
-  const { createScenario, loading: scenarioLoading } = useScenarioStore();
+  const { 
+    analyzePriceScenario, 
+    analyzeVolatilityScenario, 
+    analyzeTimeDecayScenario, 
+    analyzePriceVsVolatilitySurface,
+    loading: scenarioLoading 
+  } = useScenariosStore();
   
   const [position, setPosition] = useState<OptionPosition | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,18 +72,13 @@ export default function PositionDetailPage() {
     setCalculating(true);
     try {
       // Create a scenario based on the current visualization settings
-      const scenario = {
-        positionId: position.id,
-        type: visualizationType,
-        parameters: {
-          priceRange,
-          ...(visualizationType === 'price-vol' ? { volRange } : {}),
-          ...(visualizationType === 'price-time' ? { days } : {})
-        }
-      };
-      
-      await createScenario(scenario);
-      // In a real implementation, we would use the scenario result to update the visualization
+      if (visualizationType === 'price-vol') {
+        await analyzePriceVsVolatilitySurface([position]);
+      } else if (visualizationType === 'price-time') {
+        await analyzeTimeDecayScenario([position]);
+      } else if (visualizationType === 'pnl') {
+        await analyzePriceScenario([position]);
+      }
       
     } catch (err) {
       console.error('Failed to calculate visualization:', err);
