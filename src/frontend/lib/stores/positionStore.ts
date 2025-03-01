@@ -132,7 +132,14 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
       });
     } catch (error) {
       console.error('Error fetching positions:', error);
-      set({ error: `Failed to fetch positions: ${error instanceof Error ? error.message : String(error)}`, loading: false });
+      // More detailed error message to help diagnose issues
+      const errorMessage = error instanceof Error ? 
+        `${error.name}: ${error.message}` : 
+        String(error);
+      set({ 
+        error: `Failed to fetch positions: ${errorMessage}`, 
+        loading: false 
+      });
     }
   },
   
@@ -600,8 +607,18 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
         }
       }
       
+      // Get the most recent underlying price from any position that has it
+      let underlyingPrice: number | undefined = undefined;
+      for (const pos of positionsList) {
+        if (pos.pnl?.underlyingPrice) {
+          underlyingPrice = pos.pnl.underlyingPrice;
+          break; // Use the first valid price we find
+        }
+      }
+      
       return {
         underlying: ticker,
+        underlyingPrice,
         positions: positionsList,
         totalGreeks,
         totalPnl,

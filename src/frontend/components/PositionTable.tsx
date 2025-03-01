@@ -48,21 +48,8 @@ const PositionTable: FC = () => {
 
     loadPositions();
     
-    // Set up a refresh interval to periodically fetch positions and recalculate Greeks
-    // Note: This will preserve the existing PnL data and not force recalculation
-    const intervalId = setInterval(() => {
-      console.log('Refreshing positions and Greeks (preserving PnL data)');
-      fetchPositions()
-        .then(() => {
-          if (positions.length > 0) {
-            // Don't force recalculation on regular interval refresh
-            return recalculateAllGreeks();
-          }
-        })
-        .catch(console.error);
-    }, 60000); // Refresh every minute
-    
-    return () => clearInterval(intervalId);
+    // No automatic refresh interval - manual recalculation only
+    return () => {};
   }, [fetchPositions, recalculateAllGreeks]);
 
   const handleEdit = (position: OptionPosition) => {
@@ -192,14 +179,20 @@ const PositionTable: FC = () => {
   
   const calculateCostBasis = (position: OptionPosition): number => {
     // Calculate cost basis as quantity * premium * 100 (standard contract size)
-    // If premium is missing, return 0
-    if (position.premium === undefined || position.premium === null) return 0;
+    // If premium or quantity is missing, return 0
+    if (position.premium === undefined || position.premium === null ||
+        position.quantity === undefined || position.quantity === 0) {
+      return 0;
+    }
     
     // For buying options, cost basis is positive (money spent)
     // For selling options, cost basis is negative (money received)
     const sign = position.action === 'buy' ? 1 : -1;
     const contractSize = 100; // Standard contract size is 100 shares
-    return sign * Math.abs(position.quantity) * position.premium * contractSize;
+    
+    // Return the absolute cost basis (always positive for display purposes)
+    // The sign determines whether money was spent or received
+    return Math.abs(position.quantity) * position.premium * contractSize;
   };
 
   const renderPositionRow = (position: OptionPosition) => (
@@ -211,7 +204,12 @@ const PositionTable: FC = () => {
       <td className="py-2 px-3">{position.action}</td>
       <td className="py-2 px-3 text-right">{position.quantity}</td>
       <td className="py-2 px-3 text-right">{position.premium}</td>
-      <td className="py-2 px-3 text-right">{formatMoney(calculateCostBasis(position))}</td>
+      <td className="py-2 px-3 text-right">
+        {position.action && position.premium ? 
+          (position.action === 'buy' ? '-' : '+') + formatMoney(calculateCostBasis(position)).substring(1) : 
+          formatMoney(calculateCostBasis(position))
+        }
+      </td>
       <td className="py-2 px-3 text-right">{formatIV(position.pnl?.impliedVolatility)}</td>
       <td className="py-2 px-3 text-right">{formatMoney(position.pnl?.currentValue)}</td>
       <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.delta)}</td>
