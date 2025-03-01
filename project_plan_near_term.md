@@ -234,11 +234,32 @@ The following integration tests should be implemented after frontend-backend int
 
 ### 2. Frontend-Backend Integration
 
-- [ ] Connect frontend to backend API
-  - [ ] Create API client service in frontend
-  - [ ] Update position management to use real API
-  - [ ] Implement real-time market data fetching
-  - [ ] Replace mock data with real API calls
+- [x] Connect frontend to backend API
+  - [x] Create API client service in frontend
+    - [x] Implement base API client with error handling
+    - [x] Create position API service
+    - [x] Create Greeks API service
+    - [x] Create market data API service
+    - [x] Create scenarios API service
+    - [x] Create index file for easy imports
+  - [x] Update position management to use real API
+    - [x] Refactor position store to use API services
+    - [x] Implement proper error handling
+    - [x] Add loading states
+  - [x] Implement real-time market data fetching
+    - [x] Create market data store
+    - [x] Connect to market data API
+    - [x] Implement caching for API responses
+  - [x] Replace mock data with real API calls
+    - [x] Update position components
+    - [x] Update market data components
+    - [x] Update visualization components
+
+- [x] Add error handling and loading states
+  - [x] Implement loading indicators for API calls
+  - [x] Add error messages for API failures
+  - [x] Implement retry mechanisms where appropriate
+  - [x] Add graceful degradation for partial system failures
 
 - [ ] Implement real visualizations with Plotly.js
   - [ ] Create 3D surface visualizations for price vs. volatility
@@ -246,382 +267,111 @@ The following integration tests should be implemented after frontend-backend int
   - [ ] Add profit and loss diagrams for option strategies
   - [ ] Visualize Greeks profiles
 
-- [ ] Add error handling and loading states
-  - [ ] Implement loading indicators for API calls
-  - [ ] Add error messages for failed requests
-  - [ ] Create fallback UI for offline mode
+### 3. API Documentation
 
-# Frontend-Backend Integration Detailed Plan
+- [ ] Document all endpoints with examples
+  - [ ] Create OpenAPI documentation
+  - [ ] Add detailed descriptions for each endpoint
+  - [ ] Include request/response schemas
+  - [ ] Document authentication requirements
+  - [ ] Add rate limiting information
 
-## Phase 1: API Client Implementation
-
-### 1.1 Create API Client Service (Week 1)
-
-- [ ] Create a dedicated API client service in the frontend
-  - [ ] Create `src/frontend/lib/api/apiClient.ts` for the base API client
-  - [ ] Implement error handling, response parsing, and request formatting
-  - [ ] Implement caching strategy for API responses
-
-```typescript
-// Example implementation for apiClient.ts
-export class ApiClient {
-  private baseUrl: string;
-  
-  constructor(baseUrl = 'http://localhost:8000') {
-    this.baseUrl = baseUrl;
-  }
-  
-  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
-    const url = new URL(`${this.baseUrl}${endpoint}`);
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        url.searchParams.append(key, String(value));
-      });
-    }
-    
-    const response = await fetch(url.toString());
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
-    }
-    
-    return response.json() as Promise<T>;
-  }
-  
-  async post<T>(endpoint: string, data: any): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(data),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`API error: ${response.status} ${response.statusText}`);
-    }
-    
-    return response.json() as Promise<T>;
-  }
-  
-  // Implement other methods (PUT, DELETE) similarly
-}
-
-export default new ApiClient();
-```
-
-### 1.2 Implement Domain-Specific API Services (Week 1)
-
-- [ ] Create service modules for each API domain:
-  - [ ] `src/frontend/lib/api/positionsApi.ts` - Position management
-  - [ ] `src/frontend/lib/api/greeksApi.ts` - Greeks calculations
-  - [ ] `src/frontend/lib/api/marketDataApi.ts` - Market data
-  - [ ] `src/frontend/lib/api/scenariosApi.ts` - Scenario analysis
-
-```typescript
-// Example implementation for positionsApi.ts
-import apiClient from './apiClient';
-import { OptionPosition, PositionWithLegs } from '../stores/positionStore';
-
-export const positionsApi = {
-  getPositions: (params?: { skip?: number; limit?: number; activeOnly?: boolean }) => {
-    return apiClient.get<OptionPosition[]>('/positions', params);
-  },
-  
-  getPosition: (id: string) => {
-    return apiClient.get<OptionPosition>(`/positions/${id}`);
-  },
-  
-  createPosition: (position: Omit<OptionPosition, 'id'>) => {
-    return apiClient.post<OptionPosition>('/positions', position);
-  },
-  
-  updatePosition: (id: string, position: Partial<OptionPosition>) => {
-    return apiClient.put<OptionPosition>(`/positions/${id}`, position);
-  },
-  
-  deletePosition: (id: string) => {
-    return apiClient.delete<OptionPosition>(`/positions/${id}`);
-  },
-  
-  // Add methods for position with legs
-};
-```
-
-## Phase 2: Store Integration with API Services (Week 1-2)
-
-### 2.1 Update Position Store
-
-- [ ] Modify `src/frontend/lib/stores/positionStore.ts` to use the API:
-  - [ ] Replace mock `fetchPositions` with real API call
-  - [ ] Replace mock `addPosition` with real API call
-  - [ ] Replace mock `updatePosition` with real API call
-  - [ ] Replace mock `removePosition` with real API call
-  - [ ] Replace mock `calculateGreeks` with real API call
-
-```typescript
-// Example update for positionStore.ts
-import { create } from 'zustand';
-import { positionsApi } from '../api/positionsApi';
-import { greeksApi } from '../api/greeksApi';
-
-// ... (existing types)
-
-export const usePositionStore = create<PositionStore>((set, get) => ({
-  positions: [],
-  loading: false,
-  error: null,
-  
-  fetchPositions: async () => {
-    set({ loading: true, error: null });
-    try {
-      const positions = await positionsApi.getPositions();
-      set({ positions, loading: false });
-    } catch (error) {
-      set({ error: `Failed to fetch positions: ${error instanceof Error ? error.message : String(error)}`, loading: false });
-    }
-  },
-  
-  addPosition: async (position) => {
-    set({ loading: true, error: null });
-    try {
-      const newPosition = await positionsApi.createPosition(position);
-      set(state => ({
-        positions: [...state.positions, newPosition],
-        loading: false
-      }));
-    } catch (error) {
-      set({ error: `Failed to add position: ${error instanceof Error ? error.message : String(error)}`, loading: false });
-    }
-  },
-  
-  // ... (similarly update other methods)
-  
-  calculateGreeks: async (position) => {
-    try {
-      const greeks = await greeksApi.calculateGreeks(position);
-      
-      set(state => ({
-        positions: state.positions.map(pos => 
-          pos.id === position.id ? { ...pos, greeks } : pos
-        )
-      }));
-      
-      return greeks;
-    } catch (error) {
-      set({ error: `Failed to calculate Greeks: ${error instanceof Error ? error.message : String(error)}` });
-      throw error;
-    }
-  }
-}));
-```
-
-### 2.2 Create Market Data Store
-
-- [ ] Implement `src/frontend/lib/stores/marketDataStore.ts`:
-  - [ ] Add state for ticker search results
-  - [ ] Add state for current stock price
-  - [ ] Add state for option chains
-  - [ ] Add state for option expirations
-  - [ ] Connect store methods to API services
-
-```typescript
-// Example implementation for marketDataStore.ts
-import { create } from 'zustand';
-import { marketDataApi } from '../api/marketDataApi';
-
-export interface MarketDataStore {
-  tickerData: any | null;
-  stockPrice: number | null;
-  optionChain: any[];
-  expirations: string[];
-  loading: boolean;
-  error: string | null;
-  
-  searchTicker: (ticker: string) => Promise<void>;
-  getStockPrice: (ticker: string) => Promise<number>;
-  getOptionChain: (ticker: string, expiration: string) => Promise<void>;
-  getExpirations: (ticker: string) => Promise<void>;
-}
-
-export const useMarketDataStore = create<MarketDataStore>((set, get) => ({
-  tickerData: null,
-  stockPrice: null,
-  optionChain: [],
-  expirations: [],
-  loading: false,
-  error: null,
-  
-  // Implement methods that call the API
-  // ...
-}));
-```
-
-### 2.3 Create Scenarios Store
-
-- [ ] Implement `src/frontend/lib/stores/scenariosStore.ts`:
-  - [ ] Add state for strategy analysis results
-  - [ ] Add methods for different scenario calculations
-  - [ ] Connect store methods to API services
-
-## Phase 3: Component Integration (Week 2)
-
-### 3.1 Update Position Management Components
-
-- [ ] Update `src/frontend/app/positions/page.tsx` to use real API:
-  - [ ] Ensure proper loading state handling
-  - [ ] Add error handling and user feedback
-  - [ ] Implement form validation
-  - [ ] Add support for multi-leg strategies
-
-### 3.2 Update Market Data Components
-
-- [ ] Update `src/frontend/app/market-data/page.tsx` to use real API:
-  - [ ] Implement real ticker search functionality
-  - [ ] Display real-time stock price data
-  - [ ] Show actual option chains from backend
-  - [ ] Add expiration date selector
-
-### 3.3 Update Visualization Components
-
-- [ ] Update visualization pages to use real scenario analysis:
-  - [ ] Implement `src/frontend/app/visualizations/page.tsx` with real data
-  - [ ] Update position detail visualization to use real calculations
-  - [ ] Implement Plotly.js 3D charts with actual API data
-
-## Phase 4: Error Handling and UX Improvement (Week 2-3)
-
-### 4.1 Implement Error Boundaries
-
-- [ ] Create error boundary components:
-  - [ ] Implement global error handling
-  - [ ] Add specific error boundaries for critical components
-  - [ ] Create fallback UI for error states
-
-### 4.2 Add Loading States
-
-- [ ] Add loading indicators:
-  - [ ] Implement skeleton loaders for data-dependent components
-  - [ ] Add progress indicators for long-running calculations
-  - [ ] Implement optimistic UI updates where appropriate
-
-### 4.3 Improve Error Feedback
-
-- [ ] Enhance error messaging:
-  - [ ] Create user-friendly error messages
-  - [ ] Add retry mechanisms for failed requests
-  - [ ] Implement toast notifications for async operations
-
-## Phase 5: Offline Support and Caching (Week 3)
-
-### 5.1 Implement Client-Side Caching
-
-- [ ] Add caching for API responses:
-  - [ ] Cache market data responses
-  - [ ] Cache position data
-  - [ ] Implement cache invalidation strategy
-
-### 5.2 Add Offline Mode Support
-
-- [ ] Create fallback for offline operation:
-  - [ ] Detect network status
-  - [ ] Queue operations for when network is available
-  - [ ] Provide user feedback about offline status
-
-## Phase 6: Performance Optimization (Week 3-4)
-
-### 6.1 Optimize API Requests
-
-- [ ] Implement request batching:
-  - [ ] Batch related API calls
-  - [ ] Add debouncing for search inputs
-  - [ ] Implement pagination for large datasets
-
-### 6.2 Optimize Rendering
-
-- [ ] Improve component rendering performance:
-  - [ ] Memoize expensive calculations
-  - [ ] Virtualize long lists
-  - [ ] Lazy load components and data
-
-## Phase 7: Testing and Validation (Throughout)
-
-### 7.1 Implement Integration Tests
-
-- [ ] Create integration tests for API-connected components:
-  - [ ] Test position management flow
-  - [ ] Test market data retrieval
-  - [ ] Test scenario analysis visualization
-
-### 7.2 Manual Testing
-
-- [ ] Create test scenarios:
-  - [ ] Test position creation and management
-  - [ ] Test market data retrieval and display
-  - [ ] Test scenario analysis and visualization
-  - [ ] Test error handling and recovery
-
-## Phase 8: Documentation and Deployment Preparation (Week 4)
-
-### 8.1 Create API Documentation
-
-- [ ] Document API usage in frontend:
-  - [ ] Create usage examples
-  - [ ] Document error handling patterns
-  - [ ] Provide troubleshooting guide
-
-### 8.2 Update Developer Documentation
-
-- [ ] Update docs with integration details:
-  - [ ] Document API client architecture
-  - [ ] Explain store integration approach
-  - [ ] Provide examples for extending the integration
-
-
-
-### 3. Development Environment Refinement
-
-- [ ] Finalize Docker Compose setup
-  - [ ] Test full stack deployment with Docker Compose
-  - [ ] Optimize container configurations
-  - [ ] Add development and production modes
-
-- [ ] Implement CI/CD pipeline
-  - [ ] Set up GitHub Actions for automated testing
-  - [ ] Configure linting and code quality checks
-  - [ ] Automate build and deployment process
+- [ ] Create Postman collection for API testing
+  - [ ] Create collection with all API endpoints
+  - [ ] Add example requests for each endpoint
+  - [ ] Include environment variables for different environments
+  - [ ] Add tests for validating responses
 
 - [ ] Create developer documentation
-  - [ ] Document setup process for new developers
-  - [ ] Create contribution guidelines
-  - [ ] Document architecture and design decisions
+  - [ ] Document API client usage
+  - [ ] Create examples for common operations
+  - [ ] Add troubleshooting guide
+  - [ ] Include best practices for error handling
 
-## Timeline and Priorities
+### 4. Performance Optimization
 
-1. ~~**Week 1 (Completed)**: Backend testing and validation~~
-   - ~~Create test scripts for key components~~
-   - ~~Ensure all backend services work correctly~~
-   - ~~Implement critical integration tests~~
+- [ ] Optimize API response times
+  - [ ] Implement database query optimization
+  - [ ] Add database indexing for frequently accessed fields
+  - [ ] Implement response compression
+  - [ ] Add pagination for large datasets
 
-2. **Current Priority**: Frontend-backend integration
-   - Connect frontend to real backend API
-   - Implement real visualizations
-   - Replace mock data with actual calculations
+- [ ] Improve frontend performance
+  - [ ] Implement code splitting
+  - [ ] Optimize component rendering
+  - [ ] Add memoization for expensive calculations
+  - [ ] Implement lazy loading for visualizations
 
-3. **Next Week**: User experience refinement
-   - Add error handling and loading states
-   - Improve UI/UX based on real data
-   - Optimize performance
+- [ ] Enhance caching strategy
+  - [ ] Implement Redis caching for API responses
+  - [ ] Add browser caching for static assets
+  - [ ] Implement stale-while-revalidate pattern
+  - [ ] Add cache invalidation mechanisms
 
-4. **Following Week**: Deployment preparation
-   - Finalize Docker configuration
-   - Set up CI/CD pipeline
-   - Prepare for initial deployment
+### 5. User Experience Enhancements
 
-5. **Later Phase**: Additional testing and documentation
-   - Implement performance tests with realistic datasets
-   - Create comprehensive API documentation
-   - Add authentication and rate limiting tests
-   - Develop front-to-back integration tests
+- [ ] Improve form validation and feedback
+  - [ ] Add inline validation for form fields
+  - [ ] Implement more descriptive error messages
+  - [ ] Add success notifications for completed actions
+  - [ ] Improve accessibility of form elements
+
+- [ ] Enhance visualization interactivity
+  - [ ] Add zoom and pan controls for charts
+  - [ ] Implement tooltips for data points
+  - [ ] Add ability to export visualizations
+  - [ ] Implement comparison views for multiple scenarios
+
+- [ ] Add user preferences
+  - [ ] Implement theme switching (light/dark mode)
+  - [ ] Add customizable dashboard
+  - [ ] Create user-defined defaults for analysis parameters
+  - [ ] Add ability to save and load scenarios
+
+## Updated Timeline
+
+### Week 1-2 (Completed)
+- ✅ Connect frontend to backend API
+- ✅ Update position management to use real API
+- ✅ Implement real-time market data fetching
+- ✅ Replace mock data with real API calls
+- ✅ Add error handling and loading states
+
+### Week 3-4 (Current)
+- Implement real visualizations with Plotly.js
+- Create API documentation
+- Begin performance optimization
+
+### Week 5-6
+- Complete performance optimization
+- Implement user experience enhancements
+- Conduct user testing and gather feedback
+
+### Week 7-8
+- Address feedback from user testing
+- Finalize documentation
+- Prepare for production deployment
+
+## Next Immediate Steps (Next 1-2 Weeks)
+
+1. **Implement Real Visualizations**
+   - Research Plotly.js capabilities for options visualization
+   - Create prototype for 3D surface visualization
+   - Implement price vs. time chart component
+   - Develop profit and loss diagram component
+   - Integrate visualization components with scenario data
+
+2. **Create API Documentation**
+   - Set up OpenAPI documentation with FastAPI
+   - Document all endpoints with examples
+   - Create Postman collection for testing
+   - Write developer documentation for API client usage
+
+3. **Begin Performance Optimization**
+   - Profile API response times for bottlenecks
+   - Implement database query optimization
+   - Add caching for frequently accessed data
+   - Optimize frontend rendering performance
 
 ## Technical Debt & Improvements
 

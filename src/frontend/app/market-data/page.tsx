@@ -1,117 +1,91 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useMarketDataStore } from '../../lib/stores/marketDataStore';
+import { ApiError } from '../../lib/api';
+import { OptionChainItem } from '../../lib/api/marketDataApi';
+
+// Define the market data interface based on what we need in the UI
+interface MarketData {
+  currentPrice: number;
+  priceChange: number;
+  priceChangePercent: number;
+  volume: number;
+  marketCap: number;
+  pe: number;
+  dividend: number;
+  impliedVolatility: number;
+  historicalVolatility: number;
+  companyName?: string;
+}
 
 export default function MarketDataPage() {
+  const { 
+    getTickerInfo, 
+    getStockPrice, 
+    getOptionChain, 
+    getExpirationDates,
+    tickerInfo, 
+    stockPrice, 
+    optionChain, 
+    expirationDates,
+    selectedExpiration,
+    loading, 
+    error 
+  } = useMarketDataStore();
+  
   const [ticker, setTicker] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [searchedTicker, setSearchedTicker] = useState('');
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [marketData, setMarketData] = useState<MarketData | null>(null);
   
-  // Mock market data for demo purposes
-  const mockMarketData = {
-    currentPrice: 175.25,
-    priceChange: 2.15,
-    priceChangePercent: 1.24,
-    volume: 45250000,
-    marketCap: 2750000000000,
-    pe: 28.5,
-    dividend: 0.92,
-    impliedVolatility: 0.28,
-    historicalVolatility: 0.23,
-  };
+  // Transform the API data into the format we need for the UI
+  useEffect(() => {
+    if (tickerInfo && stockPrice !== null) {
+      // Mock some values that might not be available from the API
+      setMarketData({
+        currentPrice: stockPrice,
+        priceChange: tickerInfo.last_price ? stockPrice - tickerInfo.last_price : 0,
+        priceChangePercent: tickerInfo.change_percent || 0,
+        volume: tickerInfo.volume || 0,
+        marketCap: stockPrice * 1000000000, // Mock value
+        pe: 25.5, // Mock value
+        dividend: 1.2, // Mock value
+        impliedVolatility: 0.25, // Mock value
+        historicalVolatility: 0.22, // Mock value
+        companyName: tickerInfo.name
+      });
+    }
+  }, [tickerInfo, stockPrice]);
   
-  // Mock option chain data
-  const mockOptionChain = [
-    {
-      strike: 160,
-      expiration: '2023-12-15',
-      callBid: 16.25,
-      callAsk: 16.50,
-      callVolume: 1250,
-      callOpenInterest: 5600,
-      callIV: 0.26,
-      putBid: 1.10,
-      putAsk: 1.25,
-      putVolume: 850,
-      putOpenInterest: 3200,
-      putIV: 0.29,
-    },
-    {
-      strike: 165,
-      expiration: '2023-12-15',
-      callBid: 12.15,
-      callAsk: 12.35,
-      callVolume: 1850,
-      callOpenInterest: 7200,
-      callIV: 0.25,
-      putBid: 1.85,
-      putAsk: 2.05,
-      putVolume: 950,
-      putOpenInterest: 4100,
-      putIV: 0.28,
-    },
-    {
-      strike: 170,
-      expiration: '2023-12-15',
-      callBid: 8.25,
-      callAsk: 8.50,
-      callVolume: 2250,
-      callOpenInterest: 9800,
-      callIV: 0.24,
-      putBid: 3.15,
-      putAsk: 3.40,
-      putVolume: 1850,
-      putOpenInterest: 6300,
-      putIV: 0.27,
-    },
-    {
-      strike: 175,
-      expiration: '2023-12-15',
-      callBid: 5.15,
-      callAsk: 5.35,
-      callVolume: 3250,
-      callOpenInterest: 12500,
-      callIV: 0.23,
-      putBid: 5.20,
-      putAsk: 5.45,
-      putVolume: 2850,
-      putOpenInterest: 9200,
-      putIV: 0.26,
-    },
-    {
-      strike: 180,
-      expiration: '2023-12-15',
-      callBid: 2.85,
-      callAsk: 3.05,
-      callVolume: 2350,
-      callOpenInterest: 10800,
-      callIV: 0.25,
-      putBid: 7.95,
-      putAsk: 8.20,
-      putVolume: 1950,
-      putOpenInterest: 8500,
-      putIV: 0.28,
-    },
-  ];
-  
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!ticker) {
-      setError('Please enter a ticker symbol');
+      setSearchError('Please enter a ticker symbol');
       return;
     }
     
-    setIsLoading(true);
-    setError(null);
+    setSearchError(null);
+    setSearchedTicker(ticker);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await getTickerInfo(ticker);
+      await getStockPrice(ticker);
+      await getExpirationDates(ticker);
       
-      // For demo purposes, we'll just show data for any ticker entered
-      // In a real app, this would make an API call to fetch real data
-    }, 500);
+      // If we have expiration dates, get the option chain for the first one
+      if (expirationDates.length > 0 && expirationDates[0].date) {
+        await getOptionChain(ticker, expirationDates[0].date);
+      }
+    } catch (err) {
+      console.error('Error fetching market data:', err);
+      let errorMessage = 'Failed to fetch market data';
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      setSearchError(errorMessage);
+    }
   };
   
   const formatCurrency = (value: number) => {
@@ -134,6 +108,50 @@ export default function MarketDataPage() {
     return value.toLocaleString();
   };
   
+  // Transform option chain data for display
+  const transformedOptionChain = optionChain.reduce<Record<number, any>>((acc, option) => {
+    const strike = option.strike;
+    
+    if (!acc[strike]) {
+      acc[strike] = {
+        strike,
+        expiration: option.expiration,
+        callBid: 0,
+        callAsk: 0,
+        callVolume: 0,
+        callOpenInterest: 0,
+        callIV: 0,
+        putBid: 0,
+        putAsk: 0,
+        putVolume: 0,
+        putOpenInterest: 0,
+        putIV: 0
+      };
+    }
+    
+    if (option.option_type === 'call') {
+      acc[strike].callBid = option.bid;
+      acc[strike].callAsk = option.ask;
+      acc[strike].callVolume = option.volume;
+      acc[strike].callOpenInterest = option.open_interest;
+      acc[strike].callIV = option.implied_volatility;
+    } else {
+      acc[strike].putBid = option.bid;
+      acc[strike].putAsk = option.ask;
+      acc[strike].putVolume = option.volume;
+      acc[strike].putOpenInterest = option.open_interest;
+      acc[strike].putIV = option.implied_volatility;
+    }
+    
+    return acc;
+  }, {});
+  
+  // Convert to array and sort by strike
+  const displayOptionChain = Object.values(transformedOptionChain).sort((a, b) => a.strike - b.strike);
+  
+  // Handle error display
+  const displayError = error ? (typeof error === 'string' ? error : 'An unknown error occurred') : null;
+  
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">Market Data</h1>
@@ -149,35 +167,54 @@ export default function MarketDataPage() {
               onChange={(e) => setTicker(e.target.value.toUpperCase())}
               placeholder="e.g. AAPL"
               className="form-input"
+              disabled={loading}
             />
           </div>
           <div className="self-end">
-            <button type="submit" className="btn-primary" disabled={isLoading}>
-              {isLoading ? 'Loading...' : 'Search'}
+            <button 
+              type="submit" 
+              className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed" 
+              disabled={loading}
+            >
+              {loading ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Loading...
+                </span>
+              ) : 'Search'}
             </button>
           </div>
         </form>
         
-        {error && (
-          <div className="mt-4 bg-red-100 border-l-4 border-red-500 text-red-700 p-4">
-            <p>{error}</p>
+        {searchError && (
+          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <p>{searchError}</p>
+          </div>
+        )}
+        
+        {displayError && !searchError && (
+          <div className="mt-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+            <p>{displayError}</p>
           </div>
         )}
       </div>
       
-      {ticker && !isLoading && (
+      {searchedTicker && !loading && marketData && (
         <>
           <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-gray-200">
             <div className="flex justify-between items-start mb-4">
               <div>
-                <h2 className="text-2xl font-bold">{ticker}</h2>
-                <p className="text-gray-500">Apple Inc.</p>
+                <h2 className="text-2xl font-bold">{searchedTicker}</h2>
+                <p className="text-gray-500">{marketData.companyName || 'Company Name Not Available'}</p>
               </div>
               <div className="text-right">
-                <p className="text-3xl font-bold">{formatCurrency(mockMarketData.currentPrice)}</p>
-                <p className={`text-lg ${mockMarketData.priceChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {mockMarketData.priceChange >= 0 ? '+' : ''}
-                  {formatCurrency(mockMarketData.priceChange)} ({mockMarketData.priceChangePercent.toFixed(2)}%)
+                <p className="text-3xl font-bold">{formatCurrency(marketData.currentPrice)}</p>
+                <p className={`text-lg ${marketData.priceChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {marketData.priceChange >= 0 ? '+' : ''}
+                  {formatCurrency(marketData.priceChange)} ({marketData.priceChangePercent.toFixed(2)}%)
                 </p>
               </div>
             </div>
@@ -185,94 +222,107 @@ export default function MarketDataPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
               <div>
                 <p className="text-gray-500 text-sm">Volume</p>
-                <p className="font-semibold">{formatLargeNumber(mockMarketData.volume)}</p>
+                <p className="font-semibold">{formatLargeNumber(marketData.volume)}</p>
               </div>
               <div>
                 <p className="text-gray-500 text-sm">Market Cap</p>
-                <p className="font-semibold">{formatLargeNumber(mockMarketData.marketCap)}</p>
+                <p className="font-semibold">{formatLargeNumber(marketData.marketCap)}</p>
               </div>
               <div>
                 <p className="text-gray-500 text-sm">P/E Ratio</p>
-                <p className="font-semibold">{mockMarketData.pe.toFixed(2)}</p>
+                <p className="font-semibold">{marketData.pe.toFixed(2)}</p>
               </div>
               <div>
                 <p className="text-gray-500 text-sm">Dividend Yield</p>
-                <p className="font-semibold">{mockMarketData.dividend.toFixed(2)}%</p>
+                <p className="font-semibold">{marketData.dividend.toFixed(2)}%</p>
               </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="text-gray-500 text-sm">Implied Volatility (30-day avg)</p>
-                <p className="font-semibold">{(mockMarketData.impliedVolatility * 100).toFixed(2)}%</p>
+                <p className="font-semibold">{(marketData.impliedVolatility * 100).toFixed(2)}%</p>
               </div>
               <div>
                 <p className="text-gray-500 text-sm">Historical Volatility (30-day)</p>
-                <p className="font-semibold">{(mockMarketData.historicalVolatility * 100).toFixed(2)}%</p>
+                <p className="font-semibold">{(marketData.historicalVolatility * 100).toFixed(2)}%</p>
               </div>
             </div>
           </div>
           
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-gray-200">
-            <h2 className="text-lg font-semibold mb-4">Option Chain - Dec 15, 2023</h2>
-            
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th colSpan={5} className="text-center bg-green-50 text-green-800 px-6 py-3 text-xs font-medium uppercase">Calls</th>
-                    <th rowSpan={2} className="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Strike</th>
-                    <th colSpan={5} className="text-center bg-red-50 text-red-800 px-6 py-3 text-xs font-medium uppercase">Puts</th>
-                  </tr>
-                  <tr>
-                    <th className="bg-green-50 px-6 py-3 text-left text-xs font-medium text-green-800 uppercase">Bid</th>
-                    <th className="bg-green-50 px-6 py-3 text-left text-xs font-medium text-green-800 uppercase">Ask</th>
-                    <th className="bg-green-50 px-6 py-3 text-left text-xs font-medium text-green-800 uppercase">Volume</th>
-                    <th className="bg-green-50 px-6 py-3 text-left text-xs font-medium text-green-800 uppercase">OI</th>
-                    <th className="bg-green-50 px-6 py-3 text-left text-xs font-medium text-green-800 uppercase">IV</th>
-                    <th className="bg-red-50 px-6 py-3 text-left text-xs font-medium text-red-800 uppercase">Bid</th>
-                    <th className="bg-red-50 px-6 py-3 text-left text-xs font-medium text-red-800 uppercase">Ask</th>
-                    <th className="bg-red-50 px-6 py-3 text-left text-xs font-medium text-red-800 uppercase">Volume</th>
-                    <th className="bg-red-50 px-6 py-3 text-left text-xs font-medium text-red-800 uppercase">OI</th>
-                    <th className="bg-red-50 px-6 py-3 text-left text-xs font-medium text-red-800 uppercase">IV</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {mockOptionChain.map((option) => (
-                    <tr key={option.strike} className={option.strike === 175 ? 'bg-blue-50' : ''}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(option.callBid)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(option.callAsk)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{option.callVolume.toLocaleString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{option.callOpenInterest.toLocaleString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{(option.callIV * 100).toFixed(2)}%</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50">{formatCurrency(option.strike)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(option.putBid)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(option.putAsk)}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{option.putVolume.toLocaleString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{option.putOpenInterest.toLocaleString()}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{(option.putIV * 100).toFixed(2)}%</td>
+          {displayOptionChain.length > 0 && selectedExpiration && (
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-gray-200">
+              <h2 className="text-lg font-semibold mb-4">
+                Option Chain - {new Date(selectedExpiration).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })}
+              </h2>
+              
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th colSpan={5} className="text-center bg-green-50 text-green-800 px-6 py-3 text-xs font-medium uppercase">Calls</th>
+                      <th rowSpan={2} className="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Strike</th>
+                      <th colSpan={5} className="text-center bg-red-50 text-red-800 px-6 py-3 text-xs font-medium uppercase">Puts</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                    <tr>
+                      <th className="bg-green-50 px-6 py-3 text-left text-xs font-medium text-green-800 uppercase">Bid</th>
+                      <th className="bg-green-50 px-6 py-3 text-left text-xs font-medium text-green-800 uppercase">Ask</th>
+                      <th className="bg-green-50 px-6 py-3 text-left text-xs font-medium text-green-800 uppercase">Volume</th>
+                      <th className="bg-green-50 px-6 py-3 text-left text-xs font-medium text-green-800 uppercase">OI</th>
+                      <th className="bg-green-50 px-6 py-3 text-left text-xs font-medium text-green-800 uppercase">IV</th>
+                      <th className="bg-red-50 px-6 py-3 text-left text-xs font-medium text-red-800 uppercase">Bid</th>
+                      <th className="bg-red-50 px-6 py-3 text-left text-xs font-medium text-red-800 uppercase">Ask</th>
+                      <th className="bg-red-50 px-6 py-3 text-left text-xs font-medium text-red-800 uppercase">Volume</th>
+                      <th className="bg-red-50 px-6 py-3 text-left text-xs font-medium text-red-800 uppercase">OI</th>
+                      <th className="bg-red-50 px-6 py-3 text-left text-xs font-medium text-red-800 uppercase">IV</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {displayOptionChain.map((option) => (
+                      <tr 
+                        key={option.strike} 
+                        className={option.strike === marketData.currentPrice ? 'bg-blue-50' : ''}
+                      >
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(option.callBid)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(option.callAsk)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{option.callVolume.toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{option.callOpenInterest.toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{(option.callIV * 100).toFixed(2)}%</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 bg-gray-50">{formatCurrency(option.strike)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(option.putBid)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatCurrency(option.putAsk)}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{option.putVolume.toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{option.putOpenInterest.toLocaleString()}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{(option.putIV * 100).toFixed(2)}%</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              <div className="mt-4 text-right">
+                <p className="text-sm text-gray-500">*Current price row highlighted in blue. OI = Open Interest, IV = Implied Volatility</p>
+              </div>
             </div>
-            
-            <div className="mt-4 text-right">
-              <p className="text-sm text-gray-500">*Current price row highlighted in blue. OI = Open Interest, IV = Implied Volatility</p>
-            </div>
-          </div>
+          )}
         </>
       )}
       
-      {!ticker && !isLoading && (
+      {!searchedTicker && !loading && (
         <div className="bg-blue-50 p-6 rounded-lg border border-blue-100 text-center">
           <p className="text-gray-600 mb-4">
             Enter a ticker symbol above to view market data and option chains.
           </p>
           <p className="text-sm text-gray-500">
-            In a full implementation, this would fetch real-time market data from the backend API,
-            which would in turn fetch from services like Polygon.io.
+            This will fetch real-time market data from our API service.
           </p>
+        </div>
+      )}
+      
+      {loading && (
+        <div className="flex justify-center items-center p-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="ml-3 text-lg text-gray-600">Loading market data...</p>
         </div>
       )}
     </div>
