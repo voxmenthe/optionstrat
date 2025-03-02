@@ -6,6 +6,7 @@
 export { usePositionStore } from './positionStore';
 export { useMarketDataStore } from './marketDataStore';
 export { useScenariosStore } from './scenariosStore';
+export { useOptionChainStore } from './optionChainStore';
 
 // Re-export types
 export type { 
@@ -21,3 +22,7 @@ export type {
   ScenarioSettings,
   ScenariosStore
 } from './scenariosStore'; 
+
+export type {
+  OptionChainState
+} from './optionChainStore'; 

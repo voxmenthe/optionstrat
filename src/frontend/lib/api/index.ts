@@ -33,5 +33,6 @@ export type {
   VolatilityPoint,
   TimePoint,
   PriceVsVolatilityPoint,
+  PnLScenarioPoint,
   ScenarioResult
 } from './scenariosApi'; 

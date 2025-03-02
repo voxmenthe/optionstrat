@@ -105,7 +105,30 @@ class MarketDataService:
         Returns:
             List of available expiration dates
         """
-        return self.provider.get_option_expirations(ticker)
+        # Get expirations from provider (could be Dict with string expirations or other format)
+        provider_expirations = self.provider.get_option_expirations(ticker)
+        
+        # Handle the case where the provider returns a Dict with "expirations" key
+        if isinstance(provider_expirations, dict) and "expirations" in provider_expirations:
+            expiration_strings = provider_expirations["expirations"]
+        else:
+            # If it's already a list of datetimes, return it directly
+            if provider_expirations and isinstance(provider_expirations[0], datetime):
+                return provider_expirations
+            # Otherwise assume it's a list of string dates
+            expiration_strings = provider_expirations
+        
+        # Convert string dates to datetime objects
+        expiration_dates = []
+        for exp_str in expiration_strings:
+            try:
+                # Parse the date string (assuming format is YYYY-MM-DD)
+                expiration_date = datetime.strptime(exp_str, "%Y-%m-%d")
+                expiration_dates.append(expiration_date)
+            except (ValueError, TypeError) as e:
+                logging.warning(f"Error parsing expiration date {exp_str}: {e}")
+        
+        return expiration_dates
     
     def get_option_strikes(
         self, 

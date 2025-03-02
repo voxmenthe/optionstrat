@@ -130,3 +130,16 @@ class MarketDataProvider(ABC):
             Dictionary with strike prices
         """
         pass
+    
+    @abstractmethod
+    def search_tickers(self, query: str) -> List[str]:
+        """
+        Search for ticker symbols matching a query.
+        
+        Args:
+            query: Search query string
+            
+        Returns:
+            List of matching ticker symbols
+        """
+        pass

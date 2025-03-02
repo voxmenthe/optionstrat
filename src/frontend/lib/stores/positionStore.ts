@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { positionsApi, greeksApi, PnLCalculationParams } from '../api';
+import { positionsApi, greeksApi } from '../api';
+import { PnLCalculationParams } from '../api/positionsApi';
 
 // Types for our store
 export interface Greeks {
@@ -82,10 +83,10 @@ interface PositionStore {
   recalculateAllGreeks: () => Promise<void>;
   
   // P&L calculations
-  calculatePnL: (position: OptionPosition) => Promise<PnLResult | void>;
-  recalculateAllPnL: () => Promise<void>;
-  calculateTheoreticalPnL: (position: OptionPosition) => Promise<PnLResult | void>;
-  recalculateAllTheoreticalPnL: () => Promise<void>;
+  calculatePnL: (position: OptionPosition, recalculate?: boolean, retryCount?: number) => Promise<PnLResult | void>;
+  recalculateAllPnL: (forceRecalculate?: boolean) => Promise<void>;
+  calculateTheoreticalPnL: (position: OptionPosition, retryCount?: number) => Promise<PnLResult | void>;
+  recalculateAllTheoreticalPnL: (forceRecalculate?: boolean) => Promise<void>;
   updateTheoreticalPnLSettings: (settings: Partial<TheoreticalPnLSettings>) => void;
   
   // Grouped positions

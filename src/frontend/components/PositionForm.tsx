@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { usePositionStore, OptionPosition } from '../lib/stores/positionStore';
 import { ApiError } from '../lib/api';
 
@@ -27,24 +27,110 @@ const initialPosition: PositionFormData = {
 interface PositionFormProps {
   existingPosition?: OptionPosition;
   onSuccess?: () => void;
+  onChange?: (data: PositionFormData) => void;
+  readonlyFields?: Array<keyof PositionFormData>;
 }
 
-export default function PositionForm({ existingPosition, onSuccess }: PositionFormProps) {
+// Safe date formatting function - defined outside the component
+const formatExpirationDate = (dateStr: string | Date): string => {
+  if (!dateStr) return '';
+  
+  try {
+    // If it's already a properly formatted yyyy-mm-dd string, return it
+    if (typeof dateStr === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr;
+    }
+    
+    const date = new Date(dateStr);
+    // Check if date is valid
+    if (isNaN(date.getTime())) {
+      console.error('Invalid date format:', dateStr);
+      return '';
+    }
+    return date.toISOString().split('T')[0];
+  } catch (e) {
+    console.error('Error formatting date:', e);
+    return '';
+  }
+};
+
+export default function PositionForm({ 
+  existingPosition, 
+  onSuccess, 
+  onChange,
+  readonlyFields = [] 
+}: PositionFormProps) {
   const { addPosition, updatePosition, loading: storeLoading, error: storeError } = usePositionStore();
-  const [position, setPosition] = useState<PositionFormData>(
-    existingPosition ? {
-      ticker: existingPosition.ticker,
-      expiration: new Date(existingPosition.expiration).toISOString().split('T')[0],
-      strike: existingPosition.strike,
-      type: existingPosition.type,
-      action: existingPosition.action,
-      quantity: existingPosition.quantity,
-      premium: existingPosition.premium,
-    } : initialPosition
-  );
+  
+  // Initialize with the existing position or default values
+  const initialPositionValue = existingPosition ? {
+    ticker: existingPosition.ticker,
+    expiration: formatExpirationDate(existingPosition.expiration),
+    strike: existingPosition.strike,
+    type: existingPosition.type,
+    action: existingPosition.action,
+    quantity: existingPosition.quantity,
+    premium: existingPosition.premium,
+  } : initialPosition;
+  
+  const [position, setPosition] = useState<PositionFormData>(initialPositionValue);
+  
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const isInitialRender = useRef(true);
+  const prevExistingPositionRef = useRef(existingPosition);
+  
+  // Update position when existingPosition changes
+  useEffect(() => {
+    // Skip the initial render
+    if (isInitialRender.current) {
+      isInitialRender.current = false;
+      return;
+    }
+    
+    // Skip if the existingPosition hasn't changed
+    if (
+      existingPosition === prevExistingPositionRef.current ||
+      JSON.stringify(existingPosition) === JSON.stringify(prevExistingPositionRef.current)
+    ) {
+      return;
+    }
+    
+    // Update reference
+    prevExistingPositionRef.current = existingPosition;
+    
+    if (existingPosition) {
+      const newPosition = {
+        ticker: existingPosition.ticker,
+        expiration: formatExpirationDate(existingPosition.expiration),
+        strike: existingPosition.strike,
+        type: existingPosition.type,
+        action: existingPosition.action,
+        quantity: existingPosition.quantity,
+        premium: existingPosition.premium,
+      };
+      
+      // Only update if something actually changed
+      const hasChanged = JSON.stringify(newPosition) !== JSON.stringify(position);
+      
+      if (hasChanged) {
+        setPosition(newPosition);
+      }
+    }
+  }, [existingPosition, position]);
+  
+  // Notify parent of changes if onChange is provided
+  useEffect(() => {
+    // Skip the first render
+    if (isInitialRender.current) {
+      return;
+    }
+    
+    if (onChange) {
+      onChange(position);
+    }
+  }, [position, onChange]);
   
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
@@ -62,7 +148,9 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       
-      if (expirationDate < today) {
+      if (isNaN(expirationDate.getTime())) {
+        newErrors.expiration = 'Invalid expiration date format';
+      } else if (expirationDate < today) {
         newErrors.expiration = 'Expiration date cannot be in the past';
       }
     }
@@ -119,6 +207,11 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target as HTMLInputElement;
     
+    // Skip changes to readonly fields
+    if (readonlyFields.includes(name as keyof PositionFormData)) {
+      return;
+    }
+    
     // Clear the specific error when the user starts typing in a field
     if (errors[name]) {
       setErrors(prev => {
@@ -143,21 +236,21 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
           // If quantity is negative, automatically set action to 'sell'
           setPosition(prev => ({
             ...prev,
-            quantity: quantityValue,
+            quantity: quantityValue as number,
             action: 'sell'
           }));
         } else {
           // Just update the quantity without changing action
           setPosition(prev => ({
             ...prev,
-            quantity: quantityValue
+            quantity: quantityValue as number
           }));
         }
       } else {
-        // Handle empty or invalid input
+        // Handle empty or invalid input - set to 0 by default
         setPosition(prev => ({
           ...prev,
-          quantity: quantityValue
+          quantity: value === '' ? 0 : 0
         }));
       }
     } else if (name === 'action') {
@@ -213,9 +306,10 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
             name="ticker"
             value={position.ticker}
             onChange={handleChange}
-            className={`form-input ${errors.ticker ? 'border-red-500' : ''}`}
+            className={`form-input ${errors.ticker ? 'border-red-500' : ''} ${readonlyFields.includes('ticker') ? 'bg-gray-100' : ''}`}
             placeholder="e.g. AAPL"
-            disabled={isSubmitting || storeLoading}
+            disabled={isSubmitting || storeLoading || readonlyFields.includes('ticker')}
+            readOnly={readonlyFields.includes('ticker')}
           />
           {errors.ticker && <p className="text-red-500 text-xs mt-1">{errors.ticker}</p>}
         </div>
@@ -228,8 +322,9 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
             name="expiration"
             value={position.expiration}
             onChange={handleChange}
-            className={`form-input ${errors.expiration ? 'border-red-500' : ''}`}
-            disabled={isSubmitting || storeLoading}
+            className={`form-input ${errors.expiration ? 'border-red-500' : ''} ${readonlyFields.includes('expiration') ? 'bg-gray-100' : ''}`}
+            disabled={isSubmitting || storeLoading || readonlyFields.includes('expiration')}
+            readOnly={readonlyFields.includes('expiration')}
           />
           {errors.expiration && <p className="text-red-500 text-xs mt-1">{errors.expiration}</p>}
         </div>
@@ -243,9 +338,10 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
             value={position.strike || ''}
             onChange={handleChange}
             step="0.01"
-            className={`form-input ${errors.strike ? 'border-red-500' : ''}`}
+            className={`form-input ${errors.strike ? 'border-red-500' : ''} ${readonlyFields.includes('strike') ? 'bg-gray-100' : ''}`}
             placeholder="e.g. 150.00"
-            disabled={isSubmitting || storeLoading}
+            disabled={isSubmitting || storeLoading || readonlyFields.includes('strike')}
+            readOnly={readonlyFields.includes('strike')}
           />
           {errors.strike && <p className="text-red-500 text-xs mt-1">{errors.strike}</p>}
         </div>
@@ -257,8 +353,8 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
             name="type"
             value={position.type}
             onChange={handleChange}
-            className="form-select"
-            disabled={isSubmitting || storeLoading}
+            className={`form-select ${readonlyFields.includes('type') ? 'bg-gray-100' : ''}`}
+            disabled={isSubmitting || storeLoading || readonlyFields.includes('type')}
           >
             <option value="call">Call</option>
             <option value="put">Put</option>
@@ -272,8 +368,8 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
             name="action"
             value={position.action}
             onChange={handleChange}
-            className="form-select"
-            disabled={isSubmitting || storeLoading}
+            className={`form-select ${readonlyFields.includes('action') ? 'bg-gray-100' : ''}`}
+            disabled={isSubmitting || storeLoading || readonlyFields.includes('action')}
           >
             <option value="buy">Buy</option>
             <option value="sell">Sell</option>
@@ -289,9 +385,10 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
             value={position.quantity || ''}
             onChange={handleChange}
             step="1"
-            className={`form-input ${errors.quantity ? 'border-red-500' : ''}`}
-            disabled={isSubmitting || storeLoading}
+            className={`form-input ${errors.quantity ? 'border-red-500' : ''} ${readonlyFields.includes('quantity') ? 'bg-gray-100' : ''}`}
+            disabled={isSubmitting || storeLoading || readonlyFields.includes('quantity')}
             placeholder="Enter positive or negative number"
+            readOnly={readonlyFields.includes('quantity')}
           />
           {errors.quantity && <p className="text-red-500 text-xs mt-1">{errors.quantity}</p>}
         </div>
@@ -305,9 +402,10 @@ export default function PositionForm({ existingPosition, onSuccess }: PositionFo
             value={position.premium === undefined ? '' : position.premium}
             onChange={handleChange}
             step="0.01"
-            className={`form-input ${errors.premium ? 'border-red-500' : ''}`}
+            className={`form-input ${errors.premium ? 'border-red-500' : ''} ${readonlyFields.includes('premium') ? 'bg-gray-100' : ''}`}
             placeholder="e.g. 3.25"
-            disabled={isSubmitting || storeLoading}
+            disabled={isSubmitting || storeLoading || readonlyFields.includes('premium')}
+            readOnly={readonlyFields.includes('premium')}
           />
           {errors.premium && <p className="text-red-500 text-xs mt-1">{errors.premium}</p>}
         </div>

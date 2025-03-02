@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import PositionForm from '../../components/PositionForm';
+import PositionFormWithOptionChain from '../../components/PositionFormWithOptionChain';
 import PositionTable from '../../components/PositionTable';
 import { usePositionStore } from '../../lib/stores/positionStore';
 
@@ -18,7 +18,7 @@ export default function PositionsPage() {
         </div>
       )}
       
-      <PositionForm />
+      <PositionFormWithOptionChain />
       
       <PositionTable />
     </div>

@@ -1,0 +1,6 @@
+---
+description: Editing plans, readmes, summaries, project descriptions and PRDs
+globs: *.md
+alwaysApply: false
+---
+When updating plans, readmes or other markdown files, remember to use your file editing tools to incorporate all of the changes you have been asked to update the files with.

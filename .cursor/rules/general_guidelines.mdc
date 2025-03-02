@@ -142,6 +142,8 @@ When suggesting or implementing code changes:
 
 * Comments and docstrings: Add helpful but brief comments and docstrings to the code you write. If you encounter exsting docstrings and comments and they are still correct, leave them alone. If they are incorrect, update them. Never remove existing comments and docstrings unless you have a good reason for doing so, such as being incorrect, misleading, or outdated. In general, you should be updating and adding comments and docstrings as you work through the code, and not removing them.
 
+## Tools
+Make sure to use your tools correctly to do any necessary file edits or command line commands.
 
 ## Additional instructions
 No need to be too verbose though. Be clear, succinct, and to the point - focus on the most important information and actionable steps.
@@ -151,3 +153,4 @@ And finally, just to make sure that I know you've incorporated these instruction
 💡 (Light Bulb) - Indicating "I've read these instructions and have followed them to the best of my ability"
 🌐 (Network Symbol) - Indicating "I've considered the entire context of the change"
 📚 (Books) - Indicating "Used the most recent documentation"
+🛠️ (Tools) - I've made sure to use my tools correctly to do any necessary file edits or command line operations.

@@ -578,7 +578,7 @@ class YFinanceProvider(MarketDataProvider):
     def get_option_strikes(
         self, 
         ticker: str, 
-        expiration_date: datetime, 
+        expiration_date: Union[datetime, str], 
         option_type: Optional[str] = None
     ) -> Dict:
         """
@@ -586,7 +586,7 @@ class YFinanceProvider(MarketDataProvider):
         
         Args:
             ticker: The ticker symbol
-            expiration_date: Option expiration date
+            expiration_date: Option expiration date (datetime object or string in YYYY-MM-DD format)
             option_type: Option type (call or put)
             
         Returns:
@@ -594,8 +594,12 @@ class YFinanceProvider(MarketDataProvider):
         """
         print(f"get_option_strikes called for ticker: {ticker}, expiration: {expiration_date}, type: {option_type}")
         
-        # Format the expiration date for the API
-        exp_date_str = expiration_date.strftime("%Y-%m-%d")
+        # Format the expiration date for the API - handle both datetime and string
+        if isinstance(expiration_date, datetime):
+            exp_date_str = expiration_date.strftime("%Y-%m-%d")
+        else:
+            # Assume it's already a string in YYYY-MM-DD format
+            exp_date_str = str(expiration_date)
         
         # Check cache first
         cache_key = f"yfinance:option_strikes:{ticker}:{exp_date_str}:{option_type or 'all'}"
@@ -645,3 +649,60 @@ class YFinanceProvider(MarketDataProvider):
                 "option_type": option_type,
                 "strikes": []
             }
+    
+    def search_tickers(self, query: str) -> List[str]:
+        """
+        Validate ticker symbol and return it if valid.
+        Since users are expected to know their ticker symbols, this is a simplified
+        implementation that just validates the input ticker.
+        
+        Args:
+            query: Ticker symbol to validate
+            
+        Returns:
+            List containing the ticker if valid, empty list otherwise
+        """
+        print(f"validate_ticker called with ticker: {query}")
+        
+        if not query:
+            return []
+            
+        # Check cache first
+        cache_key = f"yfinance:ticker_validation:{query}"
+        cached_data = self._get_from_cache(cache_key)
+        if cached_data:
+            print(f"Cache hit for {cache_key}")
+            return cached_data
+            
+        try:
+            # Standardize the ticker format
+            ticker = query.strip().upper()
+            
+            # Basic validation - is it a reasonable ticker format?
+            if not ticker or len(ticker) > 6 or not any(c.isalpha() for c in ticker):
+                return []
+                
+            # Try to fetch basic info from yfinance to validate
+            ticker_data = yf.Ticker(ticker)
+            
+            # Check if the ticker is valid by attempting to get its info
+            info = ticker_data.info
+            
+            # If we get a name, it's probably valid
+            if "shortName" in info or "longName" in info:
+                result = [ticker]
+                
+                # Cache the result
+                self._save_to_cache(cache_key, result)
+                
+                return result
+            
+            # Otherwise return empty list (invalid ticker)
+            return []
+                
+        except Exception as e:
+            # Most exceptions here would indicate an invalid ticker
+            import traceback
+            print(f"Error validating ticker: {str(e)}")
+            print(traceback.format_exc())
+            return [] # Return empty list rather than raising an exception

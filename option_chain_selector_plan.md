@@ -32,29 +32,267 @@
 
 ### ⏳ Partially Implemented
 
-1. **Frontend Integration**
-   - Market data API functionality exists but needs to be refactored to use the new options API
-   - Basic option chain display exists in market-data page but not integrated with position creation
+#### 1. **Frontend Integration**
+
+##### Current Market Data API Functionality
+- `marketDataApi.ts` currently implements basic option chain fetching via:
+  - `getOptionChain(ticker, expiration)` method that retrieves option data
+  - Data model `OptionChainItem` for storing option contract information
+  - Basic error handling and data formatting
+- The implementation relies on `/market-data/option-chain/` endpoints rather than the new `/options/chains/` endpoints
+- Response transformation is minimal with no specialized handling for greeks or implied volatility
+
+##### Required Refactoring for New Options API
+- Update API method signatures to match the new options API response structure
+- Replace direct `/market-data/` endpoint calls with corresponding `/options/chains/` endpoints:
+  - `/market-data/option-chain/{ticker}` → `/options/chains/{ticker}`
+  - Add support for new filtering parameters (min_strike, max_strike, option_type)
+- Ensure proper error handling for rate limits and market data provider fallbacks
+- Implement data caching strategy at frontend level to reduce redundant API calls
+- Add comprehensive typing for all API response structures
+
+##### Current Option Chain Display
+- Basic tabular display exists in `market-data/page.tsx` showing:
+  - Strike prices
+  - Basic option details (bid/ask/last)
+  - No column sorting or advanced filtering
+- The display lacks:
+  - Proper pagination for large option chains
+  - Visual indicators for in-the-money vs out-of-the-money options
+  - Highlighting of selected options
+  - Greek value displays (delta, gamma, theta, vega)
+  - IV visualization
+
+##### Integration Requirements
+- The current display needs to be converted into a reusable component
+- Selection functionality needs to be added to pass data to position creation
+- State synchronization between option selection and position form
+- Event handling for selection changes
 
 ### ❌ Not Started / Missing
 
-1. **Frontend Components**
-   - Dedicated `OptionChainSelector` component
-   - `OptionExpirationSelector` component
-   - `OptionStrikeFilter` component
-   - Option type toggle (calls/puts)
-   
-2. **Frontend State Management**
-   - Dedicated option chain store (currently using marketDataStore)
-   
-3. **Position Creation Integration**
-   - No integration between option chain selection and position creation
-   - No UI toggle to switch between manual entry and option chain selection
-   
-4. **Advanced Features**
-   - Advanced filtering by IV ranges, liquidity thresholds
-   - Visualization of option chain data (IV skew, etc.)
-   - Real-time updates
+#### 1. **Frontend Components**
+
+##### Dedicated `OptionChainSelector` Component
+- **Core functionality**:
+  - Unified component integrating ticker search, expiration selection, and chain display
+  - Selection state management with highlighting of selected options
+  - Filter controls for strike range and option types
+  - Pagination controls for large option chains
+  
+- **Implementation requirements**:
+  - Create new file `components/OptionChainSelector.tsx`
+  - Component props interface:
+    ```typescript
+    interface OptionChainSelectorProps {
+      onSelect: (option: OptionContract) => void;
+      initialTicker?: string;
+      showGreeks?: boolean;
+      compact?: boolean;
+    }
+    ```
+  - Internal state management for local UI state:
+    ```typescript
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedOption, setSelectedOption] = useState<OptionContract | null>(null);
+    const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+    ```
+  - Connection to global option chain store via hooks
+  - Selection handling and propagation to parent components
+  - Accessibility features including keyboard navigation
+
+##### `OptionExpirationSelector` Component
+- **Core functionality**:
+  - Display available expiration dates for a selected ticker
+  - Group by monthly/weekly expiration cycles
+  - Highlight current and nearest expirations
+  - Show days-to-expiration (DTE) information
+  
+- **Implementation requirements**:
+  - Create new file `components/OptionExpirationSelector.tsx`
+  - Component props interface:
+    ```typescript
+    interface OptionExpirationSelectorProps {
+      ticker: string;
+      selectedExpiration: string | null;
+      onSelect: (expirationDate: string) => void;
+      showDTE?: boolean;
+      maxVisible?: number;
+    }
+    ```
+  - Fetch and display expirations when ticker changes
+  - Group expirations by month with collapsible UI
+  - Calculate and display DTE information
+  - Handle loading and error states
+
+##### `OptionStrikeFilter` Component
+- **Core functionality**:
+  - Control for setting min/max strike range
+  - Quick selections for common ranges (e.g., ±10% from underlying)
+  - Display current underlying price as reference
+  - Support both absolute and percentage-based ranges
+  
+- **Implementation requirements**:
+  - Create new file `components/OptionStrikeFilter.tsx`
+  - Component props interface:
+    ```typescript
+    interface OptionStrikeFilterProps {
+      underlyingPrice: number;
+      minStrike: number | null;
+      maxStrike: number | null;
+      onChange: (minStrike: number | null, maxStrike: number | null) => void;
+      allowPercentMode?: boolean;
+    }
+    ```
+  - Implement dual-thumb slider for strike range selection
+  - Add quick selection buttons for common ranges
+  - Toggle between absolute and percentage modes
+  - Validate input to ensure min ≤ max
+
+##### Option Type Toggle Component
+- **Core functionality**:
+  - Toggle between calls, puts, or both
+  - Visual indicators for current selection
+  - Optionally show call/put statistics (volume, OI)
+  
+- **Implementation requirements**:
+  - Create new file `components/OptionTypeToggle.tsx`
+  - Component props interface:
+    ```typescript
+    interface OptionTypeToggleProps {
+      value: 'calls' | 'puts' | 'both';
+      onChange: (value: 'calls' | 'puts' | 'both') => void;
+      showStatistics?: boolean;
+      statistics?: {
+        callVolume?: number;
+        putVolume?: number;
+        callOI?: number;
+        putOI?: number;
+      };
+    }
+    ```
+  - Implement styled radio button or tab-like interface
+  - Add optional call/put ratio display
+  - Connect to parent filter state
+
+#### 2. **Frontend State Management**
+
+##### Dedicated Option Chain Store Requirements
+- **Core state elements**:
+  - Current ticker symbol
+  - Available expiration dates
+  - Selected expiration date
+  - Option chain data (calls and puts)
+  - Current filters (strike range, option type, etc.)
+  - Loading/error states
+  - Selected option contract
+
+- **Action implementations needed**:
+  - `setTicker(ticker: string)`: Change current ticker and fetch expirations
+  - `setExpiration(date: string)`: Set expiration date and fetch option chain
+  - `setFilters(filters: OptionFilters)`: Update filtering parameters
+  - `selectOption(option: OptionContract | null)`: Set selected option
+  - `refreshData()`: Force refresh of current data
+  - `clear()`: Reset store to initial state
+
+- **Store persistence requirements**:
+  - Implement session storage persistence for faster return visits
+  - Cache expiration strategy based on market hours
+  - Invalidation logic for stale data
+
+- **Performance considerations**:
+  - Memoization of filtered option chains
+  - Pagination state for large option chains
+  - Background refresh for real-time updates
+
+#### 3. **Position Creation Integration**
+
+##### Option Selection to Position Form Integration
+- **Requirements**:
+  - Add toggle in `PositionForm.tsx` to switch between manual and chain selection
+  - Map selected option properties to form fields
+  - Handle special cases (e.g., mid-price calculation)
+  - Live update of form values as selection changes
+
+- **Implementation details**:
+  - Create wrapper component `PositionFormWithOptionChain.tsx`
+  - Add UI toggle with tabbed interface or radio buttons
+  - Implement selection handler:
+    ```typescript
+    const handleOptionSelect = (option: OptionContract) => {
+      setPosition({
+        ...position,
+        ticker: option.ticker,
+        expiration: new Date(option.expiration).toISOString().split('T')[0],
+        strike: option.strike,
+        type: option.optionType,
+        premium: calculateMidPrice(option), // Helper function to calculate mid price
+        impliedVolatility: option.impliedVolatility || null,
+      });
+      
+      // Potentially fetch additional data like greeks
+      if (option.impliedVolatility) {
+        updateGreeks(option);
+      }
+    };
+    ```
+  - Add bidirectional synchronization between form and selector
+  - Reset logic when switching between modes
+
+##### UI Toggle for Selection Mode
+- **Requirements**:
+  - Clear visual distinction between manual entry and option chain modes
+  - Smooth transition between modes
+  - Retention of previously entered data when switching modes
+  - Warning dialog for unsaved changes
+
+- **Implementation details**:
+  - Add toggle component at top of form
+  - Implement conditional rendering:
+    ```tsx
+    {useOptionChain ? (
+      <OptionChainSelector 
+        onSelect={handleOptionSelect}
+        initialTicker={position.ticker || undefined}
+      />
+    ) : (
+      <ManualEntryFields 
+        position={position}
+        onChange={handlePositionChange}
+        errors={errors}
+      />
+    )}
+    ```
+  - Add animation for smooth transition
+  - Implement state preservation when switching modes
+
+#### 4. **Advanced Features**
+
+##### IV Range and Liquidity Filtering
+- **Requirements**:
+  - Add filters for implied volatility ranges
+  - Add minimum volume and open interest thresholds
+  - Visualize IV skew across strikes
+  - Add historical IV percentile indicators
+
+- **Implementation details**:
+  - Create `IVRangeFilter` component with min/max inputs
+  - Implement visual IV skew graph component
+  - Add liquidity indicator with configurable thresholds
+  - Create percentile calculation helper functions
+
+##### Real-time Chain Updates
+- **Requirements**:
+  - Implement polling or WebSocket connection for live updates
+  - Add user toggle for enabling/disabling live updates
+  - Visual indicators for price changes
+  - Configurable update frequency
+
+- **Implementation details**:
+  - Create update service with configurable intervals
+  - Add visual price change indicators (up/down arrows with colors)
+  - Implement throttling to prevent UI freezing
+  - Add user preferences for update behavior
 
 ## Gap Analysis
 
@@ -249,8 +487,10 @@ const handleOptionSelect = (option: OptionContract) => {
    - Pre-built templates for common option strategies
    - Drag and drop interface for building custom strategies
 
+
 ## Success Metrics
 
 1. **Data Accuracy** - Reduction in positions with default IV values
 2. **User Experience** - Time spent creating positions
 3. **Performance** - Response time for option chain retrieval
+
