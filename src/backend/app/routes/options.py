@@ -1,17 +1,22 @@
 """
 Options API Routes
 
-This module provides routes for retrieving options chain data, expirations, and options information.
+This module provides API endpoints for retrieving option chain data.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from typing import List, Optional, Dict
-from datetime import datetime, date
+from sqlalchemy.orm import Session
+from typing import List, Optional
+from datetime import datetime
 import logging
-from dateutil import parser
 
+from app.models.database import get_db
+from app.models.schemas import OptionContract, OptionExpiration
+from app.services.option_chain_service import OptionChainService
 from app.services.market_data import MarketDataService
-from app.services.option_pricing import OptionPricer
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/options",
@@ -20,30 +25,28 @@ router = APIRouter(
 )
 
 # Dependency functions
-def get_market_data_service():
-    """Dependency to get the market data service."""
-    return MarketDataService()
+def get_option_chain_service():
+    """Dependency to get the option chain service."""
+    market_data_service = MarketDataService()
+    return OptionChainService(market_data_service)
 
-def get_option_pricer():
-    """Dependency to get the option pricer service."""
-    return OptionPricer()
-
-@router.get("/chains/{ticker}", response_model=List[Dict])
-async def get_options_chain(
+@router.get("/chains/{ticker}", response_model=List[OptionContract])
+def get_options_chain(
     ticker: str,
     expiration_date: Optional[str] = None,
     option_type: Optional[str] = Query(None, regex="^(call|put)$"),
     min_strike: Optional[float] = None,
     max_strike: Optional[float] = None,
-    market_data_service: MarketDataService = Depends(get_market_data_service)
+    db: Session = Depends(get_db),
+    option_chain_service: OptionChainService = Depends(get_option_chain_service)
 ):
     """
-    Get options chain data for a ticker.
+    Get options chain for a ticker with optional filtering.
     
     Args:
-        ticker: The ticker symbol
-        expiration_date: Optional expiration date filter in ISO format (YYYY-MM-DD)
-        option_type: Optional filter for option type ('call' or 'put')
+        ticker: Ticker symbol
+        expiration_date: Optional expiration date in YYYY-MM-DD format
+        option_type: Optional option type filter ('call' or 'put')
         min_strike: Optional minimum strike price filter
         max_strike: Optional maximum strike price filter
         
@@ -51,180 +54,123 @@ async def get_options_chain(
         List of option contracts
     """
     try:
-        # Validate and parse expiration_date if provided
+        # Convert expiration_date string to datetime if provided
         exp_date = None
         if expiration_date:
             try:
-                exp_date = parser.parse(expiration_date).date()
+                exp_date = datetime.strptime(expiration_date, "%Y-%m-%d")
             except ValueError:
-                raise HTTPException(status_code=400, detail="Invalid expiration date format")
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Invalid expiration date format: {expiration_date}. Use YYYY-MM-DD format."
+                )
         
-        # Fetch option chain data from market data service
-        option_chain = market_data_service.get_option_chain(
-            ticker=ticker,
-            expiration_date=exp_date
+        # Get option chain
+        option_chain = option_chain_service.get_option_chain(
+            ticker, 
+            exp_date, 
+            option_type,
+            min_strike,
+            max_strike
         )
         
-        # Apply filters if provided
-        filtered_chain = []
-        for option in option_chain:
-            # Check option type filter
-            if option_type and option.get("option_type") != option_type:
-                continue
-                
-            # Check strike price range filters
-            strike = option.get("strike")
-            if min_strike is not None and strike < min_strike:
-                continue
-            if max_strike is not None and strike > max_strike:
-                continue
-                
-            filtered_chain.append(option)
-        
-        return filtered_chain
-        
+        return option_chain
     except Exception as e:
-        logging.error(f"Error fetching options chain for {ticker}: {str(e)}")
+        logger.error(f"Error fetching option chain: {e}")
         raise HTTPException(
-            status_code=500, 
-            detail=f"Error fetching options chain: {str(e)}"
+            status_code=500,
+            detail=f"Failed to retrieve option chain: {str(e)}"
         )
 
-@router.get("/chains/{ticker}/expirations", response_model=List[Dict])
-async def get_expiration_dates(
+@router.get("/chains/{ticker}/expirations", response_model=List[OptionExpiration])
+def get_option_expirations(
     ticker: str,
-    market_data_service: MarketDataService = Depends(get_market_data_service)
+    db: Session = Depends(get_db),
+    option_chain_service: OptionChainService = Depends(get_option_chain_service)
 ):
     """
     Get available expiration dates for options on a ticker.
     
     Args:
-        ticker: The ticker symbol
+        ticker: Ticker symbol
         
     Returns:
-        List of expiration dates
+        List of expiration dates with metadata
     """
     try:
-        # Fetch expiration dates from market data service
-        expirations = market_data_service.get_option_expirations(ticker)
+        # Get expiration dates
+        expirations = option_chain_service.get_expirations(ticker)
         
-        # Format response
-        formatted_expirations = []
-        for exp_date in expirations:
-            formatted_expirations.append({
-                "date": exp_date.isoformat(),
-                "formatted_date": exp_date.strftime("%b %d, %Y")
-            })
+        # Format the response
+        formatted_expirations = [
+            {"date": exp, "formatted_date": exp.strftime("%Y-%m-%d")}
+            for exp in expirations
+        ]
         
         return formatted_expirations
-        
     except Exception as e:
-        logging.error(f"Error fetching expiration dates for {ticker}: {str(e)}")
+        logger.error(f"Error fetching option expirations: {e}")
         raise HTTPException(
-            status_code=500, 
-            detail=f"Error fetching expiration dates: {str(e)}"
+            status_code=500,
+            detail=f"Failed to retrieve option expirations: {str(e)}"
         )
 
-@router.get("/chains/{ticker}/{expiration_date}", response_model=List[Dict])
-async def get_options_for_expiration(
+@router.get("/chains/{ticker}/{expiration_date}", response_model=List[OptionContract])
+def get_options_for_expiration(
     ticker: str,
     expiration_date: str,
     option_type: Optional[str] = Query(None, regex="^(call|put)$"),
     min_strike: Optional[float] = None,
     max_strike: Optional[float] = None,
-    market_data_service: MarketDataService = Depends(get_market_data_service),
-    option_pricer: OptionPricer = Depends(get_option_pricer)
+    db: Session = Depends(get_db),
+    option_chain_service: OptionChainService = Depends(get_option_chain_service)
 ):
     """
-    Get options for a specific ticker and expiration date.
+    Get options for a specific ticker and expiration date with optional filtering.
     
     Args:
-        ticker: The ticker symbol
-        expiration_date: Expiration date in ISO format (YYYY-MM-DD)
-        option_type: Optional filter for option type ('call' or 'put')
+        ticker: Ticker symbol
+        expiration_date: Expiration date in YYYY-MM-DD format
+        option_type: Optional option type filter ('call' or 'put')
         min_strike: Optional minimum strike price filter
         max_strike: Optional maximum strike price filter
         
     Returns:
-        List of option contracts for the specified expiration date
+        List of option contracts
     """
     try:
-        # Parse expiration date
+        # Convert expiration_date string to datetime
         try:
-            exp_date = parser.parse(expiration_date).date()
+            exp_date = datetime.strptime(expiration_date, "%Y-%m-%d")
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid expiration date format")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid expiration date format: {expiration_date}. Use YYYY-MM-DD format."
+            )
         
-        # Get the current stock price
-        stock_price = market_data_service.get_stock_price(ticker)
-        
-        # Get options chain for this expiration
-        option_chain = market_data_service.get_option_chain(
-            ticker=ticker,
-            expiration_date=exp_date
+        # Get option chain for specific expiration
+        option_chain = option_chain_service.get_option_chain(
+            ticker, 
+            exp_date, 
+            option_type,
+            min_strike,
+            max_strike
         )
         
-        # Apply filters and add additional data
-        filtered_chain = []
-        for option in option_chain:
-            # Check option type filter
-            if option_type and option.get("option_type") != option_type:
-                continue
-                
-            # Check strike price range filters
-            strike = option.get("strike")
-            if min_strike is not None and strike < min_strike:
-                continue
-            if max_strike is not None and strike > max_strike:
-                continue
-            
-            # Add underlying price to each option
-            option["underlying_price"] = stock_price
-            
-            # Check if option is in-the-money
-            is_call = option.get("option_type") == "call"
-            option["in_the_money"] = (is_call and stock_price > strike) or (not is_call and stock_price < strike)
-            
-            # If Greeks are missing, calculate them
-            if not all(key in option for key in ["delta", "gamma", "theta", "vega", "rho"]):
-                try:
-                    # Use default volatility or get from market data if available
-                    volatility = option.get("implied_volatility", 0.3)
-                    
-                    # Calculate option Greeks
-                    greeks = option_pricer.price_option(
-                        option_type=option.get("option_type"),
-                        strike=strike,
-                        expiration_date=exp_date,
-                        spot_price=stock_price,
-                        volatility=volatility
-                    )
-                    
-                    # Add Greeks to option data
-                    option["delta"] = greeks.get("delta")
-                    option["gamma"] = greeks.get("gamma")
-                    option["theta"] = greeks.get("theta")
-                    option["vega"] = greeks.get("vega")
-                    option["rho"] = greeks.get("rho")
-                except Exception as e:
-                    logging.warning(f"Error calculating Greeks for {ticker} option: {str(e)}")
-            
-            filtered_chain.append(option)
-        
-        return filtered_chain
-        
+        return option_chain
     except Exception as e:
-        logging.error(f"Error fetching options for {ticker} with expiration {expiration_date}: {str(e)}")
+        logger.error(f"Error fetching options for expiration: {e}")
         raise HTTPException(
-            status_code=500, 
-            detail=f"Error fetching options: {str(e)}"
+            status_code=500,
+            detail=f"Failed to retrieve options for expiration: {str(e)}"
         )
 
 @router.get("/search/{query}", response_model=List[str])
-async def search_tickers(
+def search_tickers(
     query: str,
-    limit: int = Query(10, ge=1, le=100),
-    market_data_service: MarketDataService = Depends(get_market_data_service)
+    limit: int = 10,
+    db: Session = Depends(get_db),
+    market_data_service: MarketDataService = Depends(lambda: MarketDataService())
 ):
     """
     Search for ticker symbols matching a query.
@@ -234,18 +180,19 @@ async def search_tickers(
         limit: Maximum number of results to return
         
     Returns:
-        List of matching ticker symbols
+        List of matching ticker symbols with basic metadata
     """
     try:
-        # Search for tickers using market data service
+        # Search for tickers
         results = market_data_service.search_tickers(query)
         
-        # Limit results if necessary
-        return results[:limit] if limit < len(results) else results
+        # Limit the number of results
+        limited_results = results[:limit] if limit else results
         
+        return limited_results
     except Exception as e:
-        logging.error(f"Error searching tickers with query {query}: {str(e)}")
+        logger.error(f"Error searching tickers: {e}")
         raise HTTPException(
-            status_code=500, 
-            detail=f"Error searching tickers: {str(e)}"
+            status_code=500,
+            detail=f"Failed to search tickers: {str(e)}"
         )
