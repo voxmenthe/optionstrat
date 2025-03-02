@@ -103,10 +103,9 @@ def integration_client(mock_redis, mock_polygon_api, mock_market_data_service):
     
     # Apply patches for external services
     with patch('redis.Redis', return_value=mock_redis):
-        with patch.object(MarketDataService, '_make_request', new=mock_polygon_api_request(mock_polygon_api)):
-            # Create and return the test client
-            with TestClient(app) as test_client:
-                yield test_client
+        # Create and return the test client
+        with TestClient(app) as test_client:
+            yield test_client
     
     # Clean up by removing the override or restoring the original
     if original_dependency:
@@ -351,43 +350,256 @@ def redis_client(mock_redis):
 
 # Add a dependency override function for MarketDataService
 @pytest.fixture(scope="function")
-def mock_market_data_service(mock_redis):
-    """Provide a properly configured mock MarketDataService that uses our mock_redis."""
+def mock_market_data_service(mock_redis, mock_polygon_api):
+    """Provide a properly configured mock MarketDataService with a mock provider."""
     def get_market_data_service():
-        service = MarketDataService(api_key="test_key", use_cache=True)
-        service.redis = mock_redis  # Override the redis client with our mock
+        # Create a service instance
+        service = MarketDataService()
         
-        # Add a wrapper around the _save_to_cache method to debug it
-        original_save_to_cache = service._save_to_cache
+        # Create a mock provider
+        from unittest.mock import MagicMock
+        from app.services.market_data_provider import MarketDataProvider
         
-        def debug_save_to_cache(cache_key, data):
-            print(f"\n[DEBUG] Saving to cache: key={cache_key}, data_type={type(data)}")
-            try:
-                result = original_save_to_cache(cache_key, data)
-                # Verify the data was actually saved
-                saved_data = mock_redis.get(cache_key)
-                print(f"[DEBUG] Cache save result: {result}, saved_data: {saved_data is not None}")
-                return result
-            except Exception as e:
-                print(f"[DEBUG] Error saving to cache: {e}")
-                import traceback
-                print(traceback.format_exc())
-                raise
+        mock_provider = MagicMock(spec=MarketDataProvider)
         
-        # Replace the method with our debug version
-        service._save_to_cache = debug_save_to_cache
+        # Set up the mock provider methods to use our mock polygon API
+        def get_ticker_details(ticker):
+            endpoint = f"/v3/reference/tickers/{ticker}"
+            result = mock_polygon_api_request(mock_polygon_api)(None, endpoint)
+            return result["results"]
         
-        # Also enhance the get_from_cache method
-        original_get_from_cache = service._get_from_cache
+        def get_stock_price(ticker):
+            # Return a mock stock price
+            if ticker in mock_polygon_api.tickers:
+                return mock_polygon_api.tickers[ticker]["price"]
+            return 100.0
         
-        def debug_get_from_cache(cache_key):
-            print(f"\n[DEBUG] Getting from cache: key={cache_key}")
-            result = original_get_from_cache(cache_key)
-            print(f"[DEBUG] Cache get result: {result is not None}")
-            return result
+        def get_option_chain(ticker, expiration_date=None):
+            endpoint = f"/v3/reference/options/contracts"
+            params = {"underlying_ticker": ticker}
+            if expiration_date:
+                if isinstance(expiration_date, datetime):
+                    params["expiration_date"] = expiration_date.strftime("%Y-%m-%d")
+                else:
+                    params["expiration_date"] = expiration_date
+            
+            result = mock_polygon_api_request(mock_polygon_api)(None, endpoint, params)
+            return result["results"]
         
-        service._get_from_cache = debug_get_from_cache
+        def get_option_expirations(ticker):
+            endpoint = f"/v3/reference/options/contracts/{ticker}"
+            result = mock_polygon_api_request(mock_polygon_api)(None, endpoint)
+            return result["results"]["expirations"]
+        
+        def get_historical_prices(ticker, from_date, to_date, timespan="day"):
+            # Return some mock historical data
+            return [
+                {
+                    "o": 150.25,    # open
+                    "c": 152.87,    # close
+                    "h": 153.12,    # high
+                    "l": 149.95,    # low
+                    "v": 55627300,  # volume
+                    "t": int(datetime.timestamp(from_date) * 1000)  # timestamp
+                },
+                {
+                    "o": 152.87,
+                    "c": 155.10,
+                    "h": 156.42,
+                    "l": 152.10,
+                    "v": 48123400,
+                    "t": int(datetime.timestamp(to_date) * 1000)
+                }
+            ]
+        
+        def get_option_data(ticker, expiration_date, strike, option_type):
+            # Create a mock option data response
+            if isinstance(expiration_date, datetime):
+                exp_str = expiration_date.strftime("%Y-%m-%d")
+            else:
+                exp_str = expiration_date
+                
+            # Generate a standardized option symbol
+            option_type_code = "C" if option_type.lower() == "call" else "P"
+            strike_formatted = str(int(float(strike) * 1000)).zfill(8)
+            symbol = f"O:{ticker}{exp_str.replace('-','')}C{strike_formatted}"
+            
+            # Calculate a theoretical option price
+            stock_price = get_stock_price(ticker)
+            days_to_expiry = (datetime.strptime(exp_str, "%Y-%m-%d").date() - datetime.now().date()).days
+            years_to_expiry = max(0.01, days_to_expiry / 365.0)
+            
+            # Simple price approximation
+            iv = 0.3  # 30% implied volatility
+            atm_factor = abs(float(strike) - stock_price) / stock_price
+            time_value = stock_price * iv * (years_to_expiry ** 0.5) * 0.4 * (1 - 0.5 * atm_factor)
+            
+            if option_type.lower() == "call":
+                intrinsic_value = max(0, stock_price - float(strike))
+            else:
+                intrinsic_value = max(0, float(strike) - stock_price)
+                
+            option_price = round(intrinsic_value + time_value, 2)
+            option_price = max(0.1, option_price)  # Ensure minimum price
+            
+            return {
+                "symbol": symbol,
+                "price": option_price,
+                "bid": round(option_price * 0.95, 2),
+                "ask": round(option_price * 1.05, 2),
+                "volume": 100,
+                "open_interest": 500,
+                "implied_volatility": iv,
+                "delta": 0.65 if option_type.lower() == "call" else -0.65,
+                "gamma": 0.05,
+                "theta": -0.1,
+                "vega": 0.2,
+                "rho": 0.01,
+                "timestamp": int(time.time() * 1000)
+            }
+            
+        def get_option_strikes(ticker, expiration_date, option_type=None):
+            # Return a list of strike prices around the current stock price
+            stock_price = get_stock_price(ticker)
+            strikes = []
+            
+            # Generate strikes at 5% intervals around the stock price
+            for i in range(-4, 5):
+                strikes.append(round(stock_price * (1 + i * 0.05), 2))
+                
+            return {
+                "strikes": strikes,
+                "count": len(strikes)
+            }
+            
+        def get_market_status():
+            # Return a mock market status
+            return {
+                "market": "open",
+                "server_time": datetime.now().isoformat(),
+                "exchanges": {
+                    "nyse": "open",
+                    "nasdaq": "open"
+                }
+            }
+            
+        def search_tickers(query):
+            # Return mock search results
+            return [
+                {"ticker": query.upper(), "name": f"{query.upper()} Inc.", "market": "stocks"},
+                {"ticker": f"{query.upper()}.X", "name": f"{query.upper()} Index", "market": "indices"}
+            ]
+            
+        def get_earnings_calendar(ticker=None, from_date=None, to_date=None):
+            # Create mock earnings calendar data
+            if from_date and to_date:
+                days_range = (to_date - from_date).days
+            else:
+                days_range = 10  # Default range
+                
+            # Sample earnings announcements
+            earnings = []
+            base_date = datetime.now()
+            
+            # Sample companies with upcoming earnings
+            companies = [
+                {"ticker": "AAPL", "name": "Apple Inc."},
+                {"ticker": "MSFT", "name": "Microsoft Corporation"},
+                {"ticker": "AMZN", "name": "Amazon.com Inc."},
+                {"ticker": "GOOGL", "name": "Alphabet Inc."},
+                {"ticker": "META", "name": "Meta Platforms Inc."}
+            ]
+            
+            # If ticker is provided, filter the list
+            if ticker:
+                companies = [c for c in companies if c["ticker"] == ticker]
+            
+            # Generate earnings events
+            for i, company in enumerate(companies):
+                # Calculate a future date for the earnings
+                event_date = base_date + timedelta(days=(i % days_range) + 1)
+                
+                earnings.append({
+                    "ticker": company["ticker"],
+                    "company_name": company["name"],
+                    "report_date": event_date.strftime("%Y-%m-%d"),
+                    "quarter": f"Q{((event_date.month-1)//3)+1} {event_date.year}",
+                    "estimate_eps": round(1.5 + 0.1 * i, 2),
+                    "actual_eps": None,  # Not reported yet
+                    "time": "after_market" if i % 2 == 0 else "before_market"
+                })
+            
+            return earnings
+            
+        def get_economic_calendar(from_date=None, to_date=None):
+            # Create mock economic calendar data
+            if from_date and to_date:
+                days_range = (to_date - from_date).days
+            else:
+                days_range = 10  # Default range
+                
+            # Sample economic events
+            events = []
+            base_date = datetime.now()
+            
+            # Sample economic indicators
+            economic_indicators = [
+                {"name": "Non-Farm Payrolls", "country": "US", "importance": "high"},
+                {"name": "CPI", "country": "US", "importance": "high"},
+                {"name": "GDP", "country": "US", "importance": "high"},
+                {"name": "FOMC Statement", "country": "US", "importance": "high"},
+                {"name": "Retail Sales", "country": "US", "importance": "medium"},
+                {"name": "PMI", "country": "US", "importance": "medium"},
+                {"name": "Unemployment Rate", "country": "US", "importance": "high"}
+            ]
+            
+            # Generate economic events
+            for i, indicator in enumerate(economic_indicators):
+                # Calculate a future date for the event
+                event_date = base_date + timedelta(days=(i % days_range) + 1)
+                
+                events.append({
+                    "name": indicator["name"],
+                    "country": indicator["country"],
+                    "date": event_date.strftime("%Y-%m-%d"),
+                    "time": "08:30" if i % 2 == 0 else "14:00",
+                    "importance": indicator["importance"],
+                    "forecast": None,
+                    "previous": "2.5%" if "%" in indicator["name"] else "250K"
+                })
+            
+            return events
+            
+        def get_implied_volatility(ticker):
+            # Return a mock implied volatility value
+            # Use a consistent but somewhat random value based on the ticker symbol
+            seed = sum(ord(c) for c in ticker)
+            volatility = 0.15 + (seed % 10) / 100  # Generate values between 0.15 and 0.25
+            return round(volatility, 2)
+        
+        # Assign the mock methods to the mock provider
+        mock_provider.get_ticker_details.side_effect = get_ticker_details
+        mock_provider.get_stock_price.side_effect = get_stock_price
+        mock_provider.get_option_chain.side_effect = get_option_chain
+        mock_provider.get_option_expirations.side_effect = get_option_expirations
+        mock_provider.get_historical_prices.side_effect = get_historical_prices
+        # TODO: Implement get_option_data when option chain functionality is fully implemented
+        # mock_provider.get_option_data.side_effect = get_option_data
+        mock_provider.get_option_strikes.side_effect = get_option_strikes
+        # TODO: Implement get_market_status when market data functionality is fully implemented
+        # mock_provider.get_market_status.side_effect = get_market_status
+        # TODO: Implement search_tickers when functionality is fully implemented
+        # mock_provider.search_tickers.side_effect = search_tickers
+        # TODO: Implement get_earnings_calendar when functionality is fully implemented
+        # mock_provider.get_earnings_calendar.side_effect = get_earnings_calendar
+        # TODO: Implement get_economic_calendar when functionality is fully implemented
+        # mock_provider.get_economic_calendar.side_effect = get_economic_calendar
+        # TODO: Implement get_implied_volatility when functionality is fully implemented
+        # mock_provider.get_implied_volatility.side_effect = get_implied_volatility
+        
+        # Replace the service's provider with our mock
+        service.provider = mock_provider
         
         return service
     
-    return get_market_data_service 
+    return get_market_data_service
