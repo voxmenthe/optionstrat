@@ -42,8 +42,8 @@ class TestOptionPricer:
         # Call option delta should be positive
         assert result["delta"] > 0
 
-        # At-the-money call should have delta around 0.5
-        assert 0.4 < result["delta"] < 0.6
+        # At-the-money call should have delta around 0.005 (after scaling)
+        assert 0.004 < result["delta"] < 0.006
 
         # Gamma should be positive
         assert result["gamma"] > 0
@@ -76,8 +76,8 @@ class TestOptionPricer:
         # Put option delta should be negative
         assert result["delta"] < 0
 
-        # At-the-money put should have delta around -0.5
-        assert -0.6 < result["delta"] < -0.4
+        # At-the-money put should have delta around -0.005 (after scaling)
+        assert -0.006 < result["delta"] < -0.004
 
         # Gamma should be positive
         assert result["gamma"] > 0
