@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import routers
-from app.routes import positions, greeks, scenarios, market_data
+from app.routes import positions, greeks, scenarios, market_data, options
 
 # Create FastAPI app
 app = FastAPI(
@@ -41,6 +41,7 @@ app.include_router(positions.router)
 app.include_router(greeks.router)
 app.include_router(scenarios.router)
 app.include_router(market_data.router)
+app.include_router(options.router)
 
 if __name__ == "__main__":
     uvicorn.run("app.main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 8003)), reload=True) 
