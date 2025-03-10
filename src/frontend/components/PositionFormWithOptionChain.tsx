@@ -124,13 +124,16 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
         setTicker(data.ticker);
       }
       
-      // Sync expiration changes with the option chain selector
+      // Sync expiration changes with the option chain selector - with added checks
       if (data.expiration && data.expiration !== selectedExpiration) {
         try {
-          // Convert from yyyy-mm-dd to ISO format
-          const formattedDate = formatExpirationDate(data.expiration);
-          if (formattedDate && formattedDate !== selectedExpiration) {
-            setSelectedExpiration(formattedDate);
+          // Only proceed if the ticker is set first
+          if (storeTicker) {
+            // Convert from yyyy-mm-dd to ISO format
+            const formattedDate = formatExpirationDate(data.expiration);
+            if (formattedDate && formattedDate !== selectedExpiration) {
+              setSelectedExpiration(formattedDate);
+            }
           }
         } catch (e) {
           console.error('Error formatting expiration date:', e);
@@ -168,23 +171,54 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
       
       setFormData(initialFormData);
       
-      // Only initialize store values once
-      const initializeStoreOnce = () => {
-        // If we have an existing position, also set the ticker in the store
-        if (props.existingPosition?.ticker) {
-          setTicker(props.existingPosition.ticker);
-        }
-        
-        // If we have an existing position with expiration, also set it in the store
-        if (props.existingPosition?.expiration) {
-          try {
-            const formattedDate = formatExpirationDate(props.existingPosition.expiration);
-            if (formattedDate) {
-              setSelectedExpiration(formattedDate);
+      // Only initialize store values once, with additional safety checks
+      const initializeStoreOnce = async () => {
+        try {
+          // If we have an existing position, also set the ticker in the store
+          if (props.existingPosition?.ticker) {
+            await setTicker(props.existingPosition.ticker);
+            
+            // Wait a moment for expirations to be fetched before trying to set the expiration date
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Now check if the expiration date from the existing position is valid
+            if (props.existingPosition?.expiration) {
+              // Add an additional safety check to prevent infinite loops
+              let expirationFailedCount = 0;
+              const MAX_ATTEMPTS = 1; // Only try once
+              
+              try {
+                const formattedDate = formatExpirationDate(props.existingPosition.expiration);
+                if (formattedDate) {
+                  console.log(`Setting expiration date to ${formattedDate}`);
+                  
+                  // Check if this expiration already caused an error
+                  const currentError = useOptionChainStore.getState().error;
+                  const isKnownInvalidExpiration = 
+                    currentError && 
+                    currentError.includes('Expiration date') && 
+                    currentError.includes(formattedDate);
+                  
+                  // Only try to set the expiration if we haven't gotten an error for it yet
+                  if (!isKnownInvalidExpiration && expirationFailedCount < MAX_ATTEMPTS) {
+                    await setSelectedExpiration(formattedDate);
+                    
+                    // Check if this caused an error
+                    const newError = useOptionChainStore.getState().error;
+                    if (newError && newError.includes('Expiration date')) {
+                      expirationFailedCount++;
+                      console.warn('Invalid expiration date detected, will not retry:', newError);
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error('Error setting expiration date:', e);
+                // If the expiration wasn't valid, don't try again
+              }
             }
-          } catch (e) {
-            console.error('Error setting expiration date in store:', e);
           }
+        } catch (e) {
+          console.error('Error initializing store values:', e);
         }
       };
       

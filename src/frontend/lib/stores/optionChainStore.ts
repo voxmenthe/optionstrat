@@ -77,8 +77,15 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
     try {
       const expirations = await optionsApi.getExpirationDates(ticker);
       
-      // If we have expirations, select the first one by default
-      const selectedExpiration = expirations.length > 0 ? expirations[0].date : null;
+      // If we have expirations, select the first one by default and ensure it's in YYYY-MM-DD format
+      let selectedExpiration = null;
+      if (expirations.length > 0) {
+        const dateStr = expirations[0].date;
+        // Format the date to ensure it's in YYYY-MM-DD format
+        selectedExpiration = dateStr.includes('T')
+          ? dateStr.split('T')[0]  // Extract just the date part if it has a timestamp
+          : dateStr;
+      }
       
       set({ 
         expirations, 
@@ -100,14 +107,36 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
   
   // Set selected expiration and fetch option chain
   setSelectedExpiration: async (date: string) => {
-    const { ticker, filters } = get();
+    const { ticker, filters, expirations } = get();
     
     if (!ticker || !date) {
       return;
     }
     
+    // Format the date to ensure it's in YYYY-MM-DD format
+    // This handles cases where date might be in ISO format (with time component)
+    const formattedDate = date.includes('T') 
+      ? date.split('T')[0]  // Extract just the date part if it has a timestamp
+      : date;
+    
+    // Check if the expiration date exists in our list of available expirations
+    const expirationExists = expirations.some(exp => {
+      const expDate = exp.date.includes('T') 
+        ? exp.date.split('T')[0]
+        : exp.date;
+      return expDate === formattedDate;
+    });
+    
+    if (!expirationExists) {
+      set({ 
+        error: `Expiration date ${formattedDate} is not available for ${ticker}. Please select from the available dates.`,
+        isLoading: false
+      });
+      return;
+    }
+    
     set({ 
-      selectedExpiration: date, 
+      selectedExpiration: formattedDate, 
       isLoading: true, 
       error: null,
       // Clear chain when changing expiration
@@ -135,7 +164,7 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
         params.max_strike = filters.maxStrike;
       }
       
-      const chain = await optionsApi.getOptionsForExpiration(ticker, date, params);
+      const chain = await optionsApi.getOptionsForExpiration(ticker, formattedDate, params);
       set({ chain, isLoading: false });
     } catch (error) {
       set({ 

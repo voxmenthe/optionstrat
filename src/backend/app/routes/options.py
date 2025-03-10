@@ -53,18 +53,18 @@ def get_options_chain(
     Returns:
         List of option contracts
     """
+    # Convert expiration_date string to datetime if provided
+    exp_date = None
+    if expiration_date:
+        try:
+            exp_date = datetime.strptime(expiration_date, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Invalid expiration date format: {expiration_date}. Use YYYY-MM-DD format."
+            )
+    
     try:
-        # Convert expiration_date string to datetime if provided
-        exp_date = None
-        if expiration_date:
-            try:
-                exp_date = datetime.strptime(expiration_date, "%Y-%m-%d")
-            except ValueError:
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"Invalid expiration date format: {expiration_date}. Use YYYY-MM-DD format."
-                )
-        
         # Get option chain
         option_chain = option_chain_service.get_option_chain(
             ticker, 
@@ -75,7 +75,12 @@ def get_options_chain(
         )
         
         return option_chain
+    except HTTPException as http_exc:
+        # Pass through HTTP exceptions directly
+        logger.warning(f"HTTP exception in get_options_chain: {http_exc.detail}")
+        raise http_exc
     except Exception as e:
+        # Other exceptions become 500 errors
         logger.error(f"Error fetching option chain: {e}")
         raise HTTPException(
             status_code=500,
@@ -138,16 +143,16 @@ def get_options_for_expiration(
     Returns:
         List of option contracts
     """
+    # Convert expiration_date string to datetime
     try:
-        # Convert expiration_date string to datetime
-        try:
-            exp_date = datetime.strptime(expiration_date, "%Y-%m-%d")
-        except ValueError:
-            raise HTTPException(
-                status_code=400, 
-                detail=f"Invalid expiration date format: {expiration_date}. Use YYYY-MM-DD format."
-            )
-        
+        exp_date = datetime.strptime(expiration_date, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Invalid expiration date format: {expiration_date}. Use YYYY-MM-DD format."
+        )
+    
+    try:
         # Get option chain for specific expiration
         option_chain = option_chain_service.get_option_chain(
             ticker, 
@@ -158,7 +163,12 @@ def get_options_for_expiration(
         )
         
         return option_chain
+    except HTTPException as http_exc:
+        # Pass through HTTP exceptions directly
+        logger.warning(f"HTTP exception in get_options_for_expiration: {http_exc.detail}")
+        raise http_exc
     except Exception as e:
+        # Other exceptions become 500 errors
         logger.error(f"Error fetching options for expiration: {e}")
         raise HTTPException(
             status_code=500,

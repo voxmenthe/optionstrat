@@ -255,13 +255,13 @@ class YFinanceProvider(MarketDataProvider):
             print(f"Error in get_stock_price: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Yahoo Finance API error: {str(e)}")
     
-    def get_option_chain(self, ticker: str, expiration_date: Optional[str] = None) -> List[Dict]:
+    def get_option_chain(self, ticker: str, expiration_date: Optional[Union[str, datetime]] = None) -> List[Dict]:
         """
         Get the option chain for a ticker.
         
         Args:
             ticker: The ticker symbol
-            expiration_date: Option expiration date (YYYY-MM-DD)
+            expiration_date: Option expiration date (YYYY-MM-DD string or datetime object)
             
         Returns:
             List of option details
@@ -288,10 +288,25 @@ class YFinanceProvider(MarketDataProvider):
             
             # Use the provided expiration date or the nearest one
             if expiration_date:
-                if expiration_date not in expirations:
-                    print(f"Expiration {expiration_date} not found for {ticker}")
-                    return []
-                selected_expiration = expiration_date
+                # Normalize expiration date to YYYY-MM-DD format
+                if isinstance(expiration_date, datetime):
+                    # Format datetime to string
+                    normalized_expiration = expiration_date.strftime("%Y-%m-%d")
+                elif isinstance(expiration_date, str):
+                    # Handle string input - remove any time component
+                    normalized_expiration = expiration_date.split()[0] if ' ' in expiration_date else expiration_date
+                else:
+                    # Unexpected type
+                    raise ValueError(f"Unexpected type for expiration_date: {type(expiration_date)}")
+                
+                if normalized_expiration not in expirations:
+                    print(f"Expiration {normalized_expiration} not found for {ticker}")
+                    # Raise an HTTP exception instead of returning an empty list
+                    raise HTTPException(
+                        status_code=404,
+                        detail=f"Expiration date {normalized_expiration} not found for {ticker}. Available dates: {', '.join(expirations[:5])}."
+                    )
+                selected_expiration = normalized_expiration
             else:
                 selected_expiration = expirations[0]
             
@@ -339,6 +354,9 @@ class YFinanceProvider(MarketDataProvider):
             self._save_to_cache(cache_key, standardized_options)
             
             return standardized_options
+        except HTTPException:
+            # Re-raise HTTP exceptions
+            raise
         except Exception as e:
             import traceback
             print(f"Error in get_option_chain: {str(e)}")

@@ -111,24 +111,31 @@ const OptionExpirationSelector: React.FC<OptionExpirationSelectorProps> = ({
                 {monthYear}
               </div>
               <div className="p-2 grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4">
-                {monthExpirations.map((exp) => (
-                  <button
-                    key={exp.date}
-                    className={`text-xs py-1 px-2 rounded ${
-                      selectedExpiration === exp.date
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-100 hover:bg-gray-200'
-                    }`}
-                    onClick={() => onSelect(exp.date)}
-                  >
-                    {exp.formattedDate}
-                    {showDTE && (
-                      <span className="ml-1 text-xs opacity-75">
-                        ({calculateDTE(exp.date)}d)
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {monthExpirations.map((exp) => {
+                  // Format the date to ensure it's in YYYY-MM-DD format
+                  const formattedDate = exp.date.includes('T') 
+                    ? exp.date.split('T')[0] 
+                    : exp.date;
+                    
+                  return (
+                    <button
+                      key={exp.date}
+                      className={`text-xs py-1 px-2 rounded ${
+                        selectedExpiration === formattedDate
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 hover:bg-gray-200'
+                      }`}
+                      onClick={() => onSelect(formattedDate)}
+                    >
+                      {exp.formattedDate}
+                      {showDTE && (
+                        <span className="ml-1 text-xs opacity-75">
+                          ({calculateDTE(formattedDate)}d)
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}
@@ -136,24 +143,31 @@ const OptionExpirationSelector: React.FC<OptionExpirationSelectorProps> = ({
       ) : (
         // Simple list view
         <div className="grid grid-cols-2 gap-1 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-          {expirations.map((exp) => (
-            <button
-              key={exp.date}
-              className={`text-xs py-1 px-2 rounded ${
-                selectedExpiration === exp.date
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 hover:bg-gray-200'
-              }`}
-              onClick={() => onSelect(exp.date)}
-            >
-              {exp.formattedDate}
-              {showDTE && (
-                <span className="ml-1 text-xs opacity-75">
-                  ({calculateDTE(exp.date)}d)
-                </span>
-              )}
-            </button>
-          ))}
+          {expirations.map((exp) => {
+            // Format the date to ensure it's in YYYY-MM-DD format
+            const formattedDate = exp.date.includes('T') 
+              ? exp.date.split('T')[0] 
+              : exp.date;
+              
+            return (
+              <button
+                key={exp.date}
+                className={`text-xs py-1 px-2 rounded ${
+                  selectedExpiration === formattedDate
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 hover:bg-gray-200'
+                }`}
+                onClick={() => onSelect(formattedDate)}
+              >
+                {exp.formattedDate}
+                {showDTE && (
+                  <span className="ml-1 text-xs opacity-75">
+                    ({calculateDTE(formattedDate)}d)
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

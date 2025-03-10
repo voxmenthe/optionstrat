@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
 import os
@@ -35,6 +35,20 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
+
+# Debug endpoint to help diagnose connectivity issues
+@app.get("/debug")
+async def debug_info(request: Request):
+    return {
+        "status": "debug",
+        "headers": dict(request.headers),
+        "client_host": request.client.host if request.client else None,
+        "client_port": request.client.port if request.client else None,
+        "method": request.method,
+        "url": str(request.url),
+        "cors_origins": app.state.cors_origins if hasattr(app.state, 'cors_origins') else ["http://localhost:3000", "http://localhost:3003"],
+        "server_port": os.environ.get("PORT", 8003)
+    }
 
 # Include routers
 app.include_router(positions.router)

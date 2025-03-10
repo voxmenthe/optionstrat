@@ -159,6 +159,49 @@ const OptionChainSelector: React.FC<OptionChainSelectorProps> = ({
     onSelect(option);
   };
   
+  // Handle expiration selection
+  const handleExpirationSelect = (date: string) => {
+    setSelectedExpiration(date);
+  };
+  
+  // Add an error display component with available dates
+  const ErrorWithAvailableDates: React.FC<{
+    error: string;
+    expirations?: { date: string; formattedDate: string }[];
+    onSelectExpiration?: (date: string) => void;
+  }> = ({ error, expirations, onSelectExpiration }) => {
+    // Only show up to 5 dates to avoid overwhelming the user
+    const showExpirations = expirations && expirations.length > 0 && expirations.slice(0, 5);
+    
+    return (
+      <div className="text-red-500 p-3 bg-red-50 border border-red-200 rounded-md mb-4">
+        <p className="font-medium">{error}</p>
+        
+        {showExpirations && (
+          <div className="mt-2">
+            <p className="text-sm font-medium text-gray-700">Available dates include:</p>
+            <div className="mt-1 flex flex-wrap gap-1">
+              {showExpirations.map(exp => (
+                <button
+                  key={exp.date}
+                  onClick={() => onSelectExpiration?.(exp.date)}
+                  className="px-2 py-1 text-xs bg-blue-100 hover:bg-blue-200 text-blue-800 rounded"
+                >
+                  {exp.formattedDate}
+                </button>
+              ))}
+              {expirations && expirations.length > 5 && (
+                <span className="text-xs text-gray-500 self-center ml-1">
+                  and {expirations.length - 5} more...
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+  
   return (
     <div className="bg-white rounded-lg shadow">
       {/* Header with ticker search */}
@@ -218,10 +261,11 @@ const OptionChainSelector: React.FC<OptionChainSelectorProps> = ({
       
       {/* Error message */}
       {error && (
-        <div className="p-4 bg-red-50 text-red-700 border-l-4 border-red-500">
-          <p className="font-medium">Error</p>
-          <p>{error}</p>
-        </div>
+        <ErrorWithAvailableDates
+          error={error}
+          expirations={expirations}
+          onSelectExpiration={handleExpirationSelect}
+        />
       )}
       
       {/* Main content */}

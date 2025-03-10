@@ -164,11 +164,18 @@ export const optionsApi = {
         response
       );
       return response.map(toFrontendOptionContract);
-    } catch (error) {
+    } catch (error: any) {
       console.error(
         `API: Error fetching options for ${ticker} with expiration ${expirationDate}:`, 
         error
       );
+      
+      // Check for 404 error specifically, which would indicate the expiration date doesn't exist
+      if (error.response && error.response.status === 404) {
+        const errorDetail = error.response.data.detail || '';
+        throw new Error(`Invalid expiration date: ${errorDetail}`);
+      }
+      
       throw error;
     }
   },

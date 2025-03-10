@@ -36,7 +36,7 @@ export class ApiClient {
    * @param params - Query parameters
    * @returns Promise with the response data
    */
-  async get<T>(endpoint: string, params?: Record<string, any>): Promise<T> {
+  async get<T>(endpoint: string, params?: Record<string, unknown>): Promise<T> {
     const url = new URL(`${this.baseUrl}${endpoint}`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -46,15 +46,33 @@ export class ApiClient {
       });
     }
     
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-      credentials: 'include',
-    });
+    // Log connection attempt details
+    console.log(`Attempting API connection to: ${url.toString()}`);
+    console.log(`API base URL: ${this.baseUrl}`);
+    console.log(`Browser location: ${window.location.href}`);
     
-    return this.handleResponse<T>(response);
+    try {
+      const response = await fetch(url.toString(), {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+      
+      console.log(`API connection successful to: ${url.toString()}`);
+      return this.handleResponse<T>(response);
+    } catch (error) {
+      // Handle network errors like CORS, server unavailable, etc.
+      console.error(`Network error when fetching ${url.toString()}:`, error);
+      console.error(`Network details - API URL: ${this.baseUrl}, Endpoint: ${endpoint}`);
+      
+      throw new ApiError(
+        0, 
+        'Network Error', 
+        'Unable to connect to the server. Please check your internet connection and try again.'
+      );
+    }
   }
   
   /**
@@ -64,17 +82,27 @@ export class ApiClient {
    * @returns Promise with the response data
    */
   async post<T>(endpoint: string, data: any): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(data),
-      credentials: 'include',
-    });
-    
-    return this.handleResponse<T>(response);
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+      
+      return this.handleResponse<T>(response);
+    } catch (error) {
+      // Handle network errors like CORS, server unavailable, etc.
+      console.error(`Network error when posting to ${this.baseUrl}${endpoint}:`, error);
+      throw new ApiError(
+        0, 
+        'Network Error', 
+        'Unable to connect to the server. Please check your internet connection and try again.'
+      );
+    }
   }
   
   /**
@@ -84,17 +112,27 @@ export class ApiClient {
    * @returns Promise with the response data
    */
   async put<T>(endpoint: string, data: any): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify(data),
-      credentials: 'include',
-    });
-    
-    return this.handleResponse<T>(response);
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify(data),
+        credentials: 'include',
+      });
+      
+      return this.handleResponse<T>(response);
+    } catch (error) {
+      // Handle network errors like CORS, server unavailable, etc.
+      console.error(`Network error when putting to ${this.baseUrl}${endpoint}:`, error);
+      throw new ApiError(
+        0, 
+        'Network Error', 
+        'Unable to connect to the server. Please check your internet connection and try again.'
+      );
+    }
   }
   
   /**
@@ -103,15 +141,25 @@ export class ApiClient {
    * @returns Promise with the response data
    */
   async delete<T>(endpoint: string): Promise<T> {
-    const response = await fetch(`${this.baseUrl}${endpoint}`, {
-      method: 'DELETE',
-      headers: {
-        'Accept': 'application/json',
-      },
-      credentials: 'include',
-    });
-    
-    return this.handleResponse<T>(response);
+    try {
+      const response = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: 'DELETE',
+        headers: {
+          'Accept': 'application/json',
+        },
+        credentials: 'include',
+      });
+      
+      return this.handleResponse<T>(response);
+    } catch (error) {
+      // Handle network errors like CORS, server unavailable, etc.
+      console.error(`Network error when deleting ${this.baseUrl}${endpoint}:`, error);
+      throw new ApiError(
+        0, 
+        'Network Error', 
+        'Unable to connect to the server. Please check your internet connection and try again.'
+      );
+    }
   }
   
   /**
