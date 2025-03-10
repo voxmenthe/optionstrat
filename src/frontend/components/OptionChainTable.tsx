@@ -93,9 +93,18 @@ const OptionChainTable: React.FC<OptionChainTableProps> = ({
     return value.toFixed(3);
   };
   
-  // Handle option selection
+  // Handle option selection with improved logging
   const handleSelect = (option: OptionContract) => {
-    onSelect(option);
+    console.log('Option selected from table:', option);
+    
+    // Use requestAnimationFrame to ensure UI updates before callback execution
+    requestAnimationFrame(() => {
+      try {
+        onSelect(option);
+      } catch (error) {
+        console.error('Error in option selection handler:', error);
+      }
+    });
   };
   
   // Render individual option cell

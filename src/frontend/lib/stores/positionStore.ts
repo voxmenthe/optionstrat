@@ -20,6 +20,7 @@ export interface PnLResult {
   impliedVolatility?: number;
   underlyingPrice?: number;
   calculationTimestamp?: string;
+  error?: string; // Added to handle error cases gracefully
 }
 
 export interface OptionPosition {
@@ -109,13 +110,33 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
   
   fetchPositions: async () => {
     set({ loading: true, error: null });
+    
+    // Create an AbortController for timeout handling
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.warn('Positions fetch request timed out after 5 seconds');
+    }, 5000);
+    
     try {
       console.log('Fetching positions from API...');
-      const newPositions = await positionsApi.getPositions();
-      console.log('Received positions:', newPositions);
+      const startTime = performance.now();
+      const newPositions = await positionsApi.getPositions({}, controller.signal);
+      const endTime = performance.now();
+      console.log(`Received positions in ${Math.round(endTime - startTime)}ms:`, newPositions);
+      
+      // Clear the timeout since the request completed successfully
+      clearTimeout(timeoutId);
       
       // Preserve PnL data for existing positions
       set(state => {
+        // If we got an empty array but have existing positions, keep the existing ones
+        // This prevents the UI from flashing empty state during temporary API issues
+        if (newPositions.length === 0 && state.positions.length > 0) {
+          console.log('No positions returned from API but have existing positions, preserving current state');
+          return { loading: false, error: null };
+        }
+        
         const updatedPositions = newPositions.map(newPos => {
           // Find matching position in current state to preserve PnL data
           const existingPos = state.positions.find(p => p.id === newPos.id);
@@ -129,17 +150,35 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
           return newPos;
         });
         
-        return { positions: updatedPositions, loading: false };
+        return { positions: updatedPositions, loading: false, error: null };
       });
     } catch (error) {
+      // Clear the timeout since the request errored out
+      clearTimeout(timeoutId);
+      
       console.error('Error fetching positions:', error);
+      
+      // Check if this was an abort error (timeout)
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        set({ 
+          error: 'Request timed out. The server is taking too long to respond.', 
+          loading: false,
+          // Keep any existing positions to maintain UI functionality
+          // positions: get().positions - no need to set this as we're not changing it
+        });
+        return;
+      }
+      
       // More detailed error message to help diagnose issues
       const errorMessage = error instanceof Error ? 
         `${error.name}: ${error.message}` : 
         String(error);
+      
       set({ 
         error: `Failed to fetch positions: ${errorMessage}`, 
         loading: false 
+        // Keep any existing positions to maintain UI functionality
+        // positions: get().positions - no need to set this as we're not changing it
       });
     }
   },

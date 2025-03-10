@@ -39,14 +39,21 @@ export class CacheManager {
    * @param ttl - Time to live in milliseconds (optional)
    */
   public set<T>(key: string, data: T, ttl?: number): void {
+    console.log(`CACHE_DEBUG: set called for key: ${key}`);
     const timestamp = Date.now();
     const expiresAt = timestamp + (ttl || this.defaultTTL);
+    const actualTtl = ttl || this.defaultTTL;
+    
+    console.log(`CACHE_DEBUG: Setting cache with TTL: ${actualTtl}ms, expires at: ${new Date(expiresAt).toISOString()}`);
     
     this.cache.set(key, {
       data,
       timestamp,
       expiresAt
     });
+    
+    // Log cache size after adding item
+    console.log(`CACHE_DEBUG: Cache now contains ${this.cache.size} items`);
   }
   
   /**
@@ -55,18 +62,22 @@ export class CacheManager {
    * @returns Cached data or null if not found or expired
    */
   public get<T>(key: string): T | null {
+    console.log(`CACHE_DEBUG: get called for key: ${key}`);
     const item = this.cache.get(key);
     
     if (!item) {
+      console.log(`CACHE_DEBUG: No item found in cache for key: ${key}`);
       return null;
     }
     
     // Check if item is expired
     if (Date.now() > item.expiresAt) {
+      console.log(`CACHE_DEBUG: Item expired for key: ${key}, deleting from cache`);
       this.cache.delete(key);
       return null;
     }
     
+    console.log(`CACHE_DEBUG: Returning cached item for key: ${key}`);
     return item.data as T;
   }
   
@@ -132,19 +143,45 @@ export class CacheManager {
     fetchFn: () => Promise<T>, 
     ttl?: number
   ): Promise<T> {
+    console.log(`CACHE_DEBUG: getOrFetch called for key: ${key}`);
     const cachedData = this.get<T>(key);
     
     if (cachedData !== null) {
+      console.log(`CACHE_DEBUG: Cache hit for key: ${key}`);
       return cachedData;
     }
     
-    // Fetch data
-    const data = await fetchFn();
+    console.log(`CACHE_DEBUG: Cache miss for key: ${key}, fetching data...`);
     
-    // Cache data
-    this.set(key, data, ttl);
+    // Use a local variable to track if the request was aborted
+    let wasAborted = false;
     
-    return data;
+    try {
+      // Fetch data with timeout protection
+      const data = await fetchFn();
+      
+      // Only cache if the request wasn't aborted
+      if (!wasAborted) {
+        console.log(`CACHE_DEBUG: Successfully fetched data for key: ${key}`);
+        
+        // Cache data
+        this.set(key, data, ttl);
+      }
+      
+      return data;
+    } catch (error) {
+      // Check if this is an abort error
+      if (error && typeof error === 'object') {
+        const err = error as any;
+        if (err.name === 'AbortError' || err.code === 'ECONNABORTED') {
+          console.warn(`CACHE_DEBUG: Request aborted for key: ${key}`);
+          wasAborted = true;
+        }
+      }
+      
+      console.error(`CACHE_DEBUG: Error fetching data for key: ${key}`, error);
+      throw error;
+    }
   }
   
   /**

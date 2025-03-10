@@ -114,6 +114,7 @@ export const positionsApi = {
   /**
    * Get all positions
    * @param params - Query parameters
+   * @param signal - AbortController signal for cancelling the request
    * @returns Promise with positions
    */
   getPositions: async (params?: { 
@@ -121,11 +122,19 @@ export const positionsApi = {
     limit?: number; 
     active_only?: boolean;
     ticker?: string;
-  }): Promise<OptionPosition[]> => {
+  }, signal?: AbortSignal): Promise<OptionPosition[]> => {
     console.log('API: Fetching positions with params:', params);
-    const response = await apiClient.get<BackendPosition[]>('/positions/', params);
-    console.log('API: Received positions response:', response);
-    return response.map(toFrontendPosition);
+    try {
+      const startTime = performance.now();
+      const response = await apiClient.get<BackendPosition[]>('/positions/', params, signal);
+      const endTime = performance.now();
+      console.log(`API: Received positions response in ${Math.round(endTime - startTime)}ms:`, response);
+      return Array.isArray(response) ? response.map(toFrontendPosition) : [];
+    } catch (error) {
+      console.error('API: Error fetching positions:', error);
+      // Return empty array instead of throwing to prevent UI from breaking
+      return [];
+    }
   },
   
   /**
@@ -170,7 +179,7 @@ export const positionsApi = {
     if (position.premium !== undefined) backendUpdate.premium = position.premium;
     
     console.log(`API: Updating position ${id} with data:`, backendUpdate);
-    const response = await apiClient.put<BackendPosition>(`/positions/${id}/`, backendUpdate);
+    const response = await apiClient.put<BackendPosition>(`/positions/${id}/`, backendUpdate, undefined, undefined, 30000);
     console.log('API: Updated position response:', response);
     return toFrontendPosition(response);
   },
@@ -182,7 +191,7 @@ export const positionsApi = {
    */
   deletePosition: async (id: string): Promise<OptionPosition> => {
     console.log(`API: Deleting position ${id}`);
-    const response = await apiClient.delete<BackendPosition>(`/positions/${id}/`);
+    const response = await apiClient.delete<BackendPosition>(`/positions/${id}/`, undefined, undefined, 30000);
     console.log('API: Deleted position response:', response);
     return toFrontendPosition(response);
   },
@@ -195,19 +204,46 @@ export const positionsApi = {
    */
   calculatePnL: async (id: string, recalculate: boolean = false): Promise<PnLResult> => {
     console.log(`API: Calculating P&L for position ${id}, recalculate=${recalculate}`);
-    const response = await apiClient.get<BackendPnLResult>(`/positions/${id}/pnl?recalculate=${recalculate}`);
-    console.log('API: P&L calculation response:', response);
-    
-    return {
-      positionId: response.position_id,
-      pnlAmount: response.pnl_amount,
-      pnlPercent: response.pnl_percent || 0,
-      initialValue: response.initial_value,
-      currentValue: response.current_value,
-      impliedVolatility: response.implied_volatility,
-      underlyingPrice: response.underlying_price,
-      calculationTimestamp: response.calculation_timestamp,
-    };
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.warn(`API: P&L calculation timed out for position ${id}`);
+        controller.abort();
+      }, 5000); // 5 second timeout
+      
+      const response = await apiClient.get<BackendPnLResult>(
+        `/positions/${id}/pnl?recalculate=${recalculate}`,
+        undefined,
+        controller.signal,
+        5000
+      );
+      
+      clearTimeout(timeoutId);
+      console.log('API: P&L calculation response:', response);
+      
+      return {
+        positionId: response.position_id,
+        pnlAmount: response.pnl_amount,
+        pnlPercent: response.pnl_percent || 0,
+        initialValue: response.initial_value,
+        currentValue: response.current_value,
+        impliedVolatility: response.implied_volatility,
+        underlyingPrice: response.underlying_price,
+        calculationTimestamp: response.calculation_timestamp,
+      };
+    } catch (error) {
+      console.error(`API: Error calculating P&L for position ${id}:`, error);
+      // Return a default PnL result to prevent UI from breaking
+      return {
+        positionId: id,
+        pnlAmount: 0,
+        pnlPercent: 0,
+        initialValue: 0,
+        currentValue: 0,
+        calculationTimestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
   },
 
   /**
@@ -219,19 +255,47 @@ export const positionsApi = {
    */
   calculateTheoreticalPnL: async (id: string, params: PnLCalculationParams, recalculate: boolean = false): Promise<PnLResult> => {
     console.log(`API: Calculating theoretical P&L for position ${id} with params:`, params, `recalculate=${recalculate}`);
-    const response = await apiClient.post<BackendPnLResult>(`/positions/${id}/theoretical-pnl?recalculate=${recalculate}`, params);
-    console.log('API: Theoretical P&L calculation response:', response);
-    
-    return {
-      positionId: response.position_id,
-      pnlAmount: response.pnl_amount,
-      pnlPercent: response.pnl_percent || 0,
-      initialValue: response.initial_value,
-      currentValue: response.current_value,
-      impliedVolatility: response.implied_volatility,
-      underlyingPrice: response.underlying_price,
-      calculationTimestamp: response.calculation_timestamp,
-    };
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.warn(`API: Theoretical P&L calculation timed out for position ${id}`);
+        controller.abort();
+      }, 5000); // 5 second timeout
+      
+      const response = await apiClient.post<BackendPnLResult>(
+        `/positions/${id}/theoretical-pnl?recalculate=${recalculate}`,
+        params,
+        undefined,
+        controller.signal,
+        5000
+      );
+      
+      clearTimeout(timeoutId);
+      console.log('API: Theoretical P&L calculation response:', response);
+      
+      return {
+        positionId: response.position_id,
+        pnlAmount: response.pnl_amount,
+        pnlPercent: response.pnl_percent || 0,
+        initialValue: response.initial_value,
+        currentValue: response.current_value,
+        impliedVolatility: response.implied_volatility,
+        underlyingPrice: response.underlying_price,
+        calculationTimestamp: response.calculation_timestamp,
+      };
+    } catch (error) {
+      console.error(`API: Error calculating theoretical P&L for position ${id}:`, error);
+      // Return a default PnL result to prevent UI from breaking
+      return {
+        positionId: id,
+        pnlAmount: 0,
+        pnlPercent: 0,
+        initialValue: 0,
+        currentValue: 0,
+        calculationTimestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
   },
 
   /**
@@ -243,28 +307,60 @@ export const positionsApi = {
    */
   calculateBulkTheoreticalPnL: async (ids: string[], params: PnLCalculationParams, recalculate: boolean = false): Promise<Record<string, PnLResult>> => {
     console.log(`API: Calculating bulk theoretical P&L for ${ids.length} positions with params:`, params, `recalculate=${recalculate}`);
-    const response = await apiClient.post<BackendPnLResult[]>(`/positions/bulk-theoretical-pnl?recalculate=${recalculate}`, {
-      position_ids: ids,
-      ...params
-    });
-    console.log('API: Bulk theoretical P&L calculation response:', response);
-    
-    // Convert the array to a record keyed by position ID
-    const results: Record<string, PnLResult> = {};
-    response.forEach(item => {
-      results[item.position_id] = {
-        positionId: item.position_id,
-        pnlAmount: item.pnl_amount,
-        pnlPercent: item.pnl_percent || 0,
-        initialValue: item.initial_value,
-        currentValue: item.current_value,
-        impliedVolatility: item.implied_volatility,
-        underlyingPrice: item.underlying_price,
-        calculationTimestamp: item.calculation_timestamp,
-      };
-    });
-    
-    return results;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        console.warn(`API: Bulk theoretical P&L calculation timed out for ${ids.length} positions`);
+        controller.abort();
+      }, 8000); // 8 second timeout for bulk operations
+      
+      const response = await apiClient.post<BackendPnLResult[]>(
+        `/positions/bulk-theoretical-pnl?recalculate=${recalculate}`,
+        {
+          position_ids: ids,
+          ...params
+        },
+        undefined,
+        controller.signal,
+        8000
+      );
+      
+      clearTimeout(timeoutId);
+      console.log('API: Bulk theoretical P&L calculation response:', response);
+      
+      // Convert the array to a record keyed by position ID
+      const results: Record<string, PnLResult> = {};
+      response.forEach(item => {
+        results[item.position_id] = {
+          positionId: item.position_id,
+          pnlAmount: item.pnl_amount,
+          pnlPercent: item.pnl_percent || 0,
+          initialValue: item.initial_value,
+          currentValue: item.current_value,
+          impliedVolatility: item.implied_volatility,
+          underlyingPrice: item.underlying_price,
+          calculationTimestamp: item.calculation_timestamp,
+        };
+      });
+      
+      return results;
+    } catch (error) {
+      console.error(`API: Error calculating bulk theoretical P&L for ${ids.length} positions:`, error);
+      // Return a default PnL result for each position to prevent UI from breaking
+      const results: Record<string, PnLResult> = {};
+      ids.forEach(id => {
+        results[id] = {
+          positionId: id,
+          pnlAmount: 0,
+          pnlPercent: 0,
+          initialValue: 0,
+          currentValue: 0,
+          calculationTimestamp: new Date().toISOString(),
+          error: error instanceof Error ? error.message : String(error)
+        };
+      });
+      return results;
+    }
   },
 };
 

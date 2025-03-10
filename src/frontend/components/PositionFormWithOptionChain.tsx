@@ -99,12 +99,43 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     };
   }, []);
   
-  // Handle option selection from the chain
+  // Handle option selection from the chain with improved performance
   const handleOptionSelect = useCallback((option: OptionContract) => {
-    setSelectedOption(option);
-    const mappedData = mapOptionToFormData(option);
-    setFormData(mappedData);
-    setHasUnsavedChanges(false);
+    console.log('Option selected from chain:', option);
+    
+    // Use requestAnimationFrame to ensure UI updates before heavy operations
+    requestAnimationFrame(() => {
+      try {
+        if (!option) {
+          console.warn('No option provided to handleOptionSelect');
+          return;
+        }
+        
+        // First set the selected option
+        setSelectedOption(option);
+        
+        // Map the option to form data
+        const mappedData = mapOptionToFormData(option);
+        console.log('Mapped option data:', mappedData);
+        
+        // Update form data
+        setFormData(mappedData);
+        setHasUnsavedChanges(true); // Mark as having changes to ensure form is updated
+        
+        // Provide user feedback
+        const optionDescription = `${option.ticker} ${option.optionType.toUpperCase()} $${option.strike} ${option.expiration.split('T')[0]}`;
+        console.log(`Selected: ${optionDescription}`);
+        
+        // Scroll to the form section for better UX
+        const formElement = document.getElementById('position-form');
+        if (formElement) {
+          formElement.scrollIntoView({ behavior: 'smooth' });
+        }
+      } catch (error) {
+        console.error('Error handling option selection:', error);
+        console.error('Failed to process option selection. Please try again.');
+      }
+    });
   }, [mapOptionToFormData]);
   
   // Handle form changes from PositionForm
@@ -124,7 +155,7 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
         setTicker(data.ticker);
       }
       
-      // Sync expiration changes with the option chain selector - with added checks
+      // Sync expiration changes with the option chain selector - with improved performance
       if (data.expiration && data.expiration !== selectedExpiration) {
         try {
           // Only proceed if the ticker is set first
@@ -132,7 +163,16 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
             // Convert from yyyy-mm-dd to ISO format
             const formattedDate = formatExpirationDate(data.expiration);
             if (formattedDate && formattedDate !== selectedExpiration) {
-              setSelectedExpiration(formattedDate);
+              // Use requestAnimationFrame to prevent UI freezing
+              requestAnimationFrame(() => {
+                // Set a loading indicator or message if needed
+                // This helps users understand that something is happening
+                
+                // Use a small timeout to ensure UI updates before the heavy operation
+                setTimeout(() => {
+                  setSelectedExpiration(formattedDate);
+                }, 0);
+              });
             }
           }
         } catch (e) {
@@ -151,9 +191,44 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
       if (!confirmed) return;
     }
     
-    setUseOptionChain(prev => !prev);
+    // Toggle the mode
+    setUseOptionChain(prev => {
+      const newMode = !prev;
+      
+      // If switching to option chain mode and we have form data, initialize the option chain
+      if (newMode && formData?.ticker) {
+        // Use requestAnimationFrame to ensure UI updates before heavy operations
+        requestAnimationFrame(async () => {
+          try {
+            console.log(`Setting ticker to ${formData.ticker} after mode toggle`);
+            await setTicker(formData.ticker);
+            
+            // If we have an expiration date, try to set it
+            if (formData.expiration) {
+              const formattedDate = formatExpirationDate(formData.expiration);
+              if (formattedDate) {
+                console.log(`Setting expiration date to ${formattedDate} after mode toggle`);
+                // Wait a moment for expirations to be fetched
+                setTimeout(async () => {
+                  try {
+                    await setSelectedExpiration(formattedDate);
+                  } catch (error) {
+                    console.error('Error setting expiration after mode toggle:', error);
+                  }
+                }, 300);
+              }
+            }
+          } catch (error) {
+            console.error('Error initializing option chain after mode toggle:', error);
+          }
+        });
+      }
+      
+      return newMode;
+    });
+    
     setHasUnsavedChanges(false);
-  }, [hasUnsavedChanges]);
+  }, [hasUnsavedChanges, formData, setTicker, setSelectedExpiration]);
   
   // Initialize form data from existing position if provided
   useEffect(() => {
@@ -171,51 +246,73 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
       
       setFormData(initialFormData);
       
-      // Only initialize store values once, with additional safety checks
+      // Only initialize store values once, with improved performance and error handling
       const initializeStoreOnce = async () => {
         try {
           // If we have an existing position, also set the ticker in the store
           if (props.existingPosition?.ticker) {
-            await setTicker(props.existingPosition.ticker);
-            
-            // Wait a moment for expirations to be fetched before trying to set the expiration date
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            // Now check if the expiration date from the existing position is valid
-            if (props.existingPosition?.expiration) {
-              // Add an additional safety check to prevent infinite loops
-              let expirationFailedCount = 0;
-              const MAX_ATTEMPTS = 1; // Only try once
-              
+            // Use requestAnimationFrame to ensure UI updates before heavy operations
+            requestAnimationFrame(async () => {
               try {
-                const formattedDate = formatExpirationDate(props.existingPosition.expiration);
-                if (formattedDate) {
-                  console.log(`Setting expiration date to ${formattedDate}`);
+                // Set ticker first - this is a potentially heavy operation
+                // Use optional chaining and nullish coalescing to handle undefined safely
+                const ticker = props.existingPosition?.ticker || '';
+                console.log(`Setting ticker to ${ticker}`);
+                await setTicker(ticker);
+                
+                // Update the UI to show loading state
+                // This could be done by setting a local loading state if needed
+                
+                // Wait a moment for expirations to be fetched before trying to set the expiration date
+                // Use a shorter timeout for better responsiveness
+                await new Promise(resolve => setTimeout(resolve, 300));
+                
+                // Now check if the expiration date from the existing position is valid
+                if (props.existingPosition?.expiration) {
+                  // Add an additional safety check to prevent infinite loops
+                  let expirationFailedCount = 0;
+                  const MAX_ATTEMPTS = 1; // Only try once
                   
-                  // Check if this expiration already caused an error
-                  const currentError = useOptionChainStore.getState().error;
-                  const isKnownInvalidExpiration = 
-                    currentError && 
-                    currentError.includes('Expiration date') && 
-                    currentError.includes(formattedDate);
-                  
-                  // Only try to set the expiration if we haven't gotten an error for it yet
-                  if (!isKnownInvalidExpiration && expirationFailedCount < MAX_ATTEMPTS) {
-                    await setSelectedExpiration(formattedDate);
-                    
-                    // Check if this caused an error
-                    const newError = useOptionChainStore.getState().error;
-                    if (newError && newError.includes('Expiration date')) {
-                      expirationFailedCount++;
-                      console.warn('Invalid expiration date detected, will not retry:', newError);
+                  try {
+                    const formattedDate = formatExpirationDate(props.existingPosition.expiration);
+                    if (formattedDate) {
+                      console.log(`Setting expiration date to ${formattedDate}`);
+                      
+                      // Check if this expiration already caused an error
+                      const currentError = useOptionChainStore.getState().error;
+                      const isKnownInvalidExpiration = 
+                        currentError && 
+                        currentError.includes('Expiration date') && 
+                        currentError.includes(formattedDate);
+                      
+                      // Only try to set the expiration if we haven't gotten an error for it yet
+                      if (!isKnownInvalidExpiration && expirationFailedCount < MAX_ATTEMPTS) {
+                        // Use another requestAnimationFrame to ensure UI updates
+                        requestAnimationFrame(async () => {
+                          try {
+                            await setSelectedExpiration(formattedDate);
+                            
+                            // Check if this caused an error
+                            const newError = useOptionChainStore.getState().error;
+                            if (newError && newError.includes('Expiration date')) {
+                              expirationFailedCount++;
+                              console.warn('Invalid expiration date detected, will not retry:', newError);
+                            }
+                          } catch (e) {
+                            console.error('Error setting expiration date:', e);
+                          }
+                        });
+                      }
                     }
+                  } catch (e) {
+                    console.error('Error formatting expiration date:', e);
+                    // If the expiration wasn't valid, don't try again
                   }
                 }
               } catch (e) {
-                console.error('Error setting expiration date:', e);
-                // If the expiration wasn't valid, don't try again
+                console.error('Error setting ticker:', e);
               }
-            }
+            });
           }
         } catch (e) {
           console.error('Error initializing store values:', e);
@@ -268,6 +365,8 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
                 className="sr-only" 
                 checked={useOptionChain}
                 onChange={handleModeToggle}
+                aria-label="Toggle between manual entry and option chain selector"
+                title="Toggle between manual entry and option chain selector"
               />
               <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
@@ -292,6 +391,12 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
         <div className="space-y-4">
           {/* Option Chain Selector */}
           <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            <div className="p-4 bg-blue-50 border-b border-blue-100">
+              <h3 className="text-sm font-medium text-blue-800">Option Chain Selection</h3>
+              <p className="text-xs text-blue-700 mt-1">
+                Search for a ticker and select an option from the chain below. The selected option will automatically populate the position form.
+              </p>
+            </div>
             <OptionChainSelector 
               onSelect={handleOptionSelect}
               initialTicker={formData?.ticker || ''}
@@ -327,6 +432,7 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
                 onSuccess={handleSuccess}
                 onChange={handleFormChange}
                 readonlyFields={['ticker', 'type', 'strike', 'expiration']}
+                id="position-form"
               />
             </div>
           )}

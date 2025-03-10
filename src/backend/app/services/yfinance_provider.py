@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import concurrent.futures
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union
 
@@ -9,7 +10,6 @@ import pandas as pd
 import redis
 import yfinance as yf
 from fastapi import HTTPException
-
 from app.services.market_data_provider import MarketDataProvider
 from app.models.database import CacheEntry, get_db
 
@@ -23,11 +23,10 @@ class YFinanceProvider(MarketDataProvider):
     Includes caching with Redis to minimize API calls.
     Falls back to database storage if Redis is unavailable.
     """
-    
     def __init__(self, use_cache: bool = True):
         """
         Initialize the Yahoo Finance market data provider.
-        
+
         Args:
             use_cache: Whether to use caching (Redis or DB)
         """
@@ -37,14 +36,17 @@ class YFinanceProvider(MarketDataProvider):
         self.redis_available = False
         self.redis = None
         # Don't store a persistent database session - we'll get a fresh one when needed
-        self.cache_expiry = 3600  # Cache for 1 hour - set this regardless of Redis availability
-        
+        # Cache for 1 hour - set this regardless of Redis availability
+        self.cache_expiry = 3600
         # Initialize Redis connection if caching is enabled and Redis is available
-        if self.use_cache and os.environ.get("REDIS_ENABLED", "true").lower() == "true":
+        redis_enabled = os.environ.get("REDIS_ENABLED", "true").lower() == "true"
+        if self.use_cache and redis_enabled:
             try:
+                redis_host = os.environ.get("REDIS_HOST", "localhost")
+                redis_port = int(os.environ.get("REDIS_PORT", 6379))
                 self.redis = redis.Redis(
-                    host=os.environ.get("REDIS_HOST", "localhost"),
-                    port=int(os.environ.get("REDIS_PORT", 6379)),
+                    host=redis_host,
+                    port=redis_port,
                     db=0,
                     decode_responses=True
                 )
@@ -53,22 +55,23 @@ class YFinanceProvider(MarketDataProvider):
                 self.redis_available = True
                 logger.info("Redis caching enabled")
             except Exception as e:
-                logger.warning(f"Redis connection failed: {e}. Falling back to database caching.")
+                msg = f"Redis connection failed: {e}. Falling back to database."
+                logger.warning(msg)
                 self.redis_available = False
-    
+
     def _get_from_cache(self, cache_key: str) -> Optional[Dict]:
         """
         Get data from cache (Redis or database).
-        
+
         Args:
             cache_key: The cache key to retrieve
-            
+
         Returns:
             Cached data or None if not found
         """
         if not self.use_cache:
             return None
-            
+
         # Try Redis first if available
         if self.redis_available:
             try:
@@ -77,7 +80,8 @@ class YFinanceProvider(MarketDataProvider):
                     logger.debug(f"Redis cache hit for {cache_key}")
                     return json.loads(cached_data)
             except Exception as e:
-                logger.warning(f"Redis cache retrieval error: {e}. Falling back to database.")
+                msg = f"Redis cache retrieval error: {e}. Falling back to database."
+                logger.warning(msg)
                 self.redis_available = False
         
         # Fallback to database if Redis failed or is not available
@@ -102,29 +106,32 @@ class YFinanceProvider(MarketDataProvider):
             # Always close the session
             if db:
                 db.close()
-        
+
         return None
-    
-    def _save_to_cache(self, cache_key: str, data: Dict) -> None:
+
+    def _save_to_cache(self, cache_key: str, data: Dict, ttl: Optional[int] = None) -> None:
         """
         Save data to cache (Redis or database).
-        
+
         Args:
             cache_key: The cache key
             data: The data to save
+            ttl: Optional time-to-live in seconds, overrides default cache_expiry if provided
         """
         if not self.use_cache:
             return
-            
+
         serialized_data = json.dumps(data)
-        expiry_time = datetime.now() + timedelta(seconds=self.cache_expiry)
-        
+        # Use provided ttl if available, otherwise use default cache_expiry
+        expiry_seconds = ttl if ttl is not None else self.cache_expiry
+        expiry_time = datetime.now() + timedelta(seconds=expiry_seconds)
+
         # Try Redis first if available
         if self.redis_available:
             try:
                 self.redis.setex(
                     cache_key,
-                    self.cache_expiry,
+                    expiry_seconds,
                     serialized_data
                 )
                 logger.debug(f"Saved data to Redis cache: {cache_key}")
@@ -132,7 +139,7 @@ class YFinanceProvider(MarketDataProvider):
             except Exception as e:
                 logger.warning(f"Redis cache save error: {e}. Falling back to database.")
                 self.redis_available = False
-        
+
         # Fallback to database if Redis failed or is not available
         db = None
         try:
@@ -160,41 +167,41 @@ class YFinanceProvider(MarketDataProvider):
             # Always close the session
             if db:
                 db.close()
-    
+
     def _convert_dataframe_to_list(self, df: pd.DataFrame) -> List[Dict]:
         """Convert a pandas DataFrame to a list of dictionaries."""
         if df is None or df.empty:
             return []
-        
+
         # Convert NaN values to None for JSON serialization
         return json.loads(df.replace({np.nan: None}).to_json(orient='records'))
-    
+
     def get_ticker_details(self, ticker: str) -> Dict:
         """
         Get detailed information about a ticker symbol.
-        
+
         Args:
             ticker: The ticker symbol to look up
-            
+
         Returns:
             Ticker details
         """
         print(f"get_ticker_details called for ticker: {ticker}")
-        
+
         # Check cache first
         cache_key = f"yfinance:ticker_details:{ticker}"
         cached_data = self._get_from_cache(cache_key)
         if cached_data:
             print(f"Cache hit for {cache_key}")
             return cached_data
-        
+
         try:
             # Get ticker data from yfinance
             ticker_data = yf.Ticker(ticker)
-            
+
             # Get info and fast_info
             info = ticker_data.info
-            
+
             # Standardize the data to match the expected format
             standardized_data = {
                 "ticker": ticker,
@@ -205,118 +212,135 @@ class YFinanceProvider(MarketDataProvider):
                 "change": info.get("currentPrice", 0.0) - info.get("previousClose", 0.0),
                 "change_percent": (info.get("currentPrice", 0.0) / info.get("previousClose", 1.0) - 1) * 100 if info.get("previousClose", 0) > 0 else 0.0,
             }
-            
+
             # Format the response to match the expected structure
             result = {
                 "status": "OK",
                 "results": standardized_data
             }
-            
+
             # Cache the result
             self._save_to_cache(cache_key, result)
-            
+
             return result
-                
+
         except Exception as e:
             import traceback
             print(f"Error in get_ticker_details: {str(e)}")
             print(traceback.format_exc())
             # Re-raise the exception to be handled by the route
             raise HTTPException(status_code=500, detail=f"Yahoo Finance API error: {str(e)}")
-    
+
     def get_stock_price(self, ticker: str) -> float:
         """
         Get the latest price for a stock.
-        
+
         Args:
             ticker: The ticker symbol
-            
+
         Returns:
             Latest price as float, or 0.0 if price cannot be retrieved
         """
+        self.logger.info(f"DEBUG_OPTION_CHAIN: get_stock_price called for ticker: {ticker}")
+
         if not ticker:
-            self.logger.warning("Empty ticker provided to get_stock_price")
+            self.logger.warning(
+                "DEBUG_OPTION_CHAIN: Empty ticker provided to get_stock_price"
+            )
             return 0.0
-            
+
         # Check cache first
         cache_key = f"yfinance:stock_price:{ticker}"
+        self.logger.debug(f"DEBUG_OPTION_CHAIN: Checking cache with key: {cache_key}")
         cached_data = self._get_from_cache(cache_key)
         if cached_data:
-            self.logger.debug(f"Cache hit for {cache_key}")
+            self.logger.info(f"DEBUG_OPTION_CHAIN: Cache hit for {cache_key}, returning price: {cached_data.get('price', 0.0)}")
             return cached_data.get("price", 0.0)
-        
-        self.logger.info(f"Fetching stock price for ticker: {ticker}")
-        
+
+        self.logger.info(f"DEBUG_OPTION_CHAIN: Cache miss, fetching stock price for ticker: {ticker}")
+
         try:
             # Get ticker data from yfinance
+            self.logger.info(f"DEBUG_OPTION_CHAIN: Creating yfinance Ticker object for {ticker}")
             ticker_data = yf.Ticker(ticker)
-            
+
             # Get the latest price
             try:
+                self.logger.debug(f"DEBUG_OPTION_CHAIN: Attempting to get price from fast_info for {ticker}")
                 latest_price = ticker_data.fast_info.get("lastPrice", None)
-                
+                self.logger.info(f"DEBUG_OPTION_CHAIN: fast_info price for {ticker}: {latest_price}")
+
                 # If fast_info doesn't have the price, try the regular info
                 if latest_price is None:
+                    self.logger.debug(f"DEBUG_OPTION_CHAIN: fast_info price is None, trying regular info for {ticker}")
                     info = ticker_data.info
                     if info:
                         latest_price = info.get('currentPrice', info.get('regularMarketPrice', 0.0))
+                        self.logger.info(f"DEBUG_OPTION_CHAIN: info price for {ticker}: {latest_price}")
                     else:
-                        self.logger.warning(f"No info available for ticker {ticker}")
+                        self.logger.warning(f"DEBUG_OPTION_CHAIN: No info available for ticker {ticker}")
                         return 0.0
-            except AttributeError:
-                self.logger.warning(f"Could not access price info for {ticker}, trying alternative method")
+            except AttributeError as e:
+                self.logger.warning(f"DEBUG_OPTION_CHAIN: AttributeError accessing price info for {ticker}: {str(e)}")
                 # Fallback to regular info if fast_info is not available
                 info = ticker_data.info
                 if info:
                     latest_price = info.get('currentPrice', info.get('regularMarketPrice', 0.0))
+                    self.logger.info(f"DEBUG_OPTION_CHAIN: fallback info price for {ticker}: {latest_price}")
                 else:
-                    self.logger.warning(f"No info available for ticker {ticker}")
+                    self.logger.warning(f"DEBUG_OPTION_CHAIN: No info available for ticker {ticker}")
                     return 0.0
-            
+
             # Ensure we have a valid price
             if latest_price is None or not isinstance(latest_price, (int, float)):
-                self.logger.warning(f"Invalid price value for {ticker}: {latest_price}")
+                self.logger.warning(f"DEBUG_OPTION_CHAIN: Invalid price value for {ticker}: {latest_price}, type: {type(latest_price)}")
                 return 0.0
-                
+
             # Cache the result with a short TTL (5 minutes)
+            self.logger.info(f"DEBUG_OPTION_CHAIN: Caching price {latest_price} for {ticker} with TTL=300")
             self._save_to_cache(cache_key, {"price": latest_price}, ttl=300)
-            
+
+            self.logger.info(f"DEBUG_OPTION_CHAIN: Returning price {latest_price} for {ticker}")
             return latest_price
         except Exception as e:
-            self.logger.error(f"Error in get_stock_price for {ticker}: {str(e)}")
+            import traceback
+            self.logger.error(f"DEBUG_OPTION_CHAIN: Error in get_stock_price for {ticker}: {str(e)}")
+            self.logger.error(f"DEBUG_OPTION_CHAIN: Traceback: {traceback.format_exc()}")
             # Return 0.0 instead of raising an exception to prevent API failures
             return 0.0
-    
+
     def get_option_chain(self, ticker: str, expiration_date: Optional[Union[str, datetime]] = None) -> List[Dict]:
         """
         Get the option chain for a ticker.
-        
+
         Args:
             ticker: The ticker symbol
             expiration_date: Option expiration date (YYYY-MM-DD string or datetime object)
-            
+
         Returns:
             List of option details
         """
-        print(f"get_option_chain called for ticker: {ticker}, expiration: {expiration_date}")
-        
+        self.logger.info(f"DEBUG_OPTION_CHAIN: get_option_chain called for ticker: {ticker}, expiration: {expiration_date}")
+
         # Create cache key
         cache_key = f"yfinance:option_chain:{ticker}:{expiration_date or 'all'}"
-        
+        self.logger.debug(f"DEBUG_OPTION_CHAIN: Cache key: {cache_key}")
+
         # Clear existing cache for this request to ensure we get fresh data with the correct format
         # This is a temporary measure until we fix the caching issue
         if self.redis_available and self.redis:
             try:
                 self.redis.delete(cache_key)
-                self.logger.info(f"Cleared cache for {cache_key}")
+                self.logger.info(f"DEBUG_OPTION_CHAIN: Cleared Redis cache for {cache_key}")
             except Exception as e:
-                self.logger.warning(f"Error clearing cache: {e}")
-        
+                self.logger.warning(f"DEBUG_OPTION_CHAIN: Error clearing Redis cache: {e}")
+
         # Now check if there's still cached data (from DB perhaps)
+        self.logger.debug(f"DEBUG_OPTION_CHAIN: Checking for cached data with key: {cache_key}")
         cached_data = self._get_from_cache(cache_key)
         if cached_data:
-            self.logger.info(f"Cache hit for {cache_key}")
-            
+            self.logger.info(f"DEBUG_OPTION_CHAIN: Cache hit for {cache_key}, returning {len(cached_data)} options")
+
             # Check if cached data needs to be reformatted
             if cached_data and len(cached_data) > 0 and isinstance(cached_data[0], dict):
                 first_item = cached_data[0]
@@ -324,25 +348,30 @@ class YFinanceProvider(MarketDataProvider):
                 if ("expiration" not in first_item or 
                     "strike" not in first_item or 
                     "option_type" not in first_item):
-                    
-                    self.logger.info(f"Cached data has old format, will fetch fresh data")
+
+                    self.logger.info(f"DEBUG_OPTION_CHAIN: Cached data has old format, will fetch fresh data")
+                    self.logger.debug(f"DEBUG_OPTION_CHAIN: First item keys: {list(first_item.keys())}")
                     # Don't use this cached data
                     cached_data = None
-            
+
             if cached_data:
+                self.logger.info(f"DEBUG_OPTION_CHAIN: Returning cached option chain data for {ticker}")
                 return cached_data
-        
+
         try:
             # Get ticker data from yfinance
+            self.logger.info(f"DEBUG_OPTION_CHAIN: Creating yfinance Ticker object for {ticker}")
             ticker_data = yf.Ticker(ticker)
-            
+
             # Get the available expiration dates
+            self.logger.debug(f"DEBUG_OPTION_CHAIN: Fetching available expirations for {ticker}")
             expirations = ticker_data.options
-            
+            self.logger.info(f"DEBUG_OPTION_CHAIN: Found {len(expirations) if expirations else 0} expirations for {ticker}")
+
             if not expirations:
-                print(f"No options found for {ticker}")
+                self.logger.warning(f"DEBUG_OPTION_CHAIN: No options found for {ticker}")
                 return []
-            
+
             # Use the provided expiration date or the nearest one
             if expiration_date:
                 # Normalize expiration date to YYYY-MM-DD format
@@ -355,7 +384,7 @@ class YFinanceProvider(MarketDataProvider):
                 else:
                     # Unexpected type
                     raise ValueError(f"Unexpected type for expiration_date: {type(expiration_date)}")
-                
+
                 if normalized_expiration not in expirations:
                     print(f"Expiration {normalized_expiration} not found for {ticker}")
                     # Raise an HTTP exception instead of returning an empty list
@@ -366,23 +395,38 @@ class YFinanceProvider(MarketDataProvider):
                 selected_expiration = normalized_expiration
             else:
                 selected_expiration = expirations[0]
-            
-            # Get the option chain for the selected expiration
+
+            # Get the option chain for the selected expiration with a timeout
             try:
-                options = ticker_data.option_chain(selected_expiration)
-                if not hasattr(options, 'calls') or not hasattr(options, 'puts'):
-                    self.logger.warning(f"Invalid option chain data for {ticker} at {selected_expiration}")
-                    return []
+                # Use a ThreadPoolExecutor to run the option_chain call with a timeout
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    # Submit the task to the executor
+                    future = executor.submit(ticker_data.option_chain, selected_expiration)
+                    try:
+                        # Wait for the result with a timeout (8 seconds)
+                        options = future.result(timeout=8)
+                        if not hasattr(options, 'calls') or not hasattr(options, 'puts'):
+                            self.logger.warning(f"Invalid option chain data for {ticker} at {selected_expiration}")
+                            return []
+                    except concurrent.futures.TimeoutError:
+                        self.logger.error(f"Timeout getting option chain for {ticker} at {selected_expiration}")
+                        raise HTTPException(
+                            status_code=504,  # Gateway Timeout
+                            detail=f"Request timed out while fetching option chain for {ticker} at {selected_expiration}."
+                        )
+            except HTTPException:
+                # Re-raise HTTP exceptions
+                raise
             except Exception as e:
                 self.logger.error(f"Error getting option chain for {ticker} at {selected_expiration}: {str(e)}")
                 return []
-            
+
             # Process calls
             calls_df = options.calls.copy()
             calls_df['optionType'] = 'call'
             calls_df['underlying'] = ticker
             calls_df['expiration_date'] = selected_expiration
-            
+
             # Process puts
             puts_df = options.puts.copy()
             puts_df['optionType'] = 'put'
@@ -402,9 +446,27 @@ class YFinanceProvider(MarketDataProvider):
             # Standardize field names to match the expected OptionContract schema
             standardized_options = []
             
-            # Get the current stock price once for all options
-            underlying_price = self.get_stock_price(ticker)
-            self.logger.info(f"Retrieved underlying price for {ticker}: {underlying_price}")
+            # Get the current stock price once for all options with a timeout
+            self.logger.info(f"DEBUG_OPTION_CHAIN: Getting underlying price for {ticker} before processing options")
+            try:
+                # Use a ThreadPoolExecutor to run the get_stock_price call with a timeout
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    # Submit the task to the executor
+                    future = executor.submit(self.get_stock_price, ticker)
+                    try:
+                        # Wait for the result with a timeout (5 seconds)
+                        underlying_price = future.result(timeout=5)
+                        self.logger.info(f"DEBUG_OPTION_CHAIN: Retrieved underlying price for {ticker}: {underlying_price}")
+                    except concurrent.futures.TimeoutError:
+                        self.logger.warning(f"Timeout getting stock price for {ticker}, using fallback value")
+                        # Use a fallback value instead of raising an exception
+                        underlying_price = 0.0
+            except Exception as e:
+                self.logger.error(f"Error getting stock price for {ticker}: {str(e)}")
+                underlying_price = 0.0
+            
+            if underlying_price <= 0:
+                self.logger.warning(f"DEBUG_OPTION_CHAIN: Invalid or zero underlying price for {ticker}. This may cause issues with option chain processing.")
             
             # Process each option
             for option in options_list:
