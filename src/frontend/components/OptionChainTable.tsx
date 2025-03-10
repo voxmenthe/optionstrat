@@ -3,10 +3,12 @@
  * Displays option chain data in a tabular format with calls on left, 
  * puts on right, and strikes in the middle.
  * Supports selection, ITM/OTM highlighting, and greek display.
+ * Includes pagination for large option chains.
  */
 
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { OptionContract } from '../lib/api/optionsApi';
+import Pagination from './Pagination';
 
 interface OptionChainTableProps {
   options: OptionContract[];
@@ -14,6 +16,7 @@ interface OptionChainTableProps {
   onSelect: (option: OptionContract) => void;
   showGreeks?: boolean;
   underlyingPrice?: number;
+  pageSize?: number;
 }
 
 const OptionChainTable: React.FC<OptionChainTableProps> = ({
@@ -21,10 +24,13 @@ const OptionChainTable: React.FC<OptionChainTableProps> = ({
   selectedOption,
   onSelect,
   showGreeks = false,
-  underlyingPrice
+  underlyingPrice,
+  pageSize = 20
 }) => {
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
   // Separate and organize options by type and strike
-  const { callsByStrike, putsByStrike, strikes } = useMemo(() => {
+  const { callsByStrike, putsByStrike, strikes, totalPages, paginatedStrikes } = useMemo(() => {
     const callsByStrike: Record<number, OptionContract> = {};
     const putsByStrike: Record<number, OptionContract> = {};
     const strikeSet = new Set<number>();
@@ -44,8 +50,21 @@ const OptionChainTable: React.FC<OptionChainTableProps> = ({
     // Sort strikes in ascending order
     const strikes = Array.from(strikeSet).sort((a, b) => a - b);
     
-    return { callsByStrike, putsByStrike, strikes };
-  }, [options]);
+    // Calculate pagination
+    const totalPages = Math.ceil(strikes.length / pageSize);
+    
+    // Reset current page if it's out of bounds
+    if (currentPage > totalPages && totalPages > 0) {
+      setCurrentPage(1);
+    }
+    
+    // Get paginated strikes
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const paginatedStrikes = strikes.slice(startIndex, endIndex);
+    
+    return { callsByStrike, putsByStrike, strikes, totalPages, paginatedStrikes };
+  }, [options, pageSize, currentPage]);
   
   // Determine if an option is in the money
   const isInTheMoney = (option: OptionContract): boolean => {
@@ -127,93 +146,114 @@ const OptionChainTable: React.FC<OptionChainTableProps> = ({
     );
   }
   
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+  
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th 
-              scope="col" 
-              className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              colSpan={3}
-            >
-              CALLS
-            </th>
-            <th 
-              scope="col" 
-              className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
-            >
-              STRIKE
-            </th>
-            <th 
-              scope="col" 
-              className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              colSpan={3}
-            >
-              PUTS
-            </th>
-          </tr>
-          <tr className="bg-gray-50">
-            <th 
-              scope="col" 
-              className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider"
-              colSpan={3}
-            >
-              <div className="flex justify-between">
-                <span>Bid</span>
-                <span>Ask</span>
-                <span>Last</span>
-              </div>
-              {showGreeks && (
-                <div className="flex justify-between text-xs">
-                  <span>Δ</span>
-                  <span>γ</span>
-                  <span>θ</span>
-                  <span>ν</span>
-                </div>
-              )}
-            </th>
-            <th 
-              scope="col" 
-              className="px-2 py-1 text-center text-xs font-medium text-gray-500 tracking-wider"
-            ></th>
-            <th 
-              scope="col" 
-              className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider"
-              colSpan={3}
-            >
-              <div className="flex justify-between">
-                <span>Bid</span>
-                <span>Ask</span>
-                <span>Last</span>
-              </div>
-              {showGreeks && (
-                <div className="flex justify-between text-xs">
-                  <span>Δ</span>
-                  <span>γ</span>
-                  <span>θ</span>
-                  <span>ν</span>
-                </div>
-              )}
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {strikes.map((strike) => (
-            <tr key={strike} className="hover:bg-gray-50">
-              {renderOptionCell(callsByStrike[strike])}
-              <td className={`px-2 py-2 text-center font-medium ${
-                underlyingPrice && strike === Math.round(underlyingPrice) 
-                  ? 'bg-yellow-50' 
-                  : ''
-              }`}>
-                {strike.toFixed(2)}
-              </td>
-              {renderOptionCell(putsByStrike[strike])}
+    <div>
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th 
+                scope="col" 
+                className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                colSpan={3}
+              >
+                CALLS
+              </th>
+              <th 
+                scope="col" 
+                className="px-2 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider"
+              >
+                STRIKE
+              </th>
+              <th 
+                scope="col" 
+                className="px-2 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                colSpan={3}
+              >
+                PUTS
+              </th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+            <tr className="bg-gray-50">
+              <th 
+                scope="col" 
+                className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider"
+                colSpan={3}
+              >
+                <div className="flex justify-between">
+                  <span>Bid</span>
+                  <span>Ask</span>
+                  <span>Last</span>
+                </div>
+                {showGreeks && (
+                  <div className="flex justify-between text-xs">
+                    <span>Δ</span>
+                    <span>γ</span>
+                    <span>θ</span>
+                    <span>ν</span>
+                  </div>
+                )}
+              </th>
+              <th 
+                scope="col" 
+                className="px-2 py-1 text-center text-xs font-medium text-gray-500 tracking-wider"
+              ></th>
+              <th 
+                scope="col" 
+                className="px-2 py-1 text-left text-xs font-medium text-gray-500 tracking-wider"
+                colSpan={3}
+              >
+                <div className="flex justify-between">
+                  <span>Bid</span>
+                  <span>Ask</span>
+                  <span>Last</span>
+                </div>
+                {showGreeks && (
+                  <div className="flex justify-between text-xs">
+                    <span>Δ</span>
+                    <span>γ</span>
+                    <span>θ</span>
+                    <span>ν</span>
+                  </div>
+                )}
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {paginatedStrikes.map((strike) => (
+              <tr key={strike} className="hover:bg-gray-50">
+                {renderOptionCell(callsByStrike[strike])}
+                <td className={`px-2 py-2 text-center font-medium ${
+                  underlyingPrice && strike === Math.round(underlyingPrice) 
+                    ? 'bg-yellow-50' 
+                    : ''
+                }`}>
+                  {strike.toFixed(2)}
+                </td>
+                {renderOptionCell(putsByStrike[strike])}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="mt-4">
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+          <div className="text-xs text-gray-500 text-center mt-1">
+            Showing {paginatedStrikes.length} of {strikes.length} strikes
+          </div>
+        </div>
+      )}
     </div>
   );
 };

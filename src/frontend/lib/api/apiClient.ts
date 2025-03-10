@@ -31,6 +31,14 @@ export class ApiClient {
   }
   
   /**
+   * Get the base URL for API requests
+   * @returns The base URL as a string
+   */
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+  
+  /**
    * Make a GET request to the API
    * @param endpoint - API endpoint
    * @param params - Query parameters

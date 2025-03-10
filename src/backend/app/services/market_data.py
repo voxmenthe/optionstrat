@@ -201,7 +201,18 @@ class MarketDataService:
         Returns:
             List of matching ticker symbols with metadata
         """
-        return self.provider.search_tickers(query)
+        logger.info(f"MarketDataService.search_tickers called with query: {query}")
+        try:
+            logger.info(f"Delegating to provider: {self.provider.__class__.__name__}")
+            results = self.provider.search_tickers(query)
+            logger.info(f"Provider returned results: {results}")
+            return results
+        except Exception as e:
+            logger.error(f"Error in MarketDataService.search_tickers: {e}")
+            import traceback
+            logger.error(f"Stack trace: {traceback.format_exc()}")
+            # Return empty list instead of raising to avoid breaking the frontend
+            return []
     
     def get_market_status(self) -> Dict:
         """

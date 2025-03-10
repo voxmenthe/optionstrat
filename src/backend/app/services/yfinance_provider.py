@@ -1,20 +1,21 @@
 import os
-import yfinance as yf
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any, Union
 import json
-import redis
-from fastapi import HTTPException
-import pandas as pd
-import numpy as np
 import logging
-from sqlalchemy.orm import Session
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional, Union
+
+import numpy as np
+import pandas as pd
+import redis
+import yfinance as yf
+from fastapi import HTTPException
 
 from app.services.market_data_provider import MarketDataProvider
 from app.models.database import CacheEntry, get_db
 
 # Set up logging
 logger = logging.getLogger(__name__)
+
 
 class YFinanceProvider(MarketDataProvider):
     """
@@ -30,6 +31,8 @@ class YFinanceProvider(MarketDataProvider):
         Args:
             use_cache: Whether to use caching (Redis or DB)
         """
+        # Set up instance logger
+        self.logger = logger
         self.use_cache = use_cache
         self.redis_available = False
         self.redis = None
@@ -229,31 +232,60 @@ class YFinanceProvider(MarketDataProvider):
             ticker: The ticker symbol
             
         Returns:
-            Latest price as float
+            Latest price as float, or 0.0 if price cannot be retrieved
         """
-        print(f"get_stock_price called for ticker: {ticker}")
-        
+        if not ticker:
+            self.logger.warning("Empty ticker provided to get_stock_price")
+            return 0.0
+            
         # Check cache first
         cache_key = f"yfinance:stock_price:{ticker}"
         cached_data = self._get_from_cache(cache_key)
         if cached_data:
-            print(f"Cache hit for {cache_key}")
+            self.logger.debug(f"Cache hit for {cache_key}")
             return cached_data.get("price", 0.0)
+        
+        self.logger.info(f"Fetching stock price for ticker: {ticker}")
         
         try:
             # Get ticker data from yfinance
             ticker_data = yf.Ticker(ticker)
             
             # Get the latest price
-            latest_price = ticker_data.fast_info.get("lastPrice", 0.0)
+            try:
+                latest_price = ticker_data.fast_info.get("lastPrice", None)
+                
+                # If fast_info doesn't have the price, try the regular info
+                if latest_price is None:
+                    info = ticker_data.info
+                    if info:
+                        latest_price = info.get('currentPrice', info.get('regularMarketPrice', 0.0))
+                    else:
+                        self.logger.warning(f"No info available for ticker {ticker}")
+                        return 0.0
+            except AttributeError:
+                self.logger.warning(f"Could not access price info for {ticker}, trying alternative method")
+                # Fallback to regular info if fast_info is not available
+                info = ticker_data.info
+                if info:
+                    latest_price = info.get('currentPrice', info.get('regularMarketPrice', 0.0))
+                else:
+                    self.logger.warning(f"No info available for ticker {ticker}")
+                    return 0.0
             
-            # Cache the result
-            self._save_to_cache(cache_key, {"price": latest_price})
+            # Ensure we have a valid price
+            if latest_price is None or not isinstance(latest_price, (int, float)):
+                self.logger.warning(f"Invalid price value for {ticker}: {latest_price}")
+                return 0.0
+                
+            # Cache the result with a short TTL (5 minutes)
+            self._save_to_cache(cache_key, {"price": latest_price}, ttl=300)
             
             return latest_price
         except Exception as e:
-            print(f"Error in get_stock_price: {str(e)}")
-            raise HTTPException(status_code=500, detail=f"Yahoo Finance API error: {str(e)}")
+            self.logger.error(f"Error in get_stock_price for {ticker}: {str(e)}")
+            # Return 0.0 instead of raising an exception to prevent API failures
+            return 0.0
     
     def get_option_chain(self, ticker: str, expiration_date: Optional[Union[str, datetime]] = None) -> List[Dict]:
         """
@@ -268,12 +300,37 @@ class YFinanceProvider(MarketDataProvider):
         """
         print(f"get_option_chain called for ticker: {ticker}, expiration: {expiration_date}")
         
-        # Check cache first
+        # Create cache key
         cache_key = f"yfinance:option_chain:{ticker}:{expiration_date or 'all'}"
+        
+        # Clear existing cache for this request to ensure we get fresh data with the correct format
+        # This is a temporary measure until we fix the caching issue
+        if self.redis_available and self.redis:
+            try:
+                self.redis.delete(cache_key)
+                self.logger.info(f"Cleared cache for {cache_key}")
+            except Exception as e:
+                self.logger.warning(f"Error clearing cache: {e}")
+        
+        # Now check if there's still cached data (from DB perhaps)
         cached_data = self._get_from_cache(cache_key)
         if cached_data:
-            print(f"Cache hit for {cache_key}")
-            return cached_data
+            self.logger.info(f"Cache hit for {cache_key}")
+            
+            # Check if cached data needs to be reformatted
+            if cached_data and len(cached_data) > 0 and isinstance(cached_data[0], dict):
+                first_item = cached_data[0]
+                # Check if the first item has the expected fields
+                if ("expiration" not in first_item or 
+                    "strike" not in first_item or 
+                    "option_type" not in first_item):
+                    
+                    self.logger.info(f"Cached data has old format, will fetch fresh data")
+                    # Don't use this cached data
+                    cached_data = None
+            
+            if cached_data:
+                return cached_data
         
         try:
             # Get ticker data from yfinance
@@ -311,7 +368,14 @@ class YFinanceProvider(MarketDataProvider):
                 selected_expiration = expirations[0]
             
             # Get the option chain for the selected expiration
-            options = ticker_data.option_chain(selected_expiration)
+            try:
+                options = ticker_data.option_chain(selected_expiration)
+                if not hasattr(options, 'calls') or not hasattr(options, 'puts'):
+                    self.logger.warning(f"Invalid option chain data for {ticker} at {selected_expiration}")
+                    return []
+            except Exception as e:
+                self.logger.error(f"Error getting option chain for {ticker} at {selected_expiration}: {str(e)}")
+                return []
             
             # Process calls
             calls_df = options.calls.copy()
@@ -331,23 +395,92 @@ class YFinanceProvider(MarketDataProvider):
             # Convert to list of dictionaries
             options_list = self._convert_dataframe_to_list(all_options)
             
-            # Standardize field names to match the expected format
+            # Debug: Print the first option to see its structure
+            if options_list and len(options_list) > 0:
+                self.logger.info(f"Sample option data structure: {options_list[0]}")
+            
+            # Standardize field names to match the expected OptionContract schema
             standardized_options = []
+            
+            # Get the current stock price once for all options
+            underlying_price = self.get_stock_price(ticker)
+            self.logger.info(f"Retrieved underlying price for {ticker}: {underlying_price}")
+            
+            # Process each option
             for option in options_list:
+                # Only log the first option's keys for debugging
+                if option == options_list[0]:
+                    self.logger.debug(f"Sample option keys: {option.keys()}")
+                
+                # Format the expiration date properly
+                expiration_date_obj = None
+                if "expiration_date" in option:
+                    # If it's already a datetime object, use it directly
+                    if isinstance(option["expiration_date"], datetime):
+                        expiration_date_obj = option["expiration_date"]
+                    else:
+                        # Try to convert string to datetime
+                        try:
+                            expiration_date_obj = datetime.fromisoformat(str(option["expiration_date"]).replace('Z', '+00:00'))
+                        except ValueError:
+                            try:
+                                expiration_date_obj = datetime.strptime(str(option["expiration_date"]), "%Y-%m-%d")
+                            except ValueError:
+                                self.logger.error(f"Could not parse expiration date: {option['expiration_date']}")
+                                # Use current date as fallback (not ideal but prevents validation errors)
+                                expiration_date_obj = datetime.now()
+                elif "expiration" in option:
+                    # Same process for the 'expiration' field
+                    if isinstance(option["expiration"], datetime):
+                        expiration_date_obj = option["expiration"]
+                    else:
+                        try:
+                            expiration_date_obj = datetime.fromisoformat(str(option["expiration"]).replace('Z', '+00:00'))
+                        except ValueError:
+                            try:
+                                expiration_date_obj = datetime.strptime(str(option["expiration"]), "%Y-%m-%d")
+                            except ValueError:
+                                self.logger.error(f"Could not parse expiration date: {option['expiration']}")
+                                expiration_date_obj = datetime.now()
+                else:
+                    # If no expiration date is found, use current date as fallback
+                    self.logger.warning("No expiration date found in option data, using current date as fallback")
+                    expiration_date_obj = datetime.now()
+                
+                # Extract the data from the option object based on the actual keys in the response
+                # Ensure expiration is serialized as an ISO format string for the frontend
+                expiration_str = expiration_date_obj.isoformat() if expiration_date_obj else datetime.now().isoformat()
+                
                 standardized_option = {
-                    "contract_type": option.get("optionType", "").upper(),
-                    "underlying_ticker": option.get("underlying", ticker),
-                    "ticker": option.get("contractSymbol", ""),
-                    "strike_price": option.get("strike", 0.0),
-                    "expiration_date": option.get("expiration_date", ""),
-                    "last_price": option.get("lastPrice", 0.0),
-                    "bid": option.get("bid", 0.0),
-                    "ask": option.get("ask", 0.0),
-                    "volume": option.get("volume", 0),
-                    "open_interest": option.get("openInterest", 0),
-                    "implied_volatility": option.get("impliedVolatility", 0.0),
-                    "in_the_money": option.get("inTheMoney", False),
+                    # Required fields based on OptionContract schema
+                    "ticker": str(ticker),
+                    "expiration": expiration_str,  # Use ISO format string instead of datetime object
+                    "strike": float(option.get("strike", 0.0)),
+                    "option_type": str(option.get("optionType", "")).lower(),
+                    "bid": float(option.get("bid", 0.0)),
+                    "ask": float(option.get("ask", 0.0)),
+                    
+                    # Optional fields - ensure proper type conversion
+                    "last": float(option.get("lastPrice", 0.0)) if option.get("lastPrice") is not None else None,
+                    "volume": int(float(option.get("volume", 0))) if option.get("volume") is not None else None,
+                    "open_interest": int(float(option.get("openInterest", 0))) if option.get("openInterest") is not None else None,
+                    "implied_volatility": float(option.get("impliedVolatility", 0.0)) if option.get("impliedVolatility") is not None else None,
+                    
+                    # Greeks (if available) - ensure proper type conversion
+                    "delta": float(option.get("delta", 0.0)) if option.get("delta") is not None else None,
+                    "gamma": float(option.get("gamma", 0.0)) if option.get("gamma") is not None else None,
+                    "theta": float(option.get("theta", 0.0)) if option.get("theta") is not None else None,
+                    "vega": float(option.get("vega", 0.0)) if option.get("vega") is not None else None,
+                    "rho": float(option.get("rho", 0.0)) if option.get("rho") is not None else None,
+                    
+                    # Additional fields - ensure proper type conversion
+                    "in_the_money": bool(option.get("inTheMoney", False)) if option.get("inTheMoney") is not None else None,
+                    "underlying_price": float(underlying_price) if underlying_price is not None else None
                 }
+                
+                # Only log the first standardized option for debugging
+                if len(standardized_options) == 0:
+                    self.logger.debug(f"Sample standardized option: {standardized_option}")
                 standardized_options.append(standardized_option)
             
             # Cache the result
@@ -577,7 +710,14 @@ class YFinanceProvider(MarketDataProvider):
             ticker_data = yf.Ticker(ticker)
             
             # Get available expirations
-            expirations = ticker_data.options
+            try:
+                expirations = ticker_data.options
+                if not expirations or len(expirations) == 0:
+                    self.logger.warning(f"No option expirations found for {ticker}")
+                    return []
+            except Exception as e:
+                self.logger.error(f"Error getting options expirations for {ticker}: {str(e)}")
+                return []
             
             # Format the result
             result = {
@@ -680,47 +820,69 @@ class YFinanceProvider(MarketDataProvider):
         Returns:
             List containing the ticker if valid, empty list otherwise
         """
-        print(f"validate_ticker called with ticker: {query}")
+        self.logger.info(f"search_tickers called with query: {query}")
         
+        # Early validation to prevent unnecessary processing
         if not query:
+            self.logger.info("Empty query, returning empty list")
+            return []
+            
+        # Standardize the ticker format
+        ticker = query.strip().upper()
+        self.logger.info(f"Standardized ticker: {ticker}")
+        
+        # Basic validation - is it a reasonable ticker format?
+        if not ticker or len(ticker) > 6 or not any(c.isalpha() for c in ticker):
+            self.logger.info(f"Invalid ticker format: {ticker}")
             return []
             
         # Check cache first
-        cache_key = f"yfinance:ticker_validation:{query}"
+        cache_key = f"yfinance:ticker_validation:{ticker}"
+        self.logger.info(f"Checking cache for key: {cache_key}")
         cached_data = self._get_from_cache(cache_key)
-        if cached_data:
-            print(f"Cache hit for {cache_key}")
+        if cached_data is not None:
+            self.logger.info(f"Cache hit for {cache_key}: {cached_data}")
             return cached_data
             
         try:
-            # Standardize the ticker format
-            ticker = query.strip().upper()
-            
-            # Basic validation - is it a reasonable ticker format?
-            if not ticker or len(ticker) > 6 or not any(c.isalpha() for c in ticker):
-                return []
-                
             # Try to fetch basic info from yfinance to validate
+            self.logger.info(f"Fetching yfinance data for ticker: {ticker}")
             ticker_data = yf.Ticker(ticker)
             
             # Check if the ticker is valid by attempting to get its info
-            info = ticker_data.info
-            
-            # If we get a name, it's probably valid
-            if "shortName" in info or "longName" in info:
-                result = [ticker]
+            try:
+                self.logger.info(f"Getting info for ticker: {ticker}")
+                info = ticker_data.info
+                self.logger.info(f"Got info for ticker {ticker}: {info is not None}")
                 
-                # Cache the result
-                self._save_to_cache(cache_key, result)
+                # If info is None or empty, the ticker is invalid
+                if not info:
+                    self.logger.info(f"Empty info for ticker: {ticker}")
+                    # Cache negative results too to prevent repeated lookups
+                    self._save_to_cache(cache_key, [])
+                    return []
+                    
+                # If we get a name, it's probably valid
+                if "shortName" in info or "longName" in info:
+                    self.logger.info(f"Valid ticker found: {ticker}")
+                    result = [ticker]
+                    # Cache the result
+                    self._save_to_cache(cache_key, result)
+                    return result
                 
-                return result
-            
-            # Otherwise return empty list (invalid ticker)
-            return []
+                # Otherwise cache and return empty list (invalid ticker)
+                self.logger.info(f"No name found for ticker: {ticker}")
+                self._save_to_cache(cache_key, [])
+                return []
+                
+            except AttributeError as ae:
+                self.logger.info(f"AttributeError for ticker {ticker}: {str(ae)}")
+                # Cache negative results too
+                self._save_to_cache(cache_key, [])
+                return []
                 
         except Exception as e:
             # Most exceptions here would indicate an invalid ticker
-            import traceback
-            print(f"Error validating ticker: {str(e)}")
-            print(traceback.format_exc())
-            return [] # Return empty list rather than raising an exception
+            self.logger.warning(f"Error validating ticker {ticker}: {str(e)}")
+            # Don't cache errors - might be temporary
+            return []

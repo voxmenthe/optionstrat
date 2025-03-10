@@ -6,6 +6,7 @@
 
 import { create } from 'zustand';
 import { optionsApi, OptionContract, OptionExpiration } from '../api/optionsApi';
+import { cacheManager, getOptionChainCacheKey, clearOptionChainCache, getMarketAwareTTL } from '../utils/cacheUtils';
 
 export interface OptionChainState {
   // State
@@ -31,6 +32,7 @@ export interface OptionChainState {
   refreshChain: () => Promise<void>;
   selectOption: (option: OptionContract | null) => void;
   clear: () => void;
+  clearCache: (ticker?: string) => void;
 }
 
 export const useOptionChainStore = create<OptionChainState>((set, get) => ({
@@ -75,7 +77,13 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
     });
     
     try {
-      const expirations = await optionsApi.getExpirationDates(ticker);
+      // Try to get expirations from cache first
+      const cacheKey = `expirations:${ticker}`;
+      const expirations = await cacheManager.getOrFetch(
+        cacheKey,
+        async () => await optionsApi.getExpirationDates(ticker),
+        getMarketAwareTTL()
+      );
       
       // If we have expirations, select the first one by default and ensure it's in YYYY-MM-DD format
       let selectedExpiration = null;
@@ -164,7 +172,16 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
         params.max_strike = filters.maxStrike;
       }
       
-      const chain = await optionsApi.getOptionsForExpiration(ticker, formattedDate, params);
+      // Generate cache key based on ticker, expiration, and filters
+      const cacheKey = getOptionChainCacheKey(ticker, formattedDate, params);
+      
+      // Try to get option chain from cache first, or fetch if not available
+      const chain = await cacheManager.getOrFetch(
+        cacheKey,
+        async () => await optionsApi.getOptionsForExpiration(ticker, formattedDate, params),
+        getMarketAwareTTL()
+      );
+      
       set({ chain, isLoading: false });
     } catch (error) {
       set({ 
@@ -219,5 +236,10 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
       },
       selectedOption: null
     });
+  },
+  
+  // Clear cache for a specific ticker or all option chain data
+  clearCache: (ticker?: string) => {
+    clearOptionChainCache(ticker);
   }
 })); 

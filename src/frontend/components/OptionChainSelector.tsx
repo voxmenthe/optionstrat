@@ -4,7 +4,7 @@
  * option type toggle, strike filtering, and the option chain table.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useOptionChainStore } from '../lib/stores';
 import { OptionContract, optionsApi } from '../lib/api/optionsApi';
 import OptionExpirationSelector from './OptionExpirationSelector';
@@ -17,13 +17,15 @@ interface OptionChainSelectorProps {
   initialTicker?: string;
   showGreeks?: boolean;
   compact?: boolean;
+  pageSize?: number;
 }
 
 const OptionChainSelector: React.FC<OptionChainSelectorProps> = ({
   onSelect,
   initialTicker = '',
   showGreeks = false,
-  compact = false
+  compact = false,
+  pageSize = 20
 }) => {
   // Local state for ticker search
   const [searchQuery, setSearchQuery] = useState<string>(initialTicker);
@@ -89,42 +91,48 @@ const OptionChainSelector: React.FC<OptionChainSelectorProps> = ({
     };
   }, [initialTicker, setTicker, clear]);
   
-  // Handle ticker search/validation
-  const handleSearchChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value.trim().toUpperCase();
-    setSearchQuery(query);
-    
-    // If the input is empty, clear everything
+  // Search function that only runs when the user submits the search
+  const searchTicker = useCallback(async (query: string) => {
     if (!query) {
       setSearchResults([]);
       setShowResults(false);
+      console.log('Empty query, not searching');
       return;
     }
     
     // Basic client-side validation before sending to API
-    const isValidFormat = /^[A-Z]{1,6}$/.test(query);
+    const isValidFormat = /^[A-Z0-9.]{1,6}$/.test(query); // Allow numbers and dots for tickers like BRK.B
     if (!isValidFormat) {
-      // Still set search results to empty but don't call API
       setSearchResults([]);
       setShowResults(false);
+      console.log('Invalid ticker format:', query);
       return;
     }
     
+    console.log('Starting search for ticker:', query);
     setIsSearching(true);
     try {
-      // Instead of searching, we're now validating if the ticker exists
-      const validTickers = await optionsApi.searchTickers(query);
+      console.log('Calling API to search for ticker:', query);
+      // Add a timeout to prevent hanging indefinitely
+      const timeoutPromise = new Promise<string[]>((_, reject) => {
+        setTimeout(() => reject(new Error('Search request timed out after 10 seconds')), 10000);
+      });
       
-      if (validTickers.length > 0) {
-        // Valid ticker found
+      const validTickers = await Promise.race([
+        optionsApi.searchTickers(query),
+        timeoutPromise
+      ]);
+      
+      console.log('API response for ticker search:', validTickers);
+      
+      if (validTickers && validTickers.length > 0) {
+        console.log('Valid tickers found:', validTickers);
         setSearchResults(validTickers);
         setShowResults(true);
       } else {
-        // Invalid ticker
+        console.log('No valid tickers found for:', query);
         setSearchResults([]);
         setShowResults(false);
-        
-        // Optional: directly show error message
         console.warn(`Invalid ticker: ${query}`);
       }
     } catch (error) {
@@ -132,7 +140,29 @@ const OptionChainSelector: React.FC<OptionChainSelectorProps> = ({
       setSearchResults([]);
       setShowResults(false);
     } finally {
+      console.log('Search completed for:', query);
       setIsSearching(false);
+    }
+  }, []);
+  
+  // Handle ticker search input changes - just update the input field
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value.trim().toUpperCase();
+    setSearchQuery(query);
+    
+    // If the input is empty, clear everything immediately
+    if (!query) {
+      setSearchResults([]);
+      setShowResults(false);
+    }
+  };
+  
+  // Handle form submission for ticker search
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log('Search submitted for:', searchQuery);
+    if (searchQuery) {
+      searchTicker(searchQuery);
     }
   };
   
@@ -207,7 +237,7 @@ const OptionChainSelector: React.FC<OptionChainSelectorProps> = ({
       {/* Header with ticker search */}
       <div className="p-4 border-b">
         <div className="relative">
-          <div className="flex">
+          <form onSubmit={handleSearchSubmit} className="flex">
             <input
               type="text"
               value={searchQuery}
@@ -215,12 +245,19 @@ const OptionChainSelector: React.FC<OptionChainSelectorProps> = ({
               placeholder="Search ticker symbol (e.g., AAPL, SPY)"
               className="block w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
             />
+            <button 
+              type="submit"
+              className="ml-2 px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isSearching}
+            >
+              Search
+            </button>
             {isSearching && (
-              <div className="absolute right-3 top-2">
+              <div className="absolute right-24 top-2">
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div>
               </div>
             )}
-          </div>
+          </form>
           
           {/* Search results dropdown */}
           {showResults && searchResults.length > 0 && (
@@ -310,6 +347,7 @@ const OptionChainSelector: React.FC<OptionChainSelectorProps> = ({
                 onSelect={handleOptionSelect}
                 showGreeks={showGreeks}
                 underlyingPrice={underlyingPrice}
+                pageSize={pageSize}
               />
             ) : (
               <div className="text-center p-8 text-gray-500">

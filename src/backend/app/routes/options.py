@@ -192,16 +192,24 @@ def search_tickers(
     Returns:
         List of matching ticker symbols with basic metadata
     """
+    logger.info(f"Received ticker search request for query: {query}, limit: {limit}")
+    
     try:
         # Search for tickers
+        logger.info(f"Calling market_data_service.search_tickers with query: {query}")
         results = market_data_service.search_tickers(query)
+        logger.info(f"Received results from market_data_service: {results}")
         
         # Limit the number of results
         limited_results = results[:limit] if limit else results
+        logger.info(f"Returning limited results: {limited_results}")
         
         return limited_results
     except Exception as e:
         logger.error(f"Error searching tickers: {e}")
+        # Log the full stack trace for better debugging
+        import traceback
+        logger.error(f"Stack trace: {traceback.format_exc()}")
         raise HTTPException(
             status_code=500,
             detail=f"Failed to search tickers: {str(e)}"
