@@ -21,6 +21,7 @@ export interface PnLResult {
   underlyingPrice?: number;
   calculationTimestamp?: string;
   error?: string; // Added to handle error cases gracefully
+  endpointNotImplemented?: boolean; // Flag to indicate if the endpoint is not implemented yet
 }
 
 export interface OptionPosition {
@@ -335,18 +336,48 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
     
     try {
       console.log(`Calculating P&L for position ${position.id}:`, position.ticker, position.strike, position.type, `recalculate=${recalculate}`);
-      const pnl = await positionsApi.calculatePnL(position.id, recalculate);
-      console.log(`Received P&L for position ${position.id}:`, pnl);
       
-      // Store the updated position with P&L in local state
-      set(state => {
-        const updatedPositions = state.positions.map(pos => 
-          pos.id === position.id ? { ...pos, pnl } : pos
-        );
-        return { positions: updatedPositions };
-      });
-      
-      return pnl;
+      try {
+        const pnl = await positionsApi.calculatePnL(position.id, recalculate);
+        console.log(`Received P&L for position ${position.id}:`, pnl);
+        
+        // Store the updated position with P&L in local state
+        set(state => {
+          const updatedPositions = state.positions.map(pos => 
+            pos.id === position.id ? { ...pos, pnl } : pos
+          );
+          return { positions: updatedPositions };
+        });
+        
+        return pnl;
+      } catch (apiError) {
+        // Check if this is a 404 or similar error that might indicate endpoint not implemented
+        if (apiError && typeof apiError === 'object' && 'status' in apiError && (apiError.status === 404 || apiError.status === 501)) {
+          console.log(`P&L calculation endpoint not implemented for position ${position.id}`);
+          // Create a placeholder PnL result with error info
+          const placeholderPnl: PnLResult = {
+            positionId: position.id,
+            pnlAmount: 0,
+            pnlPercent: 0,
+            initialValue: 0,
+            currentValue: 0,
+            error: 'P&L calculation not implemented'
+          };
+          
+          // Store the placeholder in local state
+          set(state => {
+            const updatedPositions = state.positions.map(pos => 
+              pos.id === position.id ? { ...pos, pnl: placeholderPnl } : pos
+            );
+            return { positions: updatedPositions };
+          });
+          
+          return placeholderPnl;
+        }
+        
+        // For other errors, rethrow to be handled by the retry logic
+        throw apiError;
+      }
     } catch (error) {
       console.error(`Failed to calculate P&L for position ${position.id} (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
       
@@ -359,9 +390,28 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
         return get().calculatePnL(position, true, retryCount + 1);
       }
       
-      // We've exhausted our retries
-      set({ error: `Failed to calculate P&L after ${MAX_RETRIES} attempts: ${error instanceof Error ? error.message : String(error)}` });
-      throw error;
+      // We've exhausted our retries - create a placeholder with error info
+      const errorPnl: PnLResult = {
+        positionId: position.id,
+        pnlAmount: 0,
+        pnlPercent: 0,
+        initialValue: 0,
+        currentValue: 0,
+        error: `Failed after ${MAX_RETRIES} attempts: ${error instanceof Error ? error.message : String(error)}`
+      };
+      
+      // Store the error result in local state
+      set(state => {
+        const updatedPositions = state.positions.map(pos => 
+          pos.id === position.id ? { ...pos, pnl: errorPnl } : pos
+        );
+        return { 
+          positions: updatedPositions,
+          error: `Failed to calculate P&L after ${MAX_RETRIES} attempts` 
+        };
+      });
+      
+      return errorPnl;
     }
   },
   
@@ -377,17 +427,56 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
     set({ calculatingPnL: true, error: null });
     
     try {
-      // Process positions in parallel using Promise.all
+      // First check if the endpoint is implemented by trying one position
+      if (positions.length > 0) {
+        try {
+          // Try with the first position to see if the endpoint exists
+          await positionsApi.calculatePnL(positions[0].id, forceRecalculate);
+        } catch (endpointError) {
+          // If we get a 404/501 (endpoint not implemented) or a network error (status 0)
+          if (endpointError && typeof endpointError === 'object' && 'status' in endpointError && 
+              (endpointError.status === 404 || endpointError.status === 501 || endpointError.status === 0)) {
+            console.log('P&L calculation endpoint not implemented - skipping calculations');
+            
+            // Create placeholder PnL results for all positions
+            const updatedPositions = positions.map(position => ({
+              ...position,
+              pnl: {
+                positionId: position.id,
+                pnlAmount: 0,
+                pnlPercent: 0,
+                initialValue: 0,
+                currentValue: 0,
+                error: 'P&L calculation not implemented'
+              } as PnLResult
+            }));
+            
+            set({ positions: updatedPositions, calculatingPnL: false });
+            return;
+          }
+        }
+      }
+      
+      // If we get here, the endpoint exists, so proceed with calculations
+      // Process positions in parallel using Promise.allSettled
       const results = await Promise.allSettled(
         positions.map(async (position) => {
           try {
             // Use the provided forceRecalculate parameter
-            const pnl = await positionsApi.calculatePnL(position.id, forceRecalculate);
-            console.log(`Retrieved P&L for position ${position.id}:`, pnl);
+            const pnl = await get().calculatePnL(position, forceRecalculate) as PnLResult;
             return { position, pnl, success: true };
           } catch (error) {
             console.error(`Failed to calculate P&L for position ${position.id}:`, error);
-            return { position, error, success: false };
+            // Create an error PnL result
+            const errorPnl: PnLResult = {
+              positionId: position.id,
+              pnlAmount: 0,
+              pnlPercent: 0,
+              initialValue: 0,
+              currentValue: 0,
+              error: error instanceof Error ? error.message : String(error)
+            };
+            return { position, pnl: errorPnl, success: false };
           }
         })
       );
@@ -395,21 +484,25 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
       // Update the positions with calculated P&L
       const updatedPositions = [...positions];
       let updatedCount = 0;
+      let errorCount = 0;
       
       for (const result of results) {
-        if (result.status === 'fulfilled' && result.value.success) {
-          const { position, pnl } = result.value;
+        if (result.status === 'fulfilled') {
+          const { position, pnl, success } = result.value;
           const posIndex = updatedPositions.findIndex(p => p.id === position.id);
           
           if (posIndex >= 0) {
             updatedPositions[posIndex] = { ...updatedPositions[posIndex], pnl };
-            updatedCount++;
-            console.log(`Updated P&L for position ${position.id} in frontend state`);
+            if (success) {
+              updatedCount++;
+            } else {
+              errorCount++;
+            }
           }
         }
       }
       
-      console.log(`Updated P&L for ${updatedCount} out of ${positions.length} positions`);
+      console.log(`Updated P&L for ${updatedCount} out of ${positions.length} positions (${errorCount} errors)`);
       set({ positions: updatedPositions });
     } catch (error) {
       console.error('Failed to recalculate all P&L:', error);
@@ -431,19 +524,49 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
         price_change_percent: theoreticalPnLSettings.priceChangePercent
       };
       
-      // Use recalculate=retryCount>0 to force recalculation on retry attempts
-      const pnl = await positionsApi.calculateTheoreticalPnL(position.id, params, retryCount > 0);
-      console.log(`Received theoretical P&L for position ${position.id}:`, pnl);
-      
-      // Store the updated position with theoretical P&L in local state
-      set(state => {
-        const updatedPositions = state.positions.map(pos => 
-          pos.id === position.id ? { ...pos, theoreticalPnl: pnl } : pos
-        );
-        return { positions: updatedPositions };
-      });
-      
-      return pnl;
+      try {
+        // Use recalculate=retryCount>0 to force recalculation on retry attempts
+        const pnl = await positionsApi.calculateTheoreticalPnL(position.id, params, retryCount > 0);
+        console.log(`Received theoretical P&L for position ${position.id}:`, pnl);
+        
+        // Store the updated position with theoretical P&L in local state
+        set(state => {
+          const updatedPositions = state.positions.map(pos => 
+            pos.id === position.id ? { ...pos, theoreticalPnl: pnl } : pos
+          );
+          return { positions: updatedPositions };
+        });
+        
+        return pnl;
+      } catch (apiError) {
+        // Check if this is a 404/501 error (endpoint not implemented) or a network error (status 0)
+        if (apiError && typeof apiError === 'object' && 'status' in apiError && 
+            (apiError.status === 404 || apiError.status === 501 || apiError.status === 0)) {
+          console.log(`Theoretical P&L calculation endpoint not implemented for position ${position.id}`);
+          // Create a placeholder PnL result with error info
+          const placeholderPnl: PnLResult = {
+            positionId: position.id,
+            pnlAmount: 0,
+            pnlPercent: 0,
+            initialValue: 0,
+            currentValue: 0,
+            error: 'Theoretical P&L calculation not implemented'
+          };
+          
+          // Store the placeholder in local state
+          set(state => {
+            const updatedPositions = state.positions.map(pos => 
+              pos.id === position.id ? { ...pos, theoreticalPnl: placeholderPnl } : pos
+            );
+            return { positions: updatedPositions };
+          });
+          
+          return placeholderPnl;
+        }
+        
+        // For other errors, rethrow to be handled by the retry logic
+        throw apiError;
+      }
     } catch (error) {
       console.error(`Failed to calculate theoretical P&L for position ${position.id} (attempt ${retryCount + 1}/${MAX_RETRIES}):`, error);
       
@@ -456,9 +579,28 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
         return get().calculateTheoreticalPnL(position, retryCount + 1);
       }
       
-      // We've exhausted our retries
-      set({ error: `Failed to calculate theoretical P&L after ${MAX_RETRIES} attempts: ${error instanceof Error ? error.message : String(error)}` });
-      throw error;
+      // We've exhausted our retries - create a placeholder with error info
+      const errorPnl: PnLResult = {
+        positionId: position.id,
+        pnlAmount: 0,
+        pnlPercent: 0,
+        initialValue: 0,
+        currentValue: 0,
+        error: `Failed after ${MAX_RETRIES} attempts: ${error instanceof Error ? error.message : String(error)}`
+      };
+      
+      // Store the error result in local state
+      set(state => {
+        const updatedPositions = state.positions.map(pos => 
+          pos.id === position.id ? { ...pos, theoreticalPnl: errorPnl } : pos
+        );
+        return { 
+          positions: updatedPositions,
+          error: `Failed to calculate theoretical P&L after ${MAX_RETRIES} attempts` 
+        };
+      });
+      
+      return errorPnl;
     }
   },
   
@@ -474,24 +616,116 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
     set({ calculatingTheoreticalPnL: true, error: null });
     
     try {
-      // Bulk calculate theoretical P&L for all positions
-      const positionIds = positions.map(p => p.id);
-      const params: PnLCalculationParams = {
-        days_forward: theoreticalPnLSettings.daysForward,
-        price_change_percent: theoreticalPnLSettings.priceChangePercent
-      };
+      // First check if the endpoint is implemented by trying one position
+      if (positions.length > 0) {
+        try {
+          // Try with the first position to see if the endpoint exists
+          const params: PnLCalculationParams = {
+            days_forward: theoreticalPnLSettings.daysForward,
+            price_change_percent: theoreticalPnLSettings.priceChangePercent
+          };
+          await positionsApi.calculateTheoreticalPnL(positions[0].id, params, forceRecalculate);
+        } catch (endpointError) {
+          // If we get a 404/501 (endpoint not implemented) or a network error (status 0)
+          if (endpointError && typeof endpointError === 'object' && 'status' in endpointError && 
+              (endpointError.status === 404 || endpointError.status === 501 || endpointError.status === 0)) {
+            console.log('Theoretical P&L calculation endpoint not implemented - skipping calculations');
+            
+            // Create placeholder theoretical PnL results for all positions
+            const updatedPositions = positions.map(position => ({
+              ...position,
+              theoreticalPnl: {
+                positionId: position.id,
+                pnlAmount: 0,
+                pnlPercent: 0,
+                initialValue: 0,
+                currentValue: 0,
+                error: 'Theoretical P&L calculation not implemented'
+              } as PnLResult
+            }));
+            
+            set({ positions: updatedPositions, calculatingTheoreticalPnL: false });
+            return;
+          }
+        }
+      }
       
-      const pnlResults = await positionsApi.calculateBulkTheoreticalPnL(positionIds, params, forceRecalculate);
-      console.log('Received bulk theoretical P&L results:', pnlResults);
-      
-      // Update the positions with calculated theoretical P&L
-      const updatedPositions = positions.map(position => {
-        const theoreticalPnl = pnlResults[position.id];
-        return theoreticalPnl ? { ...position, theoreticalPnl } : position;
-      });
-      
-      console.log(`Updated theoretical P&L for ${Object.keys(pnlResults).length} out of ${positions.length} positions`);
-      set({ positions: updatedPositions });
+      // If we get here, the endpoint exists, so proceed with calculations
+      try {
+        // Bulk calculate theoretical P&L for all positions
+        const positionIds = positions.map(p => p.id);
+        const params: PnLCalculationParams = {
+          days_forward: theoreticalPnLSettings.daysForward,
+          price_change_percent: theoreticalPnLSettings.priceChangePercent
+        };
+        
+        const pnlResults = await positionsApi.calculateBulkTheoreticalPnL(positionIds, params, forceRecalculate);
+        console.log('Received bulk theoretical P&L results:', pnlResults);
+        
+        // Update the positions with calculated theoretical P&L
+        const updatedPositions = positions.map(position => {
+          const theoreticalPnl = pnlResults[position.id];
+          return theoreticalPnl ? { ...position, theoreticalPnl } : position;
+        });
+        
+        console.log(`Updated theoretical P&L for ${Object.keys(pnlResults).length} out of ${positions.length} positions`);
+        set({ positions: updatedPositions });
+      } catch (bulkError) {
+        // If bulk endpoint fails with 404/501 (not implemented) or network error (status 0)
+        if (bulkError && typeof bulkError === 'object' && 'status' in bulkError && 
+            (bulkError.status === 404 || bulkError.status === 501 || bulkError.status === 0)) {
+          console.log('Bulk theoretical P&L endpoint not implemented - trying individual calculations');
+          
+          // Process positions in parallel using Promise.allSettled
+          const results = await Promise.allSettled(
+            positions.map(async (position) => {
+              try {
+                const pnl = await get().calculateTheoreticalPnL(position, 0) as PnLResult;
+                return { position, pnl, success: true };
+              } catch (error) {
+                console.error(`Failed to calculate theoretical P&L for position ${position.id}:`, error);
+                // Create an error PnL result
+                const errorPnl: PnLResult = {
+                  positionId: position.id,
+                  pnlAmount: 0,
+                  pnlPercent: 0,
+                  initialValue: 0,
+                  currentValue: 0,
+                  error: error instanceof Error ? error.message : String(error)
+                };
+                return { position, pnl: errorPnl, success: false };
+              }
+            })
+          );
+          
+          // Update the positions with calculated theoretical P&L
+          const updatedPositions = [...positions];
+          let updatedCount = 0;
+          let errorCount = 0;
+          
+          for (const result of results) {
+            if (result.status === 'fulfilled') {
+              const { position, pnl, success } = result.value;
+              const posIndex = updatedPositions.findIndex(p => p.id === position.id);
+              
+              if (posIndex >= 0) {
+                updatedPositions[posIndex] = { ...updatedPositions[posIndex], theoreticalPnl: pnl };
+                if (success) {
+                  updatedCount++;
+                } else {
+                  errorCount++;
+                }
+              }
+            }
+          }
+          
+          console.log(`Updated theoretical P&L for ${updatedCount} out of ${positions.length} positions (${errorCount} errors)`);
+          set({ positions: updatedPositions });
+        } else {
+          // For other errors, rethrow
+          throw bulkError;
+        }
+      }
     } catch (error) {
       console.error('Failed to recalculate all theoretical P&L:', error);
       set({ error: `Failed to recalculate all theoretical P&L: ${error instanceof Error ? error.message : String(error)}` });

@@ -203,11 +203,20 @@ export const positionsApi = {
    * @returns Promise with P&L calculation result
    */
   calculatePnL: async (id: string, recalculate: boolean = false): Promise<PnLResult> => {
-    console.log(`API: Calculating P&L for position ${id}, recalculate=${recalculate}`);
+    // Check if we're in development mode to reduce console noise
+    const isDev = process.env.NODE_ENV === 'development';
+    
+    if (isDev) {
+      // In development, log with lower severity
+      console.debug(`API: Calculating P&L for position ${id}, recalculate=${recalculate}`);
+    }
+    
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.warn(`API: P&L calculation timed out for position ${id}`);
+        if (isDev) {
+          console.debug(`API: P&L calculation timed out for position ${id}`);
+        }
         controller.abort();
       }, 5000); // 5 second timeout
       
@@ -219,7 +228,10 @@ export const positionsApi = {
       );
       
       clearTimeout(timeoutId);
-      console.log('API: P&L calculation response:', response);
+      
+      if (isDev) {
+        console.debug('API: P&L calculation response:', response);
+      }
       
       return {
         positionId: response.position_id,
@@ -232,7 +244,12 @@ export const positionsApi = {
         calculationTimestamp: response.calculation_timestamp,
       };
     } catch (error) {
-      console.error(`API: Error calculating P&L for position ${id}:`, error);
+      // For network errors (status 0), don't log to console as these are expected
+      // until the backend endpoints are implemented
+      if ((error as any)?.status !== 0) {
+        console.warn(`API: Error calculating P&L for position ${id}:`, error);
+      }
+      
       // Return a default PnL result to prevent UI from breaking
       return {
         positionId: id,
@@ -241,7 +258,8 @@ export const positionsApi = {
         initialValue: 0,
         currentValue: 0,
         calculationTimestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        endpointNotImplemented: (error as any)?.status === 0 || (error as any)?.status === 404 || (error as any)?.status === 501
       };
     }
   },
@@ -254,11 +272,20 @@ export const positionsApi = {
    * @returns Promise with P&L calculation result
    */
   calculateTheoreticalPnL: async (id: string, params: PnLCalculationParams, recalculate: boolean = false): Promise<PnLResult> => {
-    console.log(`API: Calculating theoretical P&L for position ${id} with params:`, params, `recalculate=${recalculate}`);
+    // Check if we're in development mode to reduce console noise
+    const isDev = process.env.NODE_ENV === 'development';
+    
+    if (isDev) {
+      // In development, log with lower severity
+      console.debug(`API: Calculating theoretical P&L for position ${id} with params:`, params, `recalculate=${recalculate}`);
+    }
+    
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.warn(`API: Theoretical P&L calculation timed out for position ${id}`);
+        if (isDev) {
+          console.debug(`API: Theoretical P&L calculation timed out for position ${id}`);
+        }
         controller.abort();
       }, 5000); // 5 second timeout
       
@@ -271,7 +298,10 @@ export const positionsApi = {
       );
       
       clearTimeout(timeoutId);
-      console.log('API: Theoretical P&L calculation response:', response);
+      
+      if (isDev) {
+        console.debug('API: Theoretical P&L calculation response:', response);
+      }
       
       return {
         positionId: response.position_id,
@@ -284,7 +314,12 @@ export const positionsApi = {
         calculationTimestamp: response.calculation_timestamp,
       };
     } catch (error) {
-      console.error(`API: Error calculating theoretical P&L for position ${id}:`, error);
+      // For network errors (status 0), don't log to console as these are expected
+      // until the backend endpoints are implemented
+      if ((error as any)?.status !== 0) {
+        console.warn(`API: Error calculating theoretical P&L for position ${id}:`, error);
+      }
+      
       // Return a default PnL result to prevent UI from breaking
       return {
         positionId: id,
@@ -293,7 +328,8 @@ export const positionsApi = {
         initialValue: 0,
         currentValue: 0,
         calculationTimestamp: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error)
+        error: error instanceof Error ? error.message : String(error),
+        endpointNotImplemented: (error as any)?.status === 0 || (error as any)?.status === 404 || (error as any)?.status === 501
       };
     }
   },
@@ -306,11 +342,20 @@ export const positionsApi = {
    * @returns Promise with P&L calculation results keyed by position ID
    */
   calculateBulkTheoreticalPnL: async (ids: string[], params: PnLCalculationParams, recalculate: boolean = false): Promise<Record<string, PnLResult>> => {
-    console.log(`API: Calculating bulk theoretical P&L for ${ids.length} positions with params:`, params, `recalculate=${recalculate}`);
+    // Check if we're in development mode to reduce console noise
+    const isDev = process.env.NODE_ENV === 'development';
+    
+    if (isDev) {
+      // In development, log with lower severity
+      console.debug(`API: Calculating bulk theoretical P&L for ${ids.length} positions with params:`, params, `recalculate=${recalculate}`);
+    }
+    
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
-        console.warn(`API: Bulk theoretical P&L calculation timed out for ${ids.length} positions`);
+        if (isDev) {
+          console.debug(`API: Bulk theoretical P&L calculation timed out for ${ids.length} positions`);
+        }
         controller.abort();
       }, 8000); // 8 second timeout for bulk operations
       
@@ -326,7 +371,10 @@ export const positionsApi = {
       );
       
       clearTimeout(timeoutId);
-      console.log('API: Bulk theoretical P&L calculation response:', response);
+      
+      if (isDev) {
+        console.debug('API: Bulk theoretical P&L calculation response:', response);
+      }
       
       // Convert the array to a record keyed by position ID
       const results: Record<string, PnLResult> = {};
@@ -345,7 +393,12 @@ export const positionsApi = {
       
       return results;
     } catch (error) {
-      console.error(`API: Error calculating bulk theoretical P&L for ${ids.length} positions:`, error);
+      // For network errors (status 0), don't log to console as these are expected
+      // until the backend endpoints are implemented
+      if ((error as any)?.status !== 0) {
+        console.warn(`API: Error calculating bulk theoretical P&L for ${ids.length} positions:`, error);
+      }
+      
       // Return a default PnL result for each position to prevent UI from breaking
       const results: Record<string, PnLResult> = {};
       ids.forEach(id => {
@@ -356,7 +409,8 @@ export const positionsApi = {
           initialValue: 0,
           currentValue: 0,
           calculationTimestamp: new Date().toISOString(),
-          error: error instanceof Error ? error.message : String(error)
+          error: error instanceof Error ? error.message : String(error),
+          endpointNotImplemented: (error as any)?.status === 0 || (error as any)?.status === 404 || (error as any)?.status === 501
         };
       });
       return results;

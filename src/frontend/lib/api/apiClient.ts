@@ -127,16 +127,35 @@ export class ApiClient {
         );
       }
       
-      // Enhanced error logging
-      console.error(`API NETWORK ERROR for ${url.toString()}:`, error);
-      console.error(`Network details:`, { 
-        apiUrl: this.baseUrl, 
-        endpoint, 
-        params,
-        fullUrl: url.toString(),
-        errorName: error instanceof Error ? error.name : typeof error,
-        errorMessage: error instanceof Error ? error.message : String(error)
-      });
+      // Check if this is a P&L calculation endpoint that we know isn't implemented yet
+      const isPnLEndpoint = endpoint.includes('/pnl') || endpoint.includes('/theoretical-pnl') || endpoint.includes('/bulk-theoretical-pnl');
+      const isDev = process.env.NODE_ENV === 'development';
+      
+      // Only log errors for non-P&L endpoints or if we're not in development mode
+      if (!isPnLEndpoint || !isDev) {
+        // Enhanced error logging but with lower severity for known unimplemented endpoints
+        if (isPnLEndpoint) {
+          console.debug(`API NETWORK ERROR for ${url.toString()}:`, error);
+          console.debug(`Network details:`, { 
+            apiUrl: this.baseUrl, 
+            endpoint, 
+            params,
+            fullUrl: url.toString(),
+            errorName: error instanceof Error ? error.name : typeof error,
+            errorMessage: error instanceof Error ? error.message : String(error)
+          });
+        } else {
+          console.error(`API NETWORK ERROR for ${url.toString()}:`, error);
+          console.error(`Network details:`, { 
+            apiUrl: this.baseUrl, 
+            endpoint, 
+            params,
+            fullUrl: url.toString(),
+            errorName: error instanceof Error ? error.name : typeof error,
+            errorMessage: error instanceof Error ? error.message : String(error)
+          });
+        }
+      }
       
       throw new ApiError(
         0, 
@@ -224,8 +243,20 @@ export class ApiClient {
         );
       }
       
-      // Handle network errors like CORS, server unavailable, etc.
-      console.error(`Network error when posting to ${url.toString()}:`, error);
+      // Check if this is a P&L calculation endpoint that we know isn't implemented yet
+      const isPnLEndpoint = endpoint.includes('/pnl') || endpoint.includes('/theoretical-pnl') || endpoint.includes('/bulk-theoretical-pnl');
+      const isDev = process.env.NODE_ENV === 'development';
+      
+      // Only log errors for non-P&L endpoints or if we're not in development mode
+      if (!isPnLEndpoint || !isDev) {
+        // Use debug level for P&L endpoints
+        if (isPnLEndpoint) {
+          console.debug(`Network error when posting to ${url.toString()}:`, error);
+        } else {
+          console.error(`Network error when posting to ${url.toString()}:`, error);
+        }
+      }
+      
       throw new ApiError(
         0, 
         'Network Error', 
@@ -421,14 +452,31 @@ export class ApiClient {
         data = { text: await response.text(), contentType };
       }
       
-      // Enhanced logging for response data
-      console.log(`API PARSED RESPONSE for ${response.url}:`, {
-        status: response.status,
-        ok: response.ok,
-        hasData: !!data,
-        dataType: data ? typeof data : 'null',
-        contentType
-      });
+      // Check if this is a P&L calculation endpoint that we know isn't implemented yet
+      const isPnLEndpoint = response.url.includes('/pnl') || response.url.includes('/theoretical-pnl') || response.url.includes('/bulk-theoretical-pnl');
+      const isDev = process.env.NODE_ENV === 'development';
+      
+      // Only log response data for non-P&L endpoints or if we're not in development mode
+      if (!isPnLEndpoint || !isDev) {
+        // Use debug level for P&L endpoints
+        if (isPnLEndpoint) {
+          console.debug(`API PARSED RESPONSE for ${response.url}:`, {
+            status: response.status,
+            ok: response.ok,
+            hasData: !!data,
+            dataType: data ? typeof data : 'null',
+            contentType
+          });
+        } else {
+          console.log(`API PARSED RESPONSE for ${response.url}:`, {
+            status: response.status,
+            ok: response.ok,
+            hasData: !!data,
+            dataType: data ? typeof data : 'null',
+            contentType
+          });
+        }
+      }
       
       if (!response.ok) {
         // Extract error message from response if available
@@ -449,13 +497,31 @@ export class ApiClient {
           errorMessage = response.statusText || 'Unknown error';
         }
         
-        console.error(`API ERROR DETAILS:`, { 
-          status: response.status, 
-          statusText: response.statusText,
-          url: response.url,
-          errorMessage,
-          data
-        });
+        // Check if this is a P&L calculation endpoint that we know isn't implemented yet
+        const isPnLEndpoint = response.url.includes('/pnl') || response.url.includes('/theoretical-pnl') || response.url.includes('/bulk-theoretical-pnl');
+        const isDev = process.env.NODE_ENV === 'development';
+        
+        // Only log errors for non-P&L endpoints or if we're not in development mode
+        if (!isPnLEndpoint || !isDev) {
+          // Use debug level for P&L endpoints
+          if (isPnLEndpoint) {
+            console.debug(`API ERROR DETAILS:`, { 
+              status: response.status, 
+              statusText: response.statusText,
+              url: response.url,
+              errorMessage,
+              data
+            });
+          } else {
+            console.error(`API ERROR DETAILS:`, { 
+              status: response.status, 
+              statusText: response.statusText,
+              url: response.url,
+              errorMessage,
+              data
+            });
+          }
+        }
         
         throw new ApiError(
           response.status,
