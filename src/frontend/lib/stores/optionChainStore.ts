@@ -132,69 +132,64 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
     }
   },
   
-  // Set selected expiration and fetch option chain
+  // Set selected expiration and fetch the chain for that date
   setSelectedExpiration: async (date: string) => {
-    const { ticker, filters, expirations } = get();
+    const { ticker, filters } = get();
+    const currentSelection = get().selectedExpiration;
     
-    if (!ticker || !date) {
-      logger.warn('OPTION_CHAIN_DEBUG: Missing ticker or date in setSelectedExpiration', { ticker, date });
+    logger.info('OPTION_CHAIN_DEBUG: setSelectedExpiration called with', { 
+      date, 
+      currentSelection,
+      previouslySelectedDate: currentSelection,
+      ticker
+    });
+    
+    if (!ticker) {
+      logger.warn('OPTION_CHAIN_DEBUG: setSelectedExpiration called with no ticker set');
+      return;
+    }
+    
+    if (!date) {
+      logger.warn('OPTION_CHAIN_DEBUG: setSelectedExpiration called with empty date');
       return;
     }
     
     // Format the date to ensure it's in YYYY-MM-DD format
-    // This handles cases where date might be in ISO format (with time component)
-    const formattedDate = date.includes('T') 
+    const formattedDate = date.includes('T')
       ? date.split('T')[0]  // Extract just the date part if it has a timestamp
       : date;
     
-    logger.info('OPTION_CHAIN_DEBUG: Formatting date', { original: date, formatted: formattedDate });
-    
-    // Check if the expiration date exists in our list of available expirations
-    logger.info('OPTION_CHAIN_DEBUG: Checking if expiration exists', { formattedDate, availableExpirations: expirations });
-    const expirationExists = expirations.some(exp => {
-      const expDate = exp.date.includes('T') 
-        ? exp.date.split('T')[0]
-        : exp.date;
-      return expDate === formattedDate;
+    logger.info('OPTION_CHAIN_DEBUG: Formatted date', { 
+      originalDate: date, 
+      formattedDate 
     });
-    logger.info('OPTION_CHAIN_DEBUG: Expiration exists?', expirationExists);
     
-    if (!expirationExists) {
-      set({ 
-        error: `Expiration date ${formattedDate} is not available for ${ticker}. Please select from the available dates.`,
-        isLoading: false
-      });
-      return;
-    }
-    
-    // IMPORTANT: Update the UI state immediately before starting the async operation
-    // This prevents the UI from freezing while waiting for the chain to load
+    // Update the selected expiration immediately
     set({ 
       selectedExpiration: formattedDate, 
       isLoading: true, 
-      error: null,
-      // Clear chain when changing expiration
-      chain: [],
-      selectedOption: null
+      error: null
     });
     
-    // Use requestAnimationFrame to ensure the UI updates before starting the heavy operation
-    // This is crucial for preventing UI freezing
+    // Use requestAnimationFrame to not block the UI
     requestAnimationFrame(async () => {
       // Create an AbortController to handle timeouts and cancellations
       const abortController = new AbortController();
+      const signal = abortController.signal;
+      
+      // Set a timeout for the request
+      const timeoutMs = 8000; // 8 second timeout - reduced from 10s for better responsiveness
       const timeoutId = setTimeout(() => {
-        logger.warn('OPTION_CHAIN_DEBUG: Request timeout after 8 seconds', { ticker, formattedDate });
+        logger.warn(`OPTION_CHAIN_DEBUG: Request timeout after ${timeoutMs}ms for ${ticker} at ${formattedDate}`);
         abortController.abort();
-        // Important: Reset loading state when timeout occurs
-        set({ 
-          isLoading: false,
-          error: 'Request timed out. Please try again.'
-        });
-      }, 8000); // 8 second timeout - reduced from 10s for better responsiveness
+      }, timeoutMs);
       
       try {
-        logger.info('OPTION_CHAIN_DEBUG: Starting to fetch option chain', { ticker, formattedDate });
+        logger.info('OPTION_CHAIN_DEBUG: Starting to fetch option chain', { 
+          ticker, 
+          formattedDate,
+          baseApiUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003'
+        });
         
         // Convert our filter format to API parameters
         const params: {
@@ -219,57 +214,66 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
         
         // Generate cache key based on ticker, expiration, and filters
         const cacheKey = getOptionChainCacheKey(ticker, formattedDate, params);
-        logger.info('OPTION_CHAIN_DEBUG: Generated cache key', cacheKey);
+        logger.info('OPTION_CHAIN_DEBUG: Generated cache key', { cacheKey });
         
         // Try to get option chain from cache first, or fetch if not available
         logger.info('OPTION_CHAIN_DEBUG: Attempting to fetch option chain from cache or API');
         
-        // Improved fetch with timeout handling
-        const fetchWithTimeout = async () => {
-          try {
-            // Use a shorter timeout for the Promise.race to ensure responsiveness
-            const timeoutPromise = new Promise<OptionContract[]>((_, reject) => {
-              setTimeout(() => {
-                reject(new Error('Request timed out. Please try again.'));
-              }, 10000); // 10 second backup timeout
-            });
-            
-            // Race between the actual fetch and the timeout
-            return await Promise.race([
-              cacheManager.getOrFetch(
-                cacheKey,
-                async () => {
-                  logger.info('OPTION_CHAIN_DEBUG: Cache miss, fetching from API');
-                  
-                  // Add a progress update to improve perceived performance
-                  setTimeout(() => {
-                    if (get().isLoading) {
-                      set(state => ({
-                        ...state,
-                        error: 'Still loading option chain data...'
-                      }));
-                    }
-                  }, 3000);
-                  
-                  return await optionsApi.getOptionsForExpiration(ticker, formattedDate, params, abortController.signal);
-                },
-                getMarketAwareTTL()
-              ),
-              timeoutPromise
-            ]);
-          } catch (error) {
-            if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') {
-              logger.error('OPTION_CHAIN_DEBUG: Request aborted due to timeout', { ticker, formattedDate });
-              throw new Error('Request timed out. Please try again.');
+        // Log the full API endpoint being used 
+        const apiUrl = `/options/chains/${ticker}/${formattedDate}`;
+        logger.info('OPTION_CHAIN_DEBUG: API endpoint target', { 
+          apiUrl,
+          params
+        });
+
+        // Debug: Print the current state of request for debugging
+        console.log('OPTION_CHAIN_STATE_DEBUG:', { 
+          ticker, 
+          formattedDate, 
+          params,
+          filters,
+          isLoading: get().isLoading
+        });
+        
+        // Attempt to fetch from cache or API
+        const chain = await cacheManager.getOrFetch(
+          cacheKey,
+          async () => {
+            logger.info('OPTION_CHAIN_DEBUG: Cache miss for option chain, fetching from API');
+            try {
+              logger.info('OPTION_CHAIN_DEBUG: About to call API.getOptionsForExpiration', {
+                ticker,
+                formattedDate,
+                params
+              });
+              
+              // Make the API call with the abort signal
+              const result = await optionsApi.getOptionsForExpiration(
+                ticker, 
+                formattedDate, 
+                params,
+                signal
+              );
+              
+              logger.info(`OPTION_CHAIN_DEBUG: API call successful. Received ${result.length} options`);
+              
+              // Return the result, or empty array if undefined (shouldn't happen)
+              return result || [];
+            } catch (fetchError) {
+              logger.error('OPTION_CHAIN_DEBUG: Error during API fetch', 
+                fetchError instanceof Error 
+                  ? { message: fetchError.message, stack: fetchError.stack } 
+                  : fetchError
+              );
+              
+              // Re-throw to be handled by the main catch block
+              throw fetchError;
             }
-            throw error;
-          }
-        };
+          },
+          getMarketAwareTTL()
+        );
         
-        // Execute the fetch operation
-        const chain = await fetchWithTimeout();
-        
-        // Clear the timeout since we got a response
+        // Clear the timeout since the request completed
         clearTimeout(timeoutId);
         
         // Check if we still have a valid state (user hasn't navigated away or changed selection)
@@ -278,18 +282,35 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
           return;
         }
         
-        logger.info(`OPTION_CHAIN_DEBUG: Received chain data with ${chain.length} options`, { chainLength: chain.length });
+        logger.info(`OPTION_CHAIN_DEBUG: Received chain data with ${chain.length} options`, { 
+          chainLength: chain.length,
+          sampleOption: chain.length > 0 ? JSON.stringify(chain[0]).substring(0, 200) + '...' : 'none'
+        });
         
         // Update the state with the chain data
         // Use requestAnimationFrame again to ensure smooth UI updates
         requestAnimationFrame(() => {
           set({ chain, isLoading: false, error: null });
+          
+          // Debug log of first option data for verification
+          if (chain.length > 0) {
+            logger.info('OPTION_CHAIN_DEBUG: First option in chain:', chain[0]);
+          }
         });
       } catch (error) {
         // Clear the timeout in case of error
         clearTimeout(timeoutId);
         
-        logger.error('OPTION_CHAIN_DEBUG: Error fetching option chain', error instanceof Error ? { message: error.message, stack: error.stack } : error);
+        logger.error('OPTION_CHAIN_DEBUG: Error fetching option chain', 
+          error instanceof Error 
+            ? { 
+                message: error.message, 
+                stack: error.stack,
+                name: error.name,
+                type: error.constructor.name
+              } 
+            : error
+        );
         
         // Provide a more user-friendly error message
         let errorMessage = 'Failed to fetch option chain';

@@ -28,6 +28,8 @@ export class ApiClient {
   
   constructor(baseUrl = API_BASE_URL) {
     this.baseUrl = baseUrl;
+    // Add debug log of API base URL at initialization
+    console.log(`API Client initialized with base URL: ${baseUrl}`);
   }
   
   /**
@@ -56,9 +58,15 @@ export class ApiClient {
       });
     }
     
-    // Log connection attempt details
-    console.log(`Attempting API connection to: ${url.toString()}`);
-    console.log(`API base URL: ${this.baseUrl}`);
+    // Enhanced debug logging for API requests
+    console.log(`API REQUEST: GET ${url.toString()}`);
+    console.log(`Request details:`, { 
+      baseUrl: this.baseUrl, 
+      endpoint, 
+      params, 
+      fullUrl: url.toString(),
+      timeout: timeout || 'default'
+    });
     
     // Create a timeout promise if timeout is specified and no signal is provided
     let timeoutId: number | undefined;
@@ -95,7 +103,13 @@ export class ApiClient {
       }
       
       const endTime = performance.now();
-      console.log(`API connection successful to: ${url.toString()} in ${Math.round(endTime - startTime)}ms`);
+      console.log(`API RESPONSE: ${response.status} ${response.statusText} for ${url.toString()} (${Math.round(endTime - startTime)}ms)`);
+      
+      // Add logging for the response status
+      if (!response.ok) {
+        console.error(`API ERROR: ${response.status} ${response.statusText} for ${url.toString()}`);
+      }
+      
       return this.handleResponse<T>(response);
     } catch (error) {
       // Clear timeout if it was set
@@ -113,9 +127,16 @@ export class ApiClient {
         );
       }
       
-      // Handle network errors like CORS, server unavailable, etc.
-      console.error(`Network error when fetching ${url.toString()}:`, error);
-      console.error(`Network details - API URL: ${this.baseUrl}, Endpoint: ${endpoint}`);
+      // Enhanced error logging
+      console.error(`API NETWORK ERROR for ${url.toString()}:`, error);
+      console.error(`Network details:`, { 
+        apiUrl: this.baseUrl, 
+        endpoint, 
+        params,
+        fullUrl: url.toString(),
+        errorName: error instanceof Error ? error.name : typeof error,
+        errorMessage: error instanceof Error ? error.message : String(error)
+      });
       
       throw new ApiError(
         0, 
@@ -375,50 +396,70 @@ export class ApiClient {
   }
   
   /**
-   * Handle API response
-   * @param response - Fetch response
-   * @returns Promise with the response data
-   * @throws ApiError if the response is not ok
+   * Handle the response from the API
+   * @param response - Fetch API response object
+   * @returns Promise with parsed response data
+   * @throws ApiError if response is not OK
    */
   private async handleResponse<T>(response: Response): Promise<T> {
-    if (!response.ok) {
-      let errorMessage = `API error: ${response.status} ${response.statusText}`;
-      let userFriendlyMessage = 'An error occurred while processing your request.';
+    // Try to parse the response as JSON
+    try {
+      const data = await response.json();
       
-      try {
-        const errorData = await response.json();
-        if (errorData.detail) {
-          errorMessage = errorData.detail;
-          userFriendlyMessage = errorData.detail;
-        }
-      } catch (e) {
-        // If we can't parse the error response, use status-specific messages
-        if (response.status === 504 || response.status === 408) {
-          userFriendlyMessage = 'The request took too long to complete. Please try again.';
-        } else if (response.status === 404) {
-          userFriendlyMessage = 'The requested resource was not found.';
-        } else if (response.status >= 500) {
-          userFriendlyMessage = 'The server encountered an error. Please try again later.';
-        }
+      // Enhanced logging for response data
+      console.log(`API PARSED RESPONSE for ${response.url}:`, {
+        status: response.status,
+        ok: response.ok,
+        hasData: !!data,
+        dataType: data ? typeof data : 'null'
+      });
+      
+      if (!response.ok) {
+        // Extract error message from response if available
+        const errorMessage = data?.detail || data?.message || response.statusText;
+        console.error(`API ERROR DETAILS:`, { 
+          status: response.status, 
+          statusText: response.statusText,
+          url: response.url,
+          errorMessage,
+          data
+        });
+        
+        throw new ApiError(
+          response.status,
+          response.statusText,
+          errorMessage
+        );
       }
       
-      console.error(`API error: ${response.status} ${response.statusText} - ${errorMessage}`);
-      throw new ApiError(response.status, response.statusText, userFriendlyMessage);
-    }
-    
-    // For 204 No Content responses, return empty object
-    if (response.status === 204) {
-      return {} as T;
-    }
-    
-    try {
-      return await response.json() as Promise<T>;
-    } catch (e) {
-      console.error('Error parsing JSON response:', e);
+      return data as T;
+    } catch (error) {
+      // If error is already an ApiError, rethrow it
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      
+      // Otherwise check if the error is from JSON parsing
+      if (error instanceof SyntaxError) {
+        console.error(`API JSON PARSE ERROR for ${response.url}:`, {
+          status: response.status,
+          statusText: response.statusText,
+          error: error.message
+        });
+        
+        throw new ApiError(
+          response.status,
+          response.statusText,
+          'Invalid response from server'
+        );
+      }
+      
+      // Handle other errors
+      console.error(`API UNEXPECTED ERROR for ${response.url}:`, error);
       throw new ApiError(
-        500,
-        'Invalid Response',
-        'The server returned an invalid response. Please try again.'
+        response.status,
+        response.statusText,
+        'An unexpected error occurred'
       );
     }
   }

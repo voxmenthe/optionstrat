@@ -4,6 +4,7 @@ import logging
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+import time
 
 # Load environment variables from .env file
 load_dotenv()
@@ -54,6 +55,32 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Middleware to log all requests
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    # Get request details
+    request_path = request.url.path
+    request_query = str(request.query_params)
+    client_host = request.client.host if request.client else "unknown"
+    
+    # Log the start of the request
+    logger.info(f"REQUEST: {request.method} {request_path}?{request_query} from {client_host}")
+    
+    # Time the request
+    start_time = time.time()
+    
+    # Process the request
+    response = await call_next(request)
+    
+    # Calculate processing time
+    process_time = time.time() - start_time
+    formatted_process_time = f"{process_time:.4f}"
+    
+    # Log the completion of the request with status code and time
+    logger.info(f"RESPONSE: {request.method} {request_path} - Status: {response.status_code} - Time: {formatted_process_time}s")
+    
+    return response
 
 # Root endpoint for health check
 @app.get("/")
