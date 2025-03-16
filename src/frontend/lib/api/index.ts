@@ -8,6 +8,7 @@ export { default as positionsApi } from './positionsApi';
 export { default as greeksApi } from './greeksApi';
 export { default as marketDataApi } from './marketDataApi';
 export { default as scenariosApi } from './scenariosApi';
+export { default as optionsApi } from './optionsApi';
 
 // Re-export types
 export type { 

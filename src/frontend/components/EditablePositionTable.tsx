@@ -4,6 +4,7 @@ import React, { FC, useState, useEffect } from 'react';
 import { OptionPosition, usePositionStore, GroupedPosition, TheoreticalPnLSettings } from '../lib/stores/positionStore';
 import PositionForm from './PositionForm';
 import EditableCell from './EditableCell';
+import { formatPrice } from '../lib/utils/optionPriceUtils';
 
 // Configuration for which fields are editable and how
 interface EditablePositionField {
@@ -33,6 +34,13 @@ const EDITABLE_POSITION_FIELDS: Record<string, EditablePositionField> = {
     editable: true,
     type: 'number',
     validator: (value) => value >= 0
+  },
+  markPrice: {
+    fieldName: 'markPrice',
+    editable: true,
+    type: 'number',
+    validator: (value) => value >= 0,
+    formatter: (value) => value !== undefined ? value.toFixed(2) : 'N/A'
   },
   expiration: {
     fieldName: 'expiration',
@@ -236,12 +244,71 @@ const EditablePositionTable: FC = () => {
     });
   };
 
+  const handleResetMarkPrice = async (position: OptionPosition) => {
+    try {
+      // Update the position to remove the mark price override
+      await updatePosition(position.id, {
+        markPriceOverride: false,
+        markPrice: undefined // Clear the mark price so it will be recalculated
+      });
+      
+      // Trigger recalculation to refresh the mark price
+      requestAnimationFrame(() => {
+        // Recalculate to refresh the data
+        recalculateAllGreeks();
+        
+        // Try to recalculate P&L with the updated mark price
+        try {
+          setTimeout(() => {
+            try {
+              recalculateAllPnL().catch(() => {
+                // Silent catch - errors are already handled in the store
+              });
+              
+              recalculateAllTheoreticalPnL().catch(() => {
+                // Silent catch - errors are already handled in the store
+              });
+            } catch {
+              // Silent catch
+            }
+          }, 100);
+        } catch {
+          // Silent catch at the outer level
+        }
+      });
+      
+      // Show success message
+      setToastMessage({
+        title: 'Mark price reset',
+        status: 'success'
+      });
+      
+      // Auto clear toast after 2 seconds
+      setTimeout(() => setToastMessage(null), 2000);
+    } catch (error) {
+      console.error('Error resetting mark price:', error);
+      setToastMessage({
+        title: 'Error resetting mark price',
+        status: 'error',
+        message: error instanceof Error ? error.message : String(error)
+      });
+      
+      // Auto clear toast after 5 seconds
+      setTimeout(() => setToastMessage(null), 5000);
+    }
+  };
+
   const handleCellEdit = async (position: OptionPosition, fieldName: string, newValue: any) => {
     try {
       // Create update object with just the changed field
       const updateData: Partial<OptionPosition> = {
         [fieldName]: newValue
       };
+      
+      // If editing mark price, set the override flag
+      if (fieldName === 'markPrice') {
+        updateData.markPriceOverride = true;
+      }
       
       // Update the position
       await updatePosition(position.id, updateData);
@@ -444,6 +511,29 @@ const EditablePositionTable: FC = () => {
           align="right"
         />
       </td>
+      <td className="py-2 px-3">
+        <div className="flex items-center">
+          <EditableCell
+            value={position.markPrice}
+            isEditable={EDITABLE_POSITION_FIELDS.markPrice.editable}
+            onEdit={(newValue) => handleCellEdit(position, 'markPrice', newValue)}
+            type={EDITABLE_POSITION_FIELDS.markPrice.type}
+            validator={EDITABLE_POSITION_FIELDS.markPrice.validator}
+            formatter={EDITABLE_POSITION_FIELDS.markPrice.formatter}
+            isCalculating={isRecalculating}
+            align="right"
+          />
+          {position.markPriceOverride && (
+            <button
+              onClick={() => handleResetMarkPrice(position)}
+              className="ml-2 text-xs text-gray-500 hover:text-red-500"
+              title="Reset to calculated mark price"
+            >
+              ↺
+            </button>
+          )}
+        </div>
+      </td>
       <td className="py-2 px-3 text-right">
         {position.action && position.premium ? 
           (position.action === 'buy' ? '-' : '+') + formatMoney(calculateCostBasis(position)).substring(1) : 
@@ -580,6 +670,7 @@ const EditablePositionTable: FC = () => {
               <th className="py-3 px-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Premium</th>
+              <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Mark Price</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost Basis</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">IV</th>
               <th className="py-3 px-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Current Value</th>

@@ -207,5 +207,71 @@ export const optionsApi = {
       }
       throw error;
     }
+  },
+
+  /**
+   * Get option data for a specific position
+   * This is useful for fetching current market data (bid/ask) for an existing position
+   * 
+   * @param position - The option position to get data for
+   * @param signal - Optional AbortSignal for cancellation
+   * @returns The option contract data or undefined if not found
+   */
+  async getOptionDataForPosition(
+    position: { ticker: string; expiration: string; strike: number; type: 'call' | 'put' },
+    signal?: AbortSignal
+  ): Promise<any | undefined> {
+    try {
+      // Get all options for this expiration
+      const options = await this.getOptionsForExpiration(
+        position.ticker,
+        position.expiration,
+        {},
+        signal
+      );
+      
+      // Find the specific option that matches our position
+      const optionData = options.find(option => 
+        option.strike === position.strike && 
+        option.optionType.toLowerCase() === position.type.toLowerCase()
+      );
+      
+      if (!optionData) {
+        logger.warn('OPTIONS_API: Could not find option data for position', {
+          ticker: position.ticker,
+          expiration: position.expiration,
+          strike: position.strike,
+          type: position.type
+        });
+        return undefined;
+      }
+      
+      logger.info('OPTIONS_API: Found option data for position', {
+        ticker: position.ticker,
+        expiration: position.expiration,
+        strike: position.strike,
+        type: position.type,
+        bid: optionData.bid,
+        ask: optionData.ask
+      });
+      
+      return optionData;
+    } catch (error: unknown) {
+      // Don't log aborted requests as errors
+      if (error instanceof Error && 
+          (error.name === 'CanceledError' || error.name === 'AbortError')) {
+        logger.info('OPTIONS_API: Request was cancelled for option data', { 
+          position 
+        });
+      } else {
+        logger.error('OPTIONS_API: Error getting option data for position', { 
+          position,
+          error: error instanceof Error ? error.message : String(error) 
+        });
+      }
+      
+      // Return undefined instead of throwing to make this more resilient
+      return undefined;
+    }
   }
 };

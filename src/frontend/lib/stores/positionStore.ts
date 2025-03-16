@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { positionsApi, greeksApi } from '../api';
+import { calculateMarkPrice } from '../utils/optionPriceUtils';
 import { PnLCalculationParams } from '../api/positionsApi';
 
 // Types for our store
@@ -33,6 +34,8 @@ export interface OptionPosition {
   action: 'buy' | 'sell';
   quantity: number;
   premium?: number;
+  markPrice?: number;  // New field for the mid price
+  markPriceOverride?: boolean;  // Flag to indicate if mark price is manually overridden
   greeks?: Greeks;
   pnl?: PnLResult;
   theoreticalPnl?: PnLResult;
@@ -83,6 +86,7 @@ interface PositionStore {
   removePosition: (id: string) => Promise<void>;
   calculateGreeks: (position: OptionPosition) => Promise<Greeks | void>;
   recalculateAllGreeks: () => Promise<void>;
+  updatePositionMarkPrice: (position: OptionPosition, optionData?: any) => void;
   
   // P&L calculations
   calculatePnL: (position: OptionPosition, recalculate?: boolean, retryCount?: number) => Promise<PnLResult | void>;
@@ -97,6 +101,61 @@ interface PositionStore {
 
 // Create the store with real API calls
 export const usePositionStore = create<PositionStore>((set, get) => ({
+  // Helper function to update mark price for a position
+  updatePositionMarkPrice: (position: OptionPosition, optionData?: any) => {
+    // Only update mark price if not manually overridden
+    if (position.markPriceOverride) return;
+    
+    // If option data is provided, calculate mark price from bid/ask
+    if (optionData) {
+      const markPrice = calculateMarkPrice(optionData.bid, optionData.ask);
+      
+      // Update the position with the calculated mark price
+      set(state => {
+        const updatedPositions = state.positions.map(pos => 
+          pos.id === position.id ? { ...pos, markPrice } : pos
+        );
+        return { positions: updatedPositions };
+      });
+    }
+  },
+  
+  // Function to fetch option data and update mark prices
+  fetchAndUpdateMarkPrice: async (position: OptionPosition) => {
+    // Skip if position has a manual override
+    if (position.markPriceOverride) return;
+    
+    try {
+      // Import here to avoid circular dependencies
+      const { optionsApi } = await import('../api');
+      
+      // Fetch option data for this position
+      const optionData = await optionsApi.getOptionDataForPosition(position);
+      
+      if (optionData) {
+        // Calculate and update mark price
+        const markPrice = calculateMarkPrice(optionData.bid, optionData.ask);
+        
+        if (markPrice !== undefined) {
+          // Update the position with the calculated mark price
+          set(state => {
+            const updatedPositions = state.positions.map(pos => 
+              pos.id === position.id ? { ...pos, markPrice } : pos
+            );
+            return { positions: updatedPositions };
+          });
+          
+          console.log(`Updated mark price for position ${position.id} to ${markPrice}`);
+          return markPrice;
+        }
+      }
+      
+      return undefined;
+    } catch (error) {
+      console.warn(`Failed to fetch option data for position ${position.id}:`, error);
+      return undefined;
+    }
+  },
   positions: [],
   loading: false,
   error: null,
@@ -249,6 +308,25 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
       const greeks = await greeksApi.calculateGreeks(position);
       console.log(`Received Greeks for position ${position.id}:`, greeks);
       
+      // Try to update mark price from option data if available
+      try {
+        // In a real implementation, we would fetch option data separately or extract it from the Greeks response
+        // For now, we'll use the Greeks data as a fallback, assuming it might have bid/ask properties
+        // This is just a placeholder - in a real implementation, we'd need to fetch actual option data
+        const optionData = {
+          bid: (greeks as any).bid,
+          ask: (greeks as any).ask
+        };
+        
+        // Calculate and update the mark price if we have valid data
+        if (optionData.bid !== undefined || optionData.ask !== undefined) {
+          get().updatePositionMarkPrice(position, optionData);
+        }
+      } catch (markPriceError) {
+        // Silently handle mark price calculation errors
+        console.warn(`Failed to update mark price for position ${position.id}:`, markPriceError);
+      }
+      
       // Store the updated position with Greeks in local state only (don't save to DB)
       set(state => {
         const updatedPositions = state.positions.map(pos => 
@@ -311,6 +389,28 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
           if (posIndex >= 0) {
             updatedPositions[posIndex] = { ...updatedPositions[posIndex], greeks };
             updatedCount++;
+            
+            // Try to update mark price from option data if available
+            try {
+              // In a real implementation, we would fetch option data separately
+              // For now, we'll use the Greeks data as a fallback
+              const optionData = {
+                bid: (greeks as any).bid,
+                ask: (greeks as any).ask
+              };
+              
+              // Only update if we have valid data and no override
+              if ((optionData.bid !== undefined || optionData.ask !== undefined) && 
+                  !updatedPositions[posIndex].markPriceOverride) {
+                const markPrice = calculateMarkPrice(optionData.bid, optionData.ask);
+                if (markPrice !== undefined) {
+                  updatedPositions[posIndex].markPrice = markPrice;
+                }
+              }
+            } catch (markPriceError) {
+              // Silently handle mark price calculation errors
+              console.warn(`Failed to update mark price for position ${position.id}:`, markPriceError);
+            }
             
             // We no longer save Greeks to the database as they should be calculated fresh each time
             // This prevents double-application of sign and quantity
