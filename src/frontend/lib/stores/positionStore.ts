@@ -87,6 +87,8 @@ interface PositionStore {
   calculateGreeks: (position: OptionPosition) => Promise<Greeks | void>;
   recalculateAllGreeks: () => Promise<void>;
   updatePositionMarkPrice: (position: OptionPosition, optionData?: any) => void;
+  fetchAndUpdateMarkPrice: (position: OptionPosition) => Promise<number | undefined>;
+  fetchAllMarkPrices: (forceUpdate?: boolean) => Promise<void>;
   
   // P&L calculations
   calculatePnL: (position: OptionPosition, recalculate?: boolean, retryCount?: number) => Promise<PnLResult | void>;
@@ -126,8 +128,8 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
     if (position.markPriceOverride) return;
     
     try {
-      // Import here to avoid circular dependencies
-      const { optionsApi } = await import('../api');
+      // Import directly from the file to avoid circular dependencies
+      const optionsApi = (await import('../api/optionsApi')).optionsApi;
       
       // Fetch option data for this position
       const optionData = await optionsApi.getOptionDataForPosition(position);
@@ -154,6 +156,103 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
     } catch (error) {
       console.warn(`Failed to fetch option data for position ${position.id}:`, error);
       return undefined;
+    }
+  },
+  
+  // Function to fetch mark prices for all positions in a batch
+  fetchAllMarkPrices: async (forceUpdate = false) => {
+    const { positions } = get();
+    
+    if (positions.length === 0) {
+      console.log('No positions to fetch mark prices for');
+      return;
+    }
+    
+    console.log(`Fetching mark prices for all ${positions.length} positions`);
+    
+    try {
+      // Group positions by ticker and expiration to minimize API calls
+      const positionsByTickerAndExpiry: Record<string, OptionPosition[]> = {};
+      
+      positions.forEach(position => {
+        // Skip positions with manual overrides unless forceUpdate is true
+        if (position.markPriceOverride && !forceUpdate) return;
+        
+        const key = `${position.ticker}|${position.expiration}`;
+        if (!positionsByTickerAndExpiry[key]) {
+          positionsByTickerAndExpiry[key] = [];
+        }
+        positionsByTickerAndExpiry[key].push(position);
+      });
+      
+      // Import directly from the file to avoid circular dependencies
+      const optionsApi = (await import('../api/optionsApi')).optionsApi;
+      
+      // Process each group in parallel
+      const results = await Promise.allSettled(
+        Object.entries(positionsByTickerAndExpiry).map(async ([key, positionGroup]) => {
+          const [ticker, expiration] = key.split('|');
+          
+          try {
+            // Fetch options for this expiration
+            const options = await optionsApi.getOptionsForExpiration(ticker, expiration);
+            
+            // Match options to positions and update mark prices
+            const updates: Array<{position: OptionPosition, markPrice: number}> = [];
+            
+            positionGroup.forEach(position => {
+              const matchingOption = options.find(option => 
+                option.strike === position.strike && 
+                option.optionType.toLowerCase() === position.type.toLowerCase()
+              );
+              
+              if (matchingOption) {
+                const markPrice = calculateMarkPrice(matchingOption.bid, matchingOption.ask);
+                
+                if (markPrice !== undefined) {
+                  updates.push({ position, markPrice });
+                }
+              }
+            });
+            
+            return { key, updates };
+          } catch (error) {
+            console.error(`Failed to fetch options for ${ticker} expiring ${expiration}:`, error);
+            return { key, error };
+          }
+        })
+      );
+      
+      // Apply all updates at once to minimize state updates
+      const allUpdates: Array<{position: OptionPosition, markPrice: number}> = [];
+      
+      results.forEach(result => {
+        if (result.status === 'fulfilled' && result.value.updates) {
+          allUpdates.push(...result.value.updates);
+        }
+      });
+      
+      if (allUpdates.length > 0) {
+        // Update all positions with new mark prices in a single state update
+        set(state => {
+          const updatedPositions = [...state.positions];
+          
+          allUpdates.forEach(({ position, markPrice }) => {
+            const posIndex = updatedPositions.findIndex(p => p.id === position.id);
+            if (posIndex >= 0) {
+              updatedPositions[posIndex] = { ...updatedPositions[posIndex], markPrice };
+            }
+          });
+          
+          return { positions: updatedPositions };
+        });
+        
+        console.log(`Updated mark prices for ${allUpdates.length} positions`);
+      } else {
+        console.log('No mark prices were updated');
+      }
+    } catch (error) {
+      console.error('Failed to fetch mark prices:', error);
     }
   },
   positions: [],
@@ -347,7 +446,7 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
     }
   },
   
-  recalculateAllGreeks: async () => {
+  recalculateAllGreeks: async (forceRecalculate = false) => {
     const { positions } = get();
     
     if (positions.length === 0) {
@@ -390,10 +489,8 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
             updatedPositions[posIndex] = { ...updatedPositions[posIndex], greeks };
             updatedCount++;
             
-            // Try to update mark price from option data if available
+            // If not force recalculating, try to use Greeks data as a fallback
             try {
-              // In a real implementation, we would fetch option data separately
-              // For now, we'll use the Greeks data as a fallback
               const optionData = {
                 bid: (greeks as any).bid,
                 ask: (greeks as any).ask
@@ -409,7 +506,7 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
               }
             } catch (markPriceError) {
               // Silently handle mark price calculation errors
-              console.warn(`Failed to update mark price for position ${position.id}:`, markPriceError);
+              console.warn(`Failed to update mark price from Greeks for position ${position.id}:`, markPriceError);
             }
             
             // We no longer save Greeks to the database as they should be calculated fresh each time
@@ -421,6 +518,15 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
       
       console.log(`Updated Greeks for ${updatedCount} out of ${positions.length} positions`);
       set({ positions: updatedPositions });
+      
+      // If force recalculating, also fetch and update mark prices
+      if (forceRecalculate) {
+        console.log('Force recalculating mark prices');
+        // Don't await - let this happen in the background
+        get().fetchAllMarkPrices(false).catch(markPriceError => {
+          console.warn('Failed to fetch mark prices:', markPriceError);
+        });
+      }
     } catch (error) {
       console.error('Failed to recalculate all Greeks:', error);
       set({ error: `Failed to recalculate all Greeks: ${error instanceof Error ? error.message : String(error)}` });

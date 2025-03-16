@@ -342,11 +342,18 @@ const calculateClientSidePnL = (position: OptionPosition): PnLResult => {
    - Integrated mark price calculation with the Greeks calculation flow
    - Added fallback handling for missing bid/ask data
 
+### Recently Completed ✅
+
+1. **Mark Price Display Fix**:
+   - Fixed issue where mark prices were showing as N/A even when bid/ask data was available
+   - Implemented proper import handling for the options API
+   - Added batch fetching of option data for multiple positions via new `fetchAllMarkPrices` function
+   - Integrated mark price updates with the Greeks calculation flow
+
 ### In Progress 🔄
 
 1. **API Integration**:
-   - Need to fix export issues in the options API
-   - Need to implement batch fetching of option data for multiple positions
+   - Optimize option data fetching to reduce API calls
 
 ### Remaining Tasks 📋
 
@@ -367,11 +374,12 @@ const calculateClientSidePnL = (position: OptionPosition): PnLResult => {
 
 ### Next Steps
 
-1. Fix the export issues with the options API
-2. Implement batch fetching of option data for multiple positions
-3. Update P&L calculation logic to use mark prices
-4. Add P&L columns to the editable position table
-5. Implement client-side fallback calculations
+1. ✅ Fix the mark price display issue - investigate why mark prices show as N/A when bid/ask data is available
+2. ✅ Fix the export issues with the options API
+3. ✅ Implement batch fetching of option data for multiple positions
+4. Update P&L calculation logic to use mark prices
+5. Add P&L columns to the editable position table
+6. Implement client-side fallback calculations
 
 ### Updated Timeline
 

@@ -1,16 +1,12 @@
+---
+description: All meaningful changes and edits
+globs: *
+alwaysApply: false
+---
 <Prompt>
     <!--
-      METADATA: Prompt Requirements and Setup
-    -->
-    <Metadata>
-        <Description>General Guidelines and Coding Best Practices</Description>
-        <Globs>*.py</Globs>
-        <AlwaysApply>true</AlwaysApply>
-    </Metadata>
-    
-    <!--
       CONTEXT: Overall context for the coding project.
-      There is more context if needed in the `.windsurf` folder and also in the `current-project-plans` folder. However you only need to consider the most relevant context for the current task.
+      Merges the background from both the XML prompt and the original guidelines.
     -->
     <Context>
         <!-- Project Description -->
@@ -44,7 +40,7 @@
     -->
     <Progress>
         <LoggingInstructions>
-            Document all tasks. There is an existing folder in the project root named .windsurf and also an existing folder named task-logs. You will use the task-logs folder to keep a log of tasks in the following format:
+            Document all tasks. Create a folder in the project root named .windsurf and keep a log of tasks in the following format:
 
             GOAL: Detail the goal of the task
             IMPLEMENTATION: Describe how it was implemented.
@@ -52,8 +48,6 @@
 
             [root]
                 [.windsurf]
-                    memory_bank.md (contains instructions for documenting progress and keeping context)
-                [task-logs]
                     task-log_dd-mm-yy-hh-mm.log
         </LoggingInstructions>
     </Progress>
@@ -177,7 +171,6 @@
         -->
         <AdditionalInstructions>
             - Be clear, succinct, and to the point.
-            - Check code context, recent task logs, and recent plans from the current-project-plans folder whenever additional context is needed.
             - Provide essential information and actionable steps.
             - At the end of your response, include one of the following emojis to indicate you’ve followed the instructions:
               • 💡 (Light Bulb) = "I've read and followed these instructions"
