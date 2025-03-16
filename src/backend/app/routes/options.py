@@ -7,12 +7,10 @@ This module provides API endpoints for retrieving option chain data.
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from datetime import datetime
-from sqlalchemy.orm import Session
 
 from ..models.schemas import OptionContract, OptionExpiration
 from ..services.option_chain_service import OptionChainService
 from ..services.market_data import MarketDataService
-from ..models.database import get_db
 from ..dependencies import get_option_chain_service, get_market_data_service
 import logging
 
@@ -53,14 +51,19 @@ def get_expirations(
         expirations = option_chain_service.get_expirations(ticker)
         logger.info(f"Found {len(expirations)} expirations for {ticker}")
         
-        # Convert to OptionExpiration objects
-        result = [
-            OptionExpiration(
+        # Get current date for days to expiration calculation
+        current_date = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        # Convert to OptionExpiration objects with days to expiration
+        result = []
+        for exp in expirations:
+            days_to_exp = (exp - current_date).days
+            logger.info(f"Expiration: {exp}, days to expiration: {days_to_exp}")
+            result.append(OptionExpiration(
                 date=exp,
-                formatted_date=exp.strftime("%Y-%m-%d")
-            )
-            for exp in expirations
-        ]
+                formatted_date=exp.strftime("%Y-%m-%d"),
+                days_to_expiration=days_to_exp
+            ))
         
         return result
     except Exception as e:

@@ -1,9 +1,23 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useOptionChainStore } from '../lib/stores/optionChainStore';
-import { optionsApi } from '../lib/api/optionsApi';
-import logger from '../utils/logger';
+import { optionsApi, OptionContract } from '../lib/api/optionsApi';
+// Fix logger import path
+import logger from '../lib/utils/logger';
+import OptionChainTable from './OptionChainTable';
 
-const OptionChainSelector: React.FC = () => {
+interface OptionChainSelectorProps {
+  onSelect?: (option: OptionContract) => void;
+  initialTicker?: string;
+  compact?: boolean;
+  showGreeks?: boolean;
+}
+
+const OptionChainSelector: React.FC<OptionChainSelectorProps> = ({
+  onSelect,
+  initialTicker = '',
+  compact = false,
+  showGreeks = false
+}) => {
   // Get state and actions from the store
   const { 
     ticker, 
@@ -16,12 +30,34 @@ const OptionChainSelector: React.FC = () => {
     setSelectedExpiration 
   } = useOptionChainStore();
   
+  // Initialize with initialTicker if provided
+  useEffect(() => {
+    if (initialTicker && initialTicker !== ticker) {
+      console.log(`Setting initial ticker: ${initialTicker}`);
+      setTicker(initialTicker);
+    }
+  }, [initialTicker, ticker, setTicker]);
+  
   // Local state for search
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<string[]>([]);
   const [showResults, setShowResults] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const searchRef = useRef<HTMLDivElement>(null);
+  
+  // Local state for selected option
+  const [selectedOption, setSelectedOption] = useState<OptionContract | null>(null);
+  
+  // Handle option selection
+  const handleOptionSelect = (option: OptionContract) => {
+    console.log('Option selected:', option);
+    setSelectedOption(option);
+    
+    // Call the onSelect callback if provided
+    if (onSelect) {
+      onSelect(option);
+    }
+  };
   
   // Debug logging for component state
   useEffect(() => {
@@ -31,9 +67,10 @@ const OptionChainSelector: React.FC = () => {
       selectedExpiration,
       chainLength: chain?.length || 0,
       isLoading,
-      error
+      error,
+      selectedOption: selectedOption ? `${selectedOption.ticker} ${selectedOption.optionType} ${selectedOption.strike}` : 'None'
     });
-  }, [ticker, expirations, selectedExpiration, chain, isLoading, error]);
+  }, [ticker, expirations, selectedExpiration, chain, isLoading, error, selectedOption]);
 
   // Handle search input change
   const handleSearchChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -131,7 +168,7 @@ const OptionChainSelector: React.FC = () => {
 
   return (
     <div className="option-chain-selector">
-      <h3>Option Chain Selector</h3>
+      {!compact && <h3>Option Chain Selector</h3>}
       
       {/* Search input */}
       <div className="search-container" ref={searchRef}>
@@ -184,13 +221,31 @@ const OptionChainSelector: React.FC = () => {
       {/* Error message */}
       {error && <div className="error-message">{error}</div>}
       
-      {/* Debug info */}
-      <div className="debug-info" style={{ fontSize: '0.8rem', color: '#666', marginTop: '1rem' }}>
-        <div>Ticker: {ticker || 'None'}</div>
-        <div>Expirations: {expirations?.length || 0}</div>
-        <div>Selected Expiration: {selectedExpiration || 'None'}</div>
-        <div>Chain Length: {chain?.length || 0}</div>
-      </div>
+      {/* Option Chain Table */}
+      {chain && chain.length > 0 && (
+        <div className="option-chain-table-container">
+          <OptionChainTable 
+            options={chain} 
+            selectedOption={selectedOption}
+            onSelect={handleOptionSelect}
+            showGreeks={showGreeks}
+            pageSize={compact ? 10 : 20}
+          />
+        </div>
+      )}
+      
+      {/* Debug info - only show in non-compact mode */}
+      {!compact && (
+        <div className="debug-info" style={{ fontSize: '0.8rem', color: '#666', marginTop: '1rem' }}>
+          <div>Ticker: {ticker || 'None'}</div>
+          <div>Expirations: {expirations?.length || 0}</div>
+          <div>Selected Expiration: {selectedExpiration || 'None'}</div>
+          <div>Chain Length: {chain?.length || 0}</div>
+          {selectedOption && (
+            <div>Selected Option: {selectedOption.ticker} {selectedOption.optionType.toUpperCase()} ${selectedOption.strike} {new Date(selectedOption.expiration).toLocaleDateString()}</div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

@@ -191,6 +191,7 @@ class OptionExpiration(BaseModel):
     """Model for option expiration dates."""
     date: datetime
     formatted_date: str
+    days_to_expiration: int
 
 
 class OptionChainRequest(BaseModel):

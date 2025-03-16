@@ -69,12 +69,15 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
   // State to track unsaved changes
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
   
+  // State to track if form has been modified by user (separate from initial loading)
+  const [userModifiedForm, setUserModifiedForm] = useState<boolean>(false);
+  
   // Convert option contract to position form data
   const mapOptionToFormData = useCallback((option: OptionContract): PositionFormData => {
     // Calculate mid price if both bid and ask are available
     const midPrice = option.bid && option.ask 
       ? (option.bid + option.ask) / 2 
-      : option.last || 0;
+      : option.lastPrice || 0; // Use lastPrice as fallback
     
     // Format expiration date for form
     let formattedExpDate = '';
@@ -89,7 +92,7 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     
     return {
       ticker: option.ticker,
-      type: option.optionType,
+      type: option.optionType as 'call' | 'put', // Add type assertion to ensure correct type
       strike: option.strike,
       expiration: formattedExpDate,
       premium: midPrice,
@@ -120,10 +123,14 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
         
         // Update form data
         setFormData(mappedData);
-        setHasUnsavedChanges(true); // Mark as having changes to ensure form is updated
+        // This is a system action, not a user modification, so we don't set userModifiedForm
+        // But we do need to mark that the form has changed for React's state tracking
+        setHasUnsavedChanges(true);
         
-        // Provide user feedback
-        const optionDescription = `${option.ticker} ${option.optionType.toUpperCase()} $${option.strike} ${option.expiration.split('T')[0]}`;
+        // Safely access option properties with null checks
+        const optionType = option.optionType ? option.optionType.toUpperCase() : '';
+        const expirationDate = option.expiration ? option.expiration.split('T')[0] : '';
+        const optionDescription = `${option.ticker} ${optionType} $${option.strike} ${expirationDate}`;
         console.log(`Selected: ${optionDescription}`);
         
         // Scroll to the form section for better UX
@@ -147,6 +154,7 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     
     setFormData(data);
     setHasUnsavedChanges(true);
+    setUserModifiedForm(true); // Mark that user has made changes
     
     // Sync with option chain store if in option chain mode
     if (useOptionChain) {
@@ -182,13 +190,27 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     }
   }, [useOptionChain, storeTicker, selectedExpiration, setTicker, setSelectedExpiration, formData]);
   
-  // Prompt before switching modes if there are unsaved changes
+  // Prompt before switching modes if there are unsaved changes that were made by the user
   const handleModeToggle = useCallback(() => {
-    if (hasUnsavedChanges) {
+    // Only show confirmation if user has actually modified the form
+    // This prevents showing the dialog when just toggling modes with no real changes
+    if (hasUnsavedChanges && userModifiedForm) {
       const confirmed = window.confirm(
         "You have unsaved changes. Switching modes may cause you to lose these changes. Continue?"
       );
       if (!confirmed) return;
+    }
+    
+    // Auto-save the current state to prevent popup on next toggle
+    // We'll use localStorage to remember the current form state for this ticker
+    if (formData?.ticker) {
+      try {
+        // Save the current form state for this ticker
+        localStorage.setItem(`optionForm_${formData.ticker}`, JSON.stringify(formData));
+        console.log(`Saved form state for ${formData.ticker} to prevent future popups`);
+      } catch (e) {
+        console.error('Error saving form state to localStorage:', e);
+      }
     }
     
     // Toggle the mode
@@ -227,7 +249,9 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
       return newMode;
     });
     
+    // Reset the unsaved changes flags when toggling modes
     setHasUnsavedChanges(false);
+    setUserModifiedForm(false); // Reset user modification flag
   }, [hasUnsavedChanges, formData, setTicker, setSelectedExpiration]);
   
   // Initialize form data from existing position if provided
@@ -331,6 +355,7 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     setSelectedOption(null);
     setFormData(null);
     setHasUnsavedChanges(false);
+    setUserModifiedForm(false); // Reset user modification flag
     
     // Call the original onSuccess callback if provided
     if (props.onSuccess) {
@@ -368,7 +393,7 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
                 aria-label="Toggle between manual entry and option chain selector"
                 title="Toggle between manual entry and option chain selector"
               />
-              <div className="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+              <div className={`w-11 h-6 ${useOptionChain ? 'bg-blue-600' : 'bg-gray-200'} rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${useOptionChain ? 'after:translate-x-full' : ''}`}></div>
             </label>
             <span className={`ml-3 text-sm font-medium ${useOptionChain ? 'text-blue-600' : 'text-gray-500'}`}>
               Option Chain
@@ -417,10 +442,10 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
                   </div>
                   <div className="ml-3">
                     <p className="text-sm font-medium text-green-800">
-                      Option selected: {selectedOption.ticker} {selectedOption.optionType.toUpperCase()} ${selectedOption.strike} {new Date(selectedOption.expiration).toLocaleDateString()}
+                      Option selected: {selectedOption.ticker} {selectedOption.optionType?.toUpperCase() || ''} ${selectedOption.strike} {selectedOption.expiration ? new Date(selectedOption.expiration).toLocaleDateString() : ''}
                     </p>
                     <p className="text-xs text-green-700 mt-1">
-                      Bid: ${selectedOption.bid.toFixed(2)} | Ask: ${selectedOption.ask.toFixed(2)} | Mid: ${((selectedOption.bid + selectedOption.ask) / 2).toFixed(2)}
+                      Bid: ${(selectedOption.bid || 0).toFixed(2)} | Ask: ${(selectedOption.ask || 0).toFixed(2)} | Mid: ${(((selectedOption.bid || 0) + (selectedOption.ask || 0)) / 2).toFixed(2)}
                     </p>
                   </div>
                 </div>
@@ -432,7 +457,6 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
                 onSuccess={handleSuccess}
                 onChange={handleFormChange}
                 readonlyFields={['ticker', 'type', 'strike', 'expiration']}
-                id="position-form"
               />
             </div>
           )}

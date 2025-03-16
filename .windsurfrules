@@ -10,7 +10,6 @@
     
     <!--
       CONTEXT: Overall context for the coding project.
-      Merges the background from both the XML prompt and the original guidelines.
     -->
     <Context>
         <!-- Project Description -->
@@ -44,7 +43,7 @@
     -->
     <Progress>
         <LoggingInstructions>
-            Document all tasks. Create a folder in the project root named .windsurf and keep a log of tasks in the following format:
+            Document all tasks. There is a folder in the project root named .windsurf (or if not create one) and keep a log of tasks in the following format:
 
             GOAL: Detail the goal of the task
             IMPLEMENTATION: Describe how it was implemented.
@@ -175,6 +174,7 @@
         -->
         <AdditionalInstructions>
             - Be clear, succinct, and to the point.
+            - Check code context, recent task logs, and recent plans from the current-project-plans folder whenever additional context is needed.
             - Provide essential information and actionable steps.
             - At the end of your response, include one of the following emojis to indicate you’ve followed the instructions:
               • 💡 (Light Bulb) = "I've read and followed these instructions"

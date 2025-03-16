@@ -87,7 +87,14 @@ export const optionsApi = {
         ticker, 
         count: response.data.length 
       });
-      return response.data;
+      
+      // Map the backend's snake_case fields to the frontend's camelCase fields
+      const mappedExpirations = response.data.map((exp: any) => ({
+        date: exp.formatted_date,
+        daysToExpiration: exp.days_to_expiration
+      }));
+      
+      return mappedExpirations;
     } catch (error) {
       logger.error('OPTIONS_API: Error getting expirations', { 
         ticker, 

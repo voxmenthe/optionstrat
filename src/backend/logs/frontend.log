@@ -1,52 +1,52 @@
-2025-03-16T03:14:50.714Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Searching for ticker | {"query":"A","limit":10}
-2025-03-16T03:14:50.715Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/search/A | {"params":{"limit":10}}
-2025-03-16T03:14:50.725Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/search/A
-2025-03-16T03:14:50.909Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Searching for ticker | {"query":"AA","limit":10}
-2025-03-16T03:14:50.910Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/search/AA | {"params":{"limit":10}}
-2025-03-16T03:14:50.918Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/search/AA
-2025-03-16T03:14:51.359Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Searching for ticker | {"query":"AAP","limit":10}
-2025-03-16T03:14:51.360Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/search/AAP | {"params":{"limit":10}}
-2025-03-16T03:14:51.368Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/search/AAP
-2025-03-16T03:14:51.689Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Searching for ticker | {"query":"AAPL","limit":10}
-2025-03-16T03:14:51.690Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/search/AAPL | {"params":{"limit":10}}
-2025-03-16T03:14:51.699Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/search/AAPL
-2025-03-16T03:14:53.474Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: setTicker called with | {"ticker":"AAPL"}
-2025-03-16T03:14:53.475Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Fetching expirations for | {"ticker":"AAPL"}
-2025-03-16T03:14:53.475Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Getting expirations for ticker | {"ticker":"AAPL"}
-2025-03-16T03:14:53.476Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/chains/AAPL/expirations | {}
-2025-03-16T03:14:53.482Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/chains/AAPL/expirations
-2025-03-16T03:14:53.482Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Received expirations | {"ticker":"AAPL","count":19}
-2025-03-16T03:14:53.482Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Received expirations | {"ticker":"AAPL","count":19}
-2025-03-16T03:14:53.482Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Auto-selecting first expiration | {"firstExpiration":"2025-03-21T00:00:00"}
-2025-03-16T03:14:53.482Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: setSelectedExpiration called with | {"date":"2025-03-21T00:00:00","currentSelection":null,"previouslySelectedDate":null,"ticker":"AAPL"}
-2025-03-16T03:14:53.482Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Formatted date | {"originalDate":"2025-03-21T00:00:00","formattedDate":"2025-03-21"}
-2025-03-16T03:14:53.486Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Starting to fetch option chain | {"ticker":"AAPL","formattedDate":"2025-03-21","baseApiUrl":"http://localhost:8003"}
-2025-03-16T03:14:53.486Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Current filters | {"optionType":"all","minStrike":null,"maxStrike":null,"minIV":null,"maxIV":null}
-2025-03-16T03:14:53.486Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Generated cache key | {"cacheKey":"option_chain:AAPL:2025-03-21:{}"}
-2025-03-16T03:14:53.486Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Attempting to fetch option chain from cache or API
-2025-03-16T03:14:53.486Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API endpoint target | {"apiUrl":"/options/chains/AAPL/2025-03-21","params":{}}
-2025-03-16T03:14:53.487Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Cache miss for option chain, fetching from API
-2025-03-16T03:14:53.487Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: About to call API.getOptionsForExpiration | {"ticker":"AAPL","formattedDate":"2025-03-21","params":{}}
-2025-03-16T03:14:53.487Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Getting options for expiration | {"ticker":"AAPL","expirationDate":"2025-03-21","params":{}}
-2025-03-16T03:14:53.487Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/chains/AAPL/2025-03-21 | {"params":{}}
-2025-03-16T03:14:53.772Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/chains/AAPL/2025-03-21
-2025-03-16T03:14:53.772Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Received options | {"ticker":"AAPL","expirationDate":"2025-03-21","count":164}
-2025-03-16T03:14:53.772Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API call successful. Received 164 options
-2025-03-16T03:14:53.772Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Received chain data with 164 options | {"chainLength":164,"sampleOption":"{\"ticker\":\"AAPL\",\"expiration\":\"2025-03-21T00:00:00\",\"strike\":5,\"option_type\":\"call\",\"bid\":207.4,\"ask\":209.25,\"last\":207.01,\"volume\":1,\"open_interest\":43,\"implied_volatility\":16.8437547363,\"delta\":null..."}
-2025-03-16T03:14:53.773Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: First option in chain: | {"ticker":"AAPL","expiration":"2025-03-21T00:00:00","strike":5,"option_type":"call","bid":207.4,"ask":209.25,"last":207.01,"volume":1,"open_interest":43,"implied_volatility":16.8437547363,"delta":null,"gamma":null,"theta":null,"vega":null,"rho":null,"in_the_money":true,"underlying_price":213.49000549316406}
-2025-03-16T03:15:07.020Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: setSelectedExpiration called with | {"date":"2025-05-16T00:00:00","currentSelection":"2025-03-21","previouslySelectedDate":"2025-03-21","ticker":"AAPL"}
-2025-03-16T03:15:07.020Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Formatted date | {"originalDate":"2025-05-16T00:00:00","formattedDate":"2025-05-16"}
-2025-03-16T03:15:07.045Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Starting to fetch option chain | {"ticker":"AAPL","formattedDate":"2025-05-16","baseApiUrl":"http://localhost:8003"}
-2025-03-16T03:15:07.045Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Current filters | {"optionType":"all","minStrike":null,"maxStrike":null,"minIV":null,"maxIV":null}
-2025-03-16T03:15:07.045Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Generated cache key | {"cacheKey":"option_chain:AAPL:2025-05-16:{}"}
-2025-03-16T03:15:07.045Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Attempting to fetch option chain from cache or API
-2025-03-16T03:15:07.045Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API endpoint target | {"apiUrl":"/options/chains/AAPL/2025-05-16","params":{}}
-2025-03-16T03:15:07.045Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Cache miss for option chain, fetching from API
-2025-03-16T03:15:07.045Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: About to call API.getOptionsForExpiration | {"ticker":"AAPL","formattedDate":"2025-05-16","params":{}}
-2025-03-16T03:15:07.045Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Getting options for expiration | {"ticker":"AAPL","expirationDate":"2025-05-16","params":{}}
-2025-03-16T03:15:07.045Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/chains/AAPL/2025-05-16 | {"params":{}}
-2025-03-16T03:15:07.270Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/chains/AAPL/2025-05-16
-2025-03-16T03:15:07.270Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Received options | {"ticker":"AAPL","expirationDate":"2025-05-16","count":89}
-2025-03-16T03:15:07.270Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API call successful. Received 89 options
-2025-03-16T03:15:07.270Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Received chain data with 89 options | {"chainLength":89,"sampleOption":"{\"ticker\":\"AAPL\",\"expiration\":\"2025-05-16T00:00:00\",\"strike\":100,\"option_type\":\"call\",\"bid\":113.8,\"ask\":114.65,\"last\":123.5,\"volume\":1,\"open_interest\":15,\"implied_volatility\":0.9926758545,\"delta\":null..."}
-2025-03-16T03:15:07.271Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: First option in chain: | {"ticker":"AAPL","expiration":"2025-05-16T00:00:00","strike":100,"option_type":"call","bid":113.8,"ask":114.65,"last":123.5,"volume":1,"open_interest":15,"implied_volatility":0.9926758545,"delta":null,"gamma":null,"theta":null,"vega":null,"rho":null,"in_the_money":true,"underlying_price":213.49000549316406}
+2025-03-16T03:49:31.322Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Searching for ticker | {"query":"A","limit":10}
+2025-03-16T03:49:31.324Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/search/A | {"params":{"limit":10}}
+2025-03-16T03:49:31.334Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/search/A
+2025-03-16T03:49:31.484Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Searching for ticker | {"query":"AA","limit":10}
+2025-03-16T03:49:31.485Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/search/AA | {"params":{"limit":10}}
+2025-03-16T03:49:31.495Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/search/AA
+2025-03-16T03:49:32.235Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Searching for ticker | {"query":"AA{","limit":10}
+2025-03-16T03:49:32.237Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/search/AA{ | {"params":{"limit":10}}
+2025-03-16T03:49:33.412Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/search/AA{
+2025-03-16T03:49:33.885Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Searching for ticker | {"query":"AA","limit":10}
+2025-03-16T03:49:33.886Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/search/AA | {"params":{"limit":10}}
+2025-03-16T03:49:33.892Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/search/AA
+2025-03-16T03:49:35.730Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: setTicker called with | {"ticker":"AA"}
+2025-03-16T03:49:35.730Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Fetching expirations for | {"ticker":"AA"}
+2025-03-16T03:49:35.731Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Getting expirations for ticker | {"ticker":"AA"}
+2025-03-16T03:49:35.732Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/chains/AA/expirations | {}
+2025-03-16T03:49:35.826Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/chains/AA/expirations
+2025-03-16T03:49:35.826Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Received expirations | {"ticker":"AA","count":15}
+2025-03-16T03:49:35.826Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Received expirations | {"ticker":"AA","count":15}
+2025-03-16T03:49:35.826Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Auto-selecting first expiration | {"firstExpiration":"2025-03-21"}
+2025-03-16T03:49:35.827Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: setSelectedExpiration called with | {"date":"2025-03-21","currentSelection":null,"previouslySelectedDate":null,"ticker":"AA"}
+2025-03-16T03:49:35.827Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Formatted date | {"originalDate":"2025-03-21","formattedDate":"2025-03-21"}
+2025-03-16T03:49:35.832Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Starting to fetch option chain | {"ticker":"AA","formattedDate":"2025-03-21","baseApiUrl":"http://localhost:8003"}
+2025-03-16T03:49:35.832Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Current filters | {"optionType":"all","minStrike":null,"maxStrike":null,"minIV":null,"maxIV":null}
+2025-03-16T03:49:35.832Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Generated cache key | {"cacheKey":"option_chain:AA:2025-03-21:{}"}
+2025-03-16T03:49:35.832Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Attempting to fetch option chain from cache or API
+2025-03-16T03:49:35.832Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API endpoint target | {"apiUrl":"/options/chains/AA/2025-03-21","params":{}}
+2025-03-16T03:49:35.832Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Cache miss for option chain, fetching from API
+2025-03-16T03:49:35.832Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: About to call API.getOptionsForExpiration | {"ticker":"AA","formattedDate":"2025-03-21","params":{}}
+2025-03-16T03:49:35.833Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Getting options for expiration | {"ticker":"AA","expirationDate":"2025-03-21","params":{}}
+2025-03-16T03:49:35.833Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/chains/AA/2025-03-21 | {"params":{}}
+2025-03-16T03:49:36.170Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/chains/AA/2025-03-21
+2025-03-16T03:49:36.170Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Received options | {"ticker":"AA","expirationDate":"2025-03-21","count":70}
+2025-03-16T03:49:36.170Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API call successful. Received 70 options
+2025-03-16T03:49:36.170Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Received chain data with 70 options | {"chainLength":70,"sampleOption":"{\"ticker\":\"AA\",\"expiration\":\"2025-03-21T00:00:00\",\"strike\":20,\"option_type\":\"call\",\"bid\":13.4,\"ask\":13.75,\"last\":11.9,\"volume\":19,\"open_interest\":18,\"implied_volatility\":1.9453127734,\"delta\":null,\"gam..."}
+2025-03-16T03:49:36.176Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: First option in chain: | {"ticker":"AA","expiration":"2025-03-21T00:00:00","strike":20,"option_type":"call","bid":13.4,"ask":13.75,"last":11.9,"volume":19,"open_interest":18,"implied_volatility":1.9453127734,"delta":null,"gamma":null,"theta":null,"vega":null,"rho":null,"in_the_money":true,"underlying_price":33.529998779296875}
+2025-03-16T03:49:41.266Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: setSelectedExpiration called with | {"date":"2025-05-16","currentSelection":"2025-03-21","previouslySelectedDate":"2025-03-21","ticker":"AA"}
+2025-03-16T03:49:41.266Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Formatted date | {"originalDate":"2025-05-16","formattedDate":"2025-05-16"}
+2025-03-16T03:49:41.269Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Starting to fetch option chain | {"ticker":"AA","formattedDate":"2025-05-16","baseApiUrl":"http://localhost:8003"}
+2025-03-16T03:49:41.269Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Current filters | {"optionType":"all","minStrike":null,"maxStrike":null,"minIV":null,"maxIV":null}
+2025-03-16T03:49:41.269Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Generated cache key | {"cacheKey":"option_chain:AA:2025-05-16:{}"}
+2025-03-16T03:49:41.269Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Attempting to fetch option chain from cache or API
+2025-03-16T03:49:41.269Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API endpoint target | {"apiUrl":"/options/chains/AA/2025-05-16","params":{}}
+2025-03-16T03:49:41.269Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Cache miss for option chain, fetching from API
+2025-03-16T03:49:41.269Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: About to call API.getOptionsForExpiration | {"ticker":"AA","formattedDate":"2025-05-16","params":{}}
+2025-03-16T03:49:41.269Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Getting options for expiration | {"ticker":"AA","expirationDate":"2025-05-16","params":{}}
+2025-03-16T03:49:41.269Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/chains/AA/2025-05-16 | {"params":{}}
+2025-03-16T03:49:41.427Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/chains/AA/2025-05-16
+2025-03-16T03:49:41.427Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Received options | {"ticker":"AA","expirationDate":"2025-05-16","count":13}
+2025-03-16T03:49:41.427Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API call successful. Received 13 options
+2025-03-16T03:49:41.427Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Received chain data with 13 options | {"chainLength":13,"sampleOption":"{\"ticker\":\"AA\",\"expiration\":\"2025-05-16T00:00:00\",\"strike\":22.5,\"option_type\":\"call\",\"bid\":11.25,\"ask\":11.5,\"last\":9.85,\"volume\":null,\"open_interest\":1,\"implied_volatility\":0.7255886816,\"delta\":null,\"..."}
+2025-03-16T03:49:41.435Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: First option in chain: | {"ticker":"AA","expiration":"2025-05-16T00:00:00","strike":22.5,"option_type":"call","bid":11.25,"ask":11.5,"last":9.85,"volume":null,"open_interest":1,"implied_volatility":0.7255886816,"delta":null,"gamma":null,"theta":null,"vega":null,"rho":null,"in_the_money":true,"underlying_price":33.529998779296875}
