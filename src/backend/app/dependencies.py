@@ -1,14 +1,14 @@
 from fastapi import Depends
 from sqlalchemy.orm import Session
 from typing import Generator
+import logging
 
-from .database import SessionLocal
-from .services.market_data_provider import MarketDataProvider
-from .services.yfinance_provider import YFinanceProvider
-from .services.polygon_provider import PolygonProvider
-from .services.option_pricer import OptionPricer
-from .services.scenario_engine import ScenarioEngine
-from .services.volatility_service import VolatilityService
+from .models.database import SessionLocal
+from .services.market_data import MarketDataService
+from .services.option_chain_service import OptionChainService
+
+logger = logging.getLogger(__name__)
+
 
 # Database dependency
 def get_db() -> Generator[Session, None, None]:
@@ -18,24 +18,14 @@ def get_db() -> Generator[Session, None, None]:
     finally:
         db.close()
 
-# Market data provider dependency
-def get_market_data_service() -> MarketDataProvider:
-    # Use YFinance provider by default, could be configurable
-    return YFinanceProvider()
+# Market data service dependency
+def get_market_data_service() -> MarketDataService:
+    logger.debug("Creating new MarketDataService instance")
+    return MarketDataService()
 
-# Option pricer dependency
-def get_option_pricer() -> OptionPricer:
-    return OptionPricer()
-
-# Scenario engine dependency
-def get_scenario_engine(
-    market_data_service: MarketDataProvider = Depends(get_market_data_service),
-    option_pricer: OptionPricer = Depends(get_option_pricer)
-) -> ScenarioEngine:
-    return ScenarioEngine(market_data_service, option_pricer)
-
-# Volatility service dependency
-def get_volatility_service(
-    market_data_service: MarketDataProvider = Depends(get_market_data_service)
-) -> VolatilityService:
-    return VolatilityService(market_data_service)
+# Option chain service dependency
+def get_option_chain_service(
+    market_data_service: MarketDataService = Depends(get_market_data_service)
+) -> OptionChainService:
+    logger.debug("Creating new OptionChainService instance with MarketDataService")
+    return OptionChainService(market_data_service)

@@ -80,55 +80,45 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
     });
     
     try {
-      logger.info('OPTION_CHAIN_DEBUG: Fetching expirations for ticker', { ticker });
-      // Try to get expirations from cache first
-      const cacheKey = `expirations:${ticker}`;
-      logger.info('OPTION_CHAIN_DEBUG: Using cache key for expirations', { cacheKey });
-      const expirations = await cacheManager.getOrFetch(
-        cacheKey,
-        async () => {
-          logger.info('OPTION_CHAIN_DEBUG: Cache miss for expirations, fetching from API');
-          return await optionsApi.getExpirationDates(ticker);
-        },
-        getMarketAwareTTL()
-      );
+      logger.info('OPTION_CHAIN_DEBUG: Fetching expirations for', { ticker });
+      const expirations = await optionsApi.getExpirations(ticker);
       
-      logger.info(`OPTION_CHAIN_DEBUG: Received ${expirations.length} expirations for ${ticker}`, { expirations, count: expirations.length });
-      
-      // If we have expirations, select the first one by default and ensure it's in YYYY-MM-DD format
-      let selectedExpiration = null;
-      if (expirations.length > 0) {
-        const dateStr = expirations[0].date;
-        // Format the date to ensure it's in YYYY-MM-DD format
-        selectedExpiration = dateStr.includes('T')
-          ? dateStr.split('T')[0]  // Extract just the date part if it has a timestamp
-          : dateStr;
-      }
-      
-      set({ 
-        expirations, 
-        selectedExpiration, 
-        isLoading: false 
-      });
-      
-      // If we have a selected expiration, fetch the chain
-      if (selectedExpiration) {
-        await get().setSelectedExpiration(selectedExpiration);
+      // Check if ticker is still the same (user might have changed it while loading)
+      if (get().ticker === ticker) {
+        logger.info('OPTION_CHAIN_DEBUG: Received expirations', { 
+          ticker, 
+          count: expirations.length 
+        });
+        set({ expirations, isLoading: false });
+        
+        // Auto-select first expiration if available
+        if (expirations.length > 0) {
+          const firstExpiration = expirations[0].date;
+          logger.info('OPTION_CHAIN_DEBUG: Auto-selecting first expiration', { 
+            firstExpiration 
+          });
+          // Call the setSelectedExpiration action
+          get().setSelectedExpiration(firstExpiration);
+        } else {
+          logger.warn('OPTION_CHAIN_DEBUG: No expirations available for', { ticker });
+          set({ isLoading: false });
+        }
+      } else {
+        logger.info('OPTION_CHAIN_DEBUG: Ticker changed during expirations fetch, discarding results');
       }
     } catch (error) {
-      logger.error('OPTION_CHAIN_DEBUG: Error fetching expirations', error instanceof Error ? 
-        { message: error.message, stack: error.stack } : error);
-      
-      // Provide detailed error information for debugging
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      const errorDetails = error instanceof Error && error.stack ? error.stack : 'No stack trace available';
-      
-      logger.debug('OPTION_CHAIN_DEBUG: Error details', { errorMessage, errorDetails });
-      
-      set({ 
-        error: `Failed to fetch expirations: ${errorMessage}`, 
-        isLoading: false 
+      logger.error('OPTION_CHAIN_DEBUG: Error fetching expirations', { 
+        ticker, 
+        error: error instanceof Error ? error.message : String(error) 
       });
+      
+      // Only update state if ticker is still the same
+      if (get().ticker === ticker) {
+        set({ 
+          error: `Failed to fetch expirations: ${error instanceof Error ? error.message : String(error)}`,
+          isLoading: false
+        });
+      }
     }
   },
   
