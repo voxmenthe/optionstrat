@@ -1,4 +1,4 @@
-# Option Chain Selector Implementation Plan (Updated)
+# Option Chain Selector Implementation Plan (Updated: March 15, 2025)
 
 ## Current Implementation Status
 
@@ -11,6 +11,7 @@
    - Integrated market data providers (Polygon, YFinance)
    - Implemented basic caching layer
    - Added provider abstraction with MarketDataService
+   - Fixed schema validation error in OptionExpiration model
 
 2. **API Endpoints**
    - `GET /options/chains/{ticker}` - Get options chain for a ticker
@@ -43,14 +44,24 @@
 
 ### ⏳ Partially Implemented / Next Steps
 
-#### 1. **Performance Optimizations**
+#### 1. **Option Selection Integration with Positions**
+- **Current Status**: Basic integration framework exists, needs refinement
+- **Requirements**:
+  - Enhance the option selection UX with clearer visual feedback
+  - Improve the transition from option selection to position form
+  - Add validation to ensure selected option data is properly transferred
+  - Implement position preview after option selection
+  - Add support for multi-leg strategy creation from option chain
+
+#### 2. **Performance Optimizations**
 - **Current Status**: Basic functionality implemented, optimizations pending
 - **Requirements**:
   - Add pagination for large option chains
   - Implement caching to reduce API calls
   - Add debounced search for ticker symbols
+  - Optimize option chain rendering for large datasets
 
-#### 2. **Advanced Features**
+#### 3. **Advanced Features**
 - **Current Status**: Basic functionality implemented, advanced features pending
 - **Requirements**:
   - Add IV visualization and more advanced filtering
@@ -59,7 +70,27 @@
 
 ## Detailed Implementation Plan - Next Phase
 
-### 1. Performance Optimizations (Priority Medium)
+### 1. Option Selection Integration with Positions (Priority High)
+
+#### Enhanced Option Selection UX (2 days)
+- [ ] Improve visual feedback for selected options in the chain table
+- [ ] Add option details panel to display comprehensive information about selected option
+- [ ] Implement smooth scrolling and focus management between chain and form
+- [ ] Add keyboard navigation support for accessibility
+
+#### Position Form Integration (2 days)
+- [ ] Refine the data mapping between option contracts and position form
+- [ ] Add validation to ensure all required fields are properly transferred
+- [ ] Implement bidirectional synchronization between form changes and option selection
+- [ ] Add support for custom premium adjustments while preserving market data
+
+#### Multi-leg Strategy Support (3 days)
+- [ ] Design UI for adding multiple options to a strategy
+- [ ] Implement a strategy builder component with drag-and-drop support
+- [ ] Add validation for strategy combinations (spreads, condors, etc.)
+- [ ] Create position preview with P/L visualization before submission
+
+### 2. Performance Optimizations (Priority Medium)
 
 #### Pagination for Large Option Chains (2 days)
 - [ ] Design pagination UI for the option chain table
@@ -79,7 +110,7 @@
 - [ ] Optimize typeahead suggestions
 - [ ] Improve error handling for search failures
 
-### 2. Advanced Features (Priority Low)
+### 3. Advanced Features (Priority Low)
 
 #### Visualization Tools (3 days)
 - [ ] Create IV skew visualization component
