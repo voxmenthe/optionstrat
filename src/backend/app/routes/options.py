@@ -56,8 +56,8 @@ def get_expirations(
         # Convert to OptionExpiration objects
         result = [
             OptionExpiration(
-                date=exp.strftime("%Y-%m-%d"),
-                days_to_expiration=(exp - datetime.now()).days
+                date=exp,
+                formatted_date=exp.strftime("%Y-%m-%d")
             )
             for exp in expirations
         ]

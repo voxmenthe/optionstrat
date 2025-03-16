@@ -1,5 +1,5 @@
 // API configuration
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003/api';
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8003';
 
 // Other configuration constants
 export const DEFAULT_TIMEOUT = 10000; // 10 seconds

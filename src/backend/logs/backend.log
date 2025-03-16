@@ -1,106 +1,286 @@
-2025-03-15 19:59:14,919 - app.main - INFO - Backend logging initialized. Log file: /Volumes/bdrive/repos/optionstrat/src/backend/logs/backend.log
-2025-03-15 19:59:23,220 - app.main - INFO - REQUEST: POST /debug/clear-logs?type=frontend from 127.0.0.1
-2025-03-15 19:59:23,221 - app.main - INFO - RESPONSE: POST /debug/clear-logs - Status: 200 - Time: 0.0010s
-2025-03-15 19:59:23,387 - app.main - INFO - REQUEST: OPTIONS /debug/clear-logs?type=frontend from 127.0.0.1
-2025-03-15 19:59:23,388 - app.main - INFO - RESPONSE: OPTIONS /debug/clear-logs - Status: 200 - Time: 0.0002s
-2025-03-15 19:59:23,389 - app.main - INFO - REQUEST: POST /debug/clear-logs?type=frontend from 127.0.0.1
-2025-03-15 19:59:23,389 - app.main - INFO - RESPONSE: POST /debug/clear-logs - Status: 200 - Time: 0.0004s
-2025-03-15 19:59:23,416 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
-2025-03-15 19:59:23,423 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
-2025-03-15 19:59:23,423 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AAPL
-2025-03-15 19:59:23,423 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AAPL
-2025-03-15 19:59:23,427 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache miss, fetching stock price for ticker: AAPL
-2025-03-15 19:59:23,427 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Creating yfinance Ticker object for AAPL
-2025-03-15 19:59:23,427 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Attempting to get price from fast_info for AAPL
-2025-03-15 19:59:23,427 - yfinance - DEBUG - Entering history()
-2025-03-15 19:59:23,429 - peewee - DEBUG - ('CREATE TABLE IF NOT EXISTS "_kv" ("key" VARCHAR(255) NOT NULL PRIMARY KEY, "value" VARCHAR(255)) WITHOUT ROWID', [])
-2025-03-15 19:59:23,429 - peewee - DEBUG - ('SELECT "t1"."key", "t1"."value" FROM "_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['AAPL', 1, 0])
-2025-03-15 19:59:23,460 - yfinance - DEBUG -  Entering history()
-2025-03-15 19:59:23,460 - yfinance - DEBUG - AAPL: Yahoo GET parameters: {'range': '1y', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
-2025-03-15 19:59:23,460 - yfinance - DEBUG -   Entering get()
-2025-03-15 19:59:23,460 - yfinance - DEBUG -    Entering _make_request()
-2025-03-15 19:59:23,460 - yfinance - DEBUG - url=https://query2.finance.yahoo.com/v8/finance/chart/AAPL
-2025-03-15 19:59:23,460 - yfinance - DEBUG - params={'range': '1y', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
-2025-03-15 19:59:23,460 - yfinance - DEBUG -     Entering _get_cookie_and_crumb()
-2025-03-15 19:59:23,460 - yfinance - DEBUG - cookie_mode = 'basic'
-2025-03-15 19:59:23,460 - yfinance - DEBUG -      Entering _get_cookie_and_crumb_basic()
-2025-03-15 19:59:23,461 - peewee - DEBUG - ('CREATE TABLE IF NOT EXISTS "_cookieschema" ("strategy" VARCHAR(255) NOT NULL PRIMARY KEY, "fetch_date" DATETIME NOT NULL, "cookie_bytes" BLOB NOT NULL) WITHOUT ROWID', [])
-2025-03-15 19:59:23,461 - peewee - DEBUG - ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['basic', 1, 0])
-2025-03-15 19:59:23,462 - yfinance - DEBUG - loaded persistent cookie
-2025-03-15 19:59:23,462 - yfinance - DEBUG - reusing cookie
-2025-03-15 19:59:23,467 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): query1.finance.yahoo.com:443
-2025-03-15 19:59:23,565 - urllib3.connectionpool - DEBUG - https://query1.finance.yahoo.com:443 "GET /v1/test/getcrumb HTTP/1.1" 200 11
-2025-03-15 19:59:23,566 - yfinance - DEBUG - crumb = 'IKqTE59qPrl'
-2025-03-15 19:59:23,566 - yfinance - DEBUG -      Exiting _get_cookie_and_crumb_basic()
-2025-03-15 19:59:23,566 - yfinance - DEBUG -     Exiting _get_cookie_and_crumb()
-2025-03-15 19:59:23,566 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): query2.finance.yahoo.com:443
-2025-03-15 19:59:23,698 - urllib3.connectionpool - DEBUG - https://query2.finance.yahoo.com:443 "GET /v8/finance/chart/AAPL?range=1y&interval=1d&includePrePost=False&events=div%2Csplits%2CcapitalGains&crumb=IKqTE59qPrl HTTP/1.1" 200 None
-2025-03-15 19:59:23,699 - yfinance - DEBUG - response code=200
-2025-03-15 19:59:23,699 - yfinance - DEBUG -    Exiting _make_request()
-2025-03-15 19:59:23,699 - yfinance - DEBUG -   Exiting get()
-2025-03-15 19:59:23,705 - yfinance - DEBUG - AAPL: yfinance received OHLC data: 2024-03-15 13:30:00 -> 2025-03-14 13:30:00
-2025-03-15 19:59:23,710 - yfinance - DEBUG - AAPL: OHLC after cleaning: 2024-03-15 09:30:00-04:00 -> 2025-03-14 09:30:00-04:00
-2025-03-15 19:59:23,718 - yfinance - DEBUG - AAPL: OHLC after combining events: 2024-03-15 00:00:00-04:00 -> 2025-03-14 00:00:00-04:00
-2025-03-15 19:59:23,719 - yfinance - DEBUG - AAPL: yfinance returning OHLC: 2024-03-15 00:00:00-04:00 -> 2025-03-14 00:00:00-04:00
-2025-03-15 19:59:23,719 - yfinance - DEBUG -  Exiting history()
-2025-03-15 19:59:23,719 - yfinance - DEBUG - Exiting history()
-2025-03-15 19:59:23,722 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: fast_info price for AAPL: 213.49000549316406
-2025-03-15 19:59:23,722 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Caching price 213.49000549316406 for AAPL with TTL=300
-2025-03-15 19:59:23,724 - app.services.yfinance_provider - DEBUG - Saved data to database cache: yfinance:stock_price:AAPL
-2025-03-15 19:59:23,724 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Returning price 213.49000549316406 for AAPL
-2025-03-15 19:59:23,732 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
-2025-03-15 19:59:23,732 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AAPL
-2025-03-15 19:59:23,732 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AAPL
-2025-03-15 19:59:23,732 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AAPL
-2025-03-15 19:59:23,732 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AAPL, returning price: 213.49000549316406
-2025-03-15 19:59:23,732 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
-2025-03-15 19:59:23,732 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: META
-2025-03-15 19:59:23,733 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:META
-2025-03-15 19:59:23,734 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache miss, fetching stock price for ticker: META
-2025-03-15 19:59:23,734 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Creating yfinance Ticker object for META
-2025-03-15 19:59:23,734 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Attempting to get price from fast_info for META
-2025-03-15 19:59:23,734 - yfinance - DEBUG - Entering history()
-2025-03-15 19:59:23,734 - peewee - DEBUG - ('SELECT "t1"."key", "t1"."value" FROM "_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['META', 1, 0])
-2025-03-15 19:59:23,734 - yfinance - DEBUG -  Entering history()
-2025-03-15 19:59:23,734 - yfinance - DEBUG - META: Yahoo GET parameters: {'range': '1y', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
-2025-03-15 19:59:23,734 - yfinance - DEBUG -   Entering get()
-2025-03-15 19:59:23,734 - yfinance - DEBUG -    Entering _make_request()
-2025-03-15 19:59:23,734 - yfinance - DEBUG - url=https://query2.finance.yahoo.com/v8/finance/chart/META
-2025-03-15 19:59:23,734 - yfinance - DEBUG - params={'range': '1y', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
-2025-03-15 19:59:23,734 - yfinance - DEBUG -     Entering _get_cookie_and_crumb()
-2025-03-15 19:59:23,734 - yfinance - DEBUG - cookie_mode = 'basic'
-2025-03-15 19:59:23,734 - yfinance - DEBUG -      Entering _get_cookie_and_crumb_basic()
-2025-03-15 19:59:23,734 - yfinance - DEBUG - reusing cookie
-2025-03-15 19:59:23,734 - yfinance - DEBUG - reusing crumb
-2025-03-15 19:59:23,734 - yfinance - DEBUG -      Exiting _get_cookie_and_crumb_basic()
-2025-03-15 19:59:23,734 - yfinance - DEBUG -     Exiting _get_cookie_and_crumb()
-2025-03-15 19:59:23,796 - urllib3.connectionpool - DEBUG - https://query2.finance.yahoo.com:443 "GET /v8/finance/chart/META?range=1y&interval=1d&includePrePost=False&events=div%2Csplits%2CcapitalGains&crumb=IKqTE59qPrl HTTP/1.1" 200 None
-2025-03-15 19:59:23,796 - yfinance - DEBUG - response code=200
-2025-03-15 19:59:23,797 - yfinance - DEBUG -    Exiting _make_request()
-2025-03-15 19:59:23,797 - yfinance - DEBUG -   Exiting get()
-2025-03-15 19:59:23,797 - yfinance - DEBUG - META: yfinance received OHLC data: 2024-03-15 13:30:00 -> 2025-03-14 13:30:00
-2025-03-15 19:59:23,798 - yfinance - DEBUG - META: OHLC after cleaning: 2024-03-15 09:30:00-04:00 -> 2025-03-14 09:30:00-04:00
-2025-03-15 19:59:23,800 - yfinance - DEBUG - META: OHLC after combining events: 2024-03-15 00:00:00-04:00 -> 2025-03-14 00:00:00-04:00
-2025-03-15 19:59:23,801 - yfinance - DEBUG - META: yfinance returning OHLC: 2024-03-15 00:00:00-04:00 -> 2025-03-14 00:00:00-04:00
-2025-03-15 19:59:23,801 - yfinance - DEBUG -  Exiting history()
-2025-03-15 19:59:23,801 - yfinance - DEBUG - Exiting history()
-2025-03-15 19:59:23,801 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: fast_info price for META: 607.5999755859375
-2025-03-15 19:59:23,801 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Caching price 607.5999755859375 for META with TTL=300
-2025-03-15 19:59:23,803 - app.services.yfinance_provider - DEBUG - Saved data to database cache: yfinance:stock_price:META
-2025-03-15 19:59:23,804 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Returning price 607.5999755859375 for META
-2025-03-15 19:59:23,804 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
-2025-03-15 19:59:23,804 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: META
-2025-03-15 19:59:23,804 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:META
-2025-03-15 19:59:23,804 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:META
-2025-03-15 19:59:23,804 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:META, returning price: 607.5999755859375
-2025-03-15 19:59:23,806 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.3895s
-2025-03-15 19:59:35,379 - app.main - INFO - REQUEST: GET /api/options/search/A?limit=10 from 127.0.0.1
-2025-03-15 19:59:35,380 - app.main - INFO - RESPONSE: GET /api/options/search/A - Status: 404 - Time: 0.0005s
-2025-03-15 19:59:35,586 - app.main - INFO - REQUEST: GET /api/options/search/AA?limit=10 from 127.0.0.1
-2025-03-15 19:59:35,587 - app.main - INFO - RESPONSE: GET /api/options/search/AA - Status: 404 - Time: 0.0008s
-2025-03-15 19:59:36,202 - app.main - INFO - REQUEST: GET /api/options/search/AAP?limit=10 from 127.0.0.1
-2025-03-15 19:59:36,203 - app.main - INFO - RESPONSE: GET /api/options/search/AAP - Status: 404 - Time: 0.0007s
-2025-03-15 19:59:36,578 - app.main - INFO - REQUEST: GET /api/options/search/AAPL?limit=10 from 127.0.0.1
-2025-03-15 19:59:36,579 - app.main - INFO - RESPONSE: GET /api/options/search/AAPL - Status: 404 - Time: 0.0003s
-2025-03-15 19:59:52,324 - app.main - INFO - REQUEST: OPTIONS /debug/log? from 127.0.0.1
-2025-03-15 19:59:52,324 - app.main - INFO - RESPONSE: OPTIONS /debug/log - Status: 200 - Time: 0.0003s
+2025-03-15 20:14:09,252 - app.main - INFO - Backend logging initialized. Log file: /Volumes/bdrive/repos/optionstrat/src/backend/logs/backend.log
+2025-03-15 20:14:29,286 - app.main - INFO - REQUEST: GET /options/chains/AAPL/expirations? from 127.0.0.1
+2025-03-15 20:14:29,287 - app.dependencies - DEBUG - Creating new MarketDataService instance
+2025-03-15 20:14:29,287 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:14:29,287 - app.dependencies - DEBUG - Creating new OptionChainService instance with MarketDataService
+2025-03-15 20:14:29,288 - app.routes.options - INFO - Getting expirations for ticker: AAPL
+2025-03-15 20:14:29,293 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:option_expirations:AAPL
+2025-03-15 20:14:29,293 - app.routes.options - INFO - Found 19 expirations for AAPL
+2025-03-15 20:14:29,294 - app.main - INFO - RESPONSE: GET /options/chains/AAPL/expirations - Status: 200 - Time: 0.0076s
+2025-03-15 20:14:42,949 - app.main - INFO - REQUEST: POST /debug/log? from 127.0.0.1
+2025-03-15 20:14:42,953 - app.main - INFO - RESPONSE: POST /debug/log - Status: 200 - Time: 0.0035s
+2025-03-15 20:14:43,835 - app.main - INFO - REQUEST: POST /debug/clear-logs?type=frontend from 127.0.0.1
+2025-03-15 20:14:43,835 - app.main - INFO - RESPONSE: POST /debug/clear-logs - Status: 200 - Time: 0.0005s
+2025-03-15 20:14:44,020 - app.main - INFO - REQUEST: POST /debug/clear-logs?type=frontend from 127.0.0.1
+2025-03-15 20:14:44,021 - app.main - INFO - RESPONSE: POST /debug/clear-logs - Status: 200 - Time: 0.0006s
+2025-03-15 20:14:44,046 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-15 20:14:44,049 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:14:44,049 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AAPL
+2025-03-15 20:14:44,049 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AAPL
+2025-03-15 20:14:44,052 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache miss, fetching stock price for ticker: AAPL
+2025-03-15 20:14:44,052 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Creating yfinance Ticker object for AAPL
+2025-03-15 20:14:44,052 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Attempting to get price from fast_info for AAPL
+2025-03-15 20:14:44,052 - yfinance - DEBUG - Entering history()
+2025-03-15 20:14:44,053 - peewee - DEBUG - ('CREATE TABLE IF NOT EXISTS "_kv" ("key" VARCHAR(255) NOT NULL PRIMARY KEY, "value" VARCHAR(255)) WITHOUT ROWID', [])
+2025-03-15 20:14:44,053 - peewee - DEBUG - ('SELECT "t1"."key", "t1"."value" FROM "_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['AAPL', 1, 0])
+2025-03-15 20:14:44,067 - yfinance - DEBUG -  Entering history()
+2025-03-15 20:14:44,067 - yfinance - DEBUG - AAPL: Yahoo GET parameters: {'range': '1y', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+2025-03-15 20:14:44,067 - yfinance - DEBUG -   Entering get()
+2025-03-15 20:14:44,067 - yfinance - DEBUG -    Entering _make_request()
+2025-03-15 20:14:44,067 - yfinance - DEBUG - url=https://query2.finance.yahoo.com/v8/finance/chart/AAPL
+2025-03-15 20:14:44,067 - yfinance - DEBUG - params={'range': '1y', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+2025-03-15 20:14:44,068 - yfinance - DEBUG -     Entering _get_cookie_and_crumb()
+2025-03-15 20:14:44,068 - yfinance - DEBUG - cookie_mode = 'basic'
+2025-03-15 20:14:44,068 - yfinance - DEBUG -      Entering _get_cookie_and_crumb_basic()
+2025-03-15 20:14:44,068 - peewee - DEBUG - ('CREATE TABLE IF NOT EXISTS "_cookieschema" ("strategy" VARCHAR(255) NOT NULL PRIMARY KEY, "fetch_date" DATETIME NOT NULL, "cookie_bytes" BLOB NOT NULL) WITHOUT ROWID', [])
+2025-03-15 20:14:44,069 - peewee - DEBUG - ('SELECT "t1"."strategy", "t1"."fetch_date", "t1"."cookie_bytes" FROM "_cookieschema" AS "t1" WHERE ("t1"."strategy" = ?) LIMIT ? OFFSET ?', ['basic', 1, 0])
+2025-03-15 20:14:44,069 - yfinance - DEBUG - loaded persistent cookie
+2025-03-15 20:14:44,069 - yfinance - DEBUG - reusing cookie
+2025-03-15 20:14:44,074 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): query1.finance.yahoo.com:443
+2025-03-15 20:14:44,188 - urllib3.connectionpool - DEBUG - https://query1.finance.yahoo.com:443 "GET /v1/test/getcrumb HTTP/1.1" 200 11
+2025-03-15 20:14:44,188 - yfinance - DEBUG - crumb = 'IKqTE59qPrl'
+2025-03-15 20:14:44,188 - yfinance - DEBUG -      Exiting _get_cookie_and_crumb_basic()
+2025-03-15 20:14:44,188 - yfinance - DEBUG -     Exiting _get_cookie_and_crumb()
+2025-03-15 20:14:44,189 - urllib3.connectionpool - DEBUG - Starting new HTTPS connection (1): query2.finance.yahoo.com:443
+2025-03-15 20:14:44,338 - urllib3.connectionpool - DEBUG - https://query2.finance.yahoo.com:443 "GET /v8/finance/chart/AAPL?range=1y&interval=1d&includePrePost=False&events=div%2Csplits%2CcapitalGains&crumb=IKqTE59qPrl HTTP/1.1" 200 None
+2025-03-15 20:14:44,351 - yfinance - DEBUG - response code=200
+2025-03-15 20:14:44,351 - yfinance - DEBUG -    Exiting _make_request()
+2025-03-15 20:14:44,351 - yfinance - DEBUG -   Exiting get()
+2025-03-15 20:14:44,352 - yfinance - DEBUG - AAPL: yfinance received OHLC data: 2024-03-15 13:30:00 -> 2025-03-14 13:30:00
+2025-03-15 20:14:44,355 - yfinance - DEBUG - AAPL: OHLC after cleaning: 2024-03-15 09:30:00-04:00 -> 2025-03-14 09:30:00-04:00
+2025-03-15 20:14:44,358 - yfinance - DEBUG - AAPL: OHLC after combining events: 2024-03-15 00:00:00-04:00 -> 2025-03-14 00:00:00-04:00
+2025-03-15 20:14:44,358 - yfinance - DEBUG - AAPL: yfinance returning OHLC: 2024-03-15 00:00:00-04:00 -> 2025-03-14 00:00:00-04:00
+2025-03-15 20:14:44,358 - yfinance - DEBUG -  Exiting history()
+2025-03-15 20:14:44,358 - yfinance - DEBUG - Exiting history()
+2025-03-15 20:14:44,359 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: fast_info price for AAPL: 213.49000549316406
+2025-03-15 20:14:44,359 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Caching price 213.49000549316406 for AAPL with TTL=300
+2025-03-15 20:14:44,362 - app.services.yfinance_provider - DEBUG - Saved data to database cache: yfinance:stock_price:AAPL
+2025-03-15 20:14:44,362 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Returning price 213.49000549316406 for AAPL
+2025-03-15 20:14:44,363 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:14:44,363 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AAPL
+2025-03-15 20:14:44,363 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AAPL
+2025-03-15 20:14:44,363 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AAPL
+2025-03-15 20:14:44,363 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AAPL, returning price: 213.49000549316406
+2025-03-15 20:14:44,363 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:14:44,363 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: META
+2025-03-15 20:14:44,363 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:META
+2025-03-15 20:14:44,365 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache miss, fetching stock price for ticker: META
+2025-03-15 20:14:44,365 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Creating yfinance Ticker object for META
+2025-03-15 20:14:44,365 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Attempting to get price from fast_info for META
+2025-03-15 20:14:44,365 - yfinance - DEBUG - Entering history()
+2025-03-15 20:14:44,365 - peewee - DEBUG - ('SELECT "t1"."key", "t1"."value" FROM "_kv" AS "t1" WHERE ("t1"."key" = ?) LIMIT ? OFFSET ?', ['META', 1, 0])
+2025-03-15 20:14:44,365 - yfinance - DEBUG -  Entering history()
+2025-03-15 20:14:44,365 - yfinance - DEBUG - META: Yahoo GET parameters: {'range': '1y', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+2025-03-15 20:14:44,365 - yfinance - DEBUG -   Entering get()
+2025-03-15 20:14:44,365 - yfinance - DEBUG -    Entering _make_request()
+2025-03-15 20:14:44,365 - yfinance - DEBUG - url=https://query2.finance.yahoo.com/v8/finance/chart/META
+2025-03-15 20:14:44,365 - yfinance - DEBUG - params={'range': '1y', 'interval': '1d', 'includePrePost': False, 'events': 'div,splits,capitalGains'}
+2025-03-15 20:14:44,365 - yfinance - DEBUG -     Entering _get_cookie_and_crumb()
+2025-03-15 20:14:44,365 - yfinance - DEBUG - cookie_mode = 'basic'
+2025-03-15 20:14:44,365 - yfinance - DEBUG -      Entering _get_cookie_and_crumb_basic()
+2025-03-15 20:14:44,365 - yfinance - DEBUG - reusing cookie
+2025-03-15 20:14:44,365 - yfinance - DEBUG - reusing crumb
+2025-03-15 20:14:44,365 - yfinance - DEBUG -      Exiting _get_cookie_and_crumb_basic()
+2025-03-15 20:14:44,365 - yfinance - DEBUG -     Exiting _get_cookie_and_crumb()
+2025-03-15 20:14:44,425 - urllib3.connectionpool - DEBUG - https://query2.finance.yahoo.com:443 "GET /v8/finance/chart/META?range=1y&interval=1d&includePrePost=False&events=div%2Csplits%2CcapitalGains&crumb=IKqTE59qPrl HTTP/1.1" 200 None
+2025-03-15 20:14:44,425 - yfinance - DEBUG - response code=200
+2025-03-15 20:14:44,425 - yfinance - DEBUG -    Exiting _make_request()
+2025-03-15 20:14:44,425 - yfinance - DEBUG -   Exiting get()
+2025-03-15 20:14:44,426 - yfinance - DEBUG - META: yfinance received OHLC data: 2024-03-15 13:30:00 -> 2025-03-14 13:30:00
+2025-03-15 20:14:44,427 - yfinance - DEBUG - META: OHLC after cleaning: 2024-03-15 09:30:00-04:00 -> 2025-03-14 09:30:00-04:00
+2025-03-15 20:14:44,430 - yfinance - DEBUG - META: OHLC after combining events: 2024-03-15 00:00:00-04:00 -> 2025-03-14 00:00:00-04:00
+2025-03-15 20:14:44,430 - yfinance - DEBUG - META: yfinance returning OHLC: 2024-03-15 00:00:00-04:00 -> 2025-03-14 00:00:00-04:00
+2025-03-15 20:14:44,430 - yfinance - DEBUG -  Exiting history()
+2025-03-15 20:14:44,430 - yfinance - DEBUG - Exiting history()
+2025-03-15 20:14:44,431 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: fast_info price for META: 607.5999755859375
+2025-03-15 20:14:44,431 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Caching price 607.5999755859375 for META with TTL=300
+2025-03-15 20:14:44,433 - app.services.yfinance_provider - DEBUG - Saved data to database cache: yfinance:stock_price:META
+2025-03-15 20:14:44,433 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Returning price 607.5999755859375 for META
+2025-03-15 20:14:44,434 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:14:44,434 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: META
+2025-03-15 20:14:44,434 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:META
+2025-03-15 20:14:44,434 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:META
+2025-03-15 20:14:44,434 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:META, returning price: 607.5999755859375
+2025-03-15 20:14:44,435 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.3893s
+2025-03-15 20:14:50,720 - app.main - INFO - REQUEST: GET /options/search/A?limit=10 from 127.0.0.1
+2025-03-15 20:14:50,721 - app.dependencies - DEBUG - Creating new MarketDataService instance
+2025-03-15 20:14:50,721 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:14:50,721 - app.routes.options - INFO - Received ticker search request for query: A, limit: 10
+2025-03-15 20:14:50,721 - app.routes.options - INFO - Calling market_data_service.search_tickers with query: A
+2025-03-15 20:14:50,721 - app.services.market_data - INFO - MarketDataService.search_tickers called with query: A
+2025-03-15 20:14:50,721 - app.services.market_data - INFO - Delegating to provider: YFinanceProvider
+2025-03-15 20:14:50,721 - app.services.yfinance_provider - INFO - search_tickers called with query: A
+2025-03-15 20:14:50,722 - app.services.yfinance_provider - INFO - Standardized ticker: A
+2025-03-15 20:14:50,722 - app.services.yfinance_provider - INFO - Checking cache for key: yfinance:ticker_validation:A
+2025-03-15 20:14:50,723 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:ticker_validation:A
+2025-03-15 20:14:50,723 - app.services.yfinance_provider - INFO - Cache hit for yfinance:ticker_validation:A: ['A']
+2025-03-15 20:14:50,723 - app.services.market_data - INFO - Provider returned results: ['A']
+2025-03-15 20:14:50,723 - app.routes.options - INFO - Received results from market_data_service: ['A']
+2025-03-15 20:14:50,723 - app.routes.options - INFO - Returning limited results: ['A']
+2025-03-15 20:14:50,724 - app.main - INFO - RESPONSE: GET /options/search/A - Status: 200 - Time: 0.0042s
+2025-03-15 20:14:50,913 - app.main - INFO - REQUEST: GET /options/search/AA?limit=10 from 127.0.0.1
+2025-03-15 20:14:50,914 - app.dependencies - DEBUG - Creating new MarketDataService instance
+2025-03-15 20:14:50,914 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:14:50,915 - app.routes.options - INFO - Received ticker search request for query: AA, limit: 10
+2025-03-15 20:14:50,915 - app.routes.options - INFO - Calling market_data_service.search_tickers with query: AA
+2025-03-15 20:14:50,915 - app.services.market_data - INFO - MarketDataService.search_tickers called with query: AA
+2025-03-15 20:14:50,915 - app.services.market_data - INFO - Delegating to provider: YFinanceProvider
+2025-03-15 20:14:50,915 - app.services.yfinance_provider - INFO - search_tickers called with query: AA
+2025-03-15 20:14:50,915 - app.services.yfinance_provider - INFO - Standardized ticker: AA
+2025-03-15 20:14:50,915 - app.services.yfinance_provider - INFO - Checking cache for key: yfinance:ticker_validation:AA
+2025-03-15 20:14:50,916 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:ticker_validation:AA
+2025-03-15 20:14:50,917 - app.services.yfinance_provider - INFO - Cache hit for yfinance:ticker_validation:AA: ['AA']
+2025-03-15 20:14:50,917 - app.services.market_data - INFO - Provider returned results: ['AA']
+2025-03-15 20:14:50,917 - app.routes.options - INFO - Received results from market_data_service: ['AA']
+2025-03-15 20:14:50,917 - app.routes.options - INFO - Returning limited results: ['AA']
+2025-03-15 20:14:50,917 - app.main - INFO - RESPONSE: GET /options/search/AA - Status: 200 - Time: 0.0037s
+2025-03-15 20:14:51,363 - app.main - INFO - REQUEST: GET /options/search/AAP?limit=10 from 127.0.0.1
+2025-03-15 20:14:51,364 - app.dependencies - DEBUG - Creating new MarketDataService instance
+2025-03-15 20:14:51,364 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:14:51,364 - app.routes.options - INFO - Received ticker search request for query: AAP, limit: 10
+2025-03-15 20:14:51,364 - app.routes.options - INFO - Calling market_data_service.search_tickers with query: AAP
+2025-03-15 20:14:51,365 - app.services.market_data - INFO - MarketDataService.search_tickers called with query: AAP
+2025-03-15 20:14:51,365 - app.services.market_data - INFO - Delegating to provider: YFinanceProvider
+2025-03-15 20:14:51,365 - app.services.yfinance_provider - INFO - search_tickers called with query: AAP
+2025-03-15 20:14:51,365 - app.services.yfinance_provider - INFO - Standardized ticker: AAP
+2025-03-15 20:14:51,365 - app.services.yfinance_provider - INFO - Checking cache for key: yfinance:ticker_validation:AAP
+2025-03-15 20:14:51,366 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:ticker_validation:AAP
+2025-03-15 20:14:51,366 - app.services.yfinance_provider - INFO - Cache hit for yfinance:ticker_validation:AAP: ['AAP']
+2025-03-15 20:14:51,366 - app.services.market_data - INFO - Provider returned results: ['AAP']
+2025-03-15 20:14:51,366 - app.routes.options - INFO - Received results from market_data_service: ['AAP']
+2025-03-15 20:14:51,366 - app.routes.options - INFO - Returning limited results: ['AAP']
+2025-03-15 20:14:51,367 - app.main - INFO - RESPONSE: GET /options/search/AAP - Status: 200 - Time: 0.0035s
+2025-03-15 20:14:51,694 - app.main - INFO - REQUEST: GET /options/search/AAPL?limit=10 from 127.0.0.1
+2025-03-15 20:14:51,695 - app.dependencies - DEBUG - Creating new MarketDataService instance
+2025-03-15 20:14:51,695 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:14:51,695 - app.routes.options - INFO - Received ticker search request for query: AAPL, limit: 10
+2025-03-15 20:14:51,695 - app.routes.options - INFO - Calling market_data_service.search_tickers with query: AAPL
+2025-03-15 20:14:51,695 - app.services.market_data - INFO - MarketDataService.search_tickers called with query: AAPL
+2025-03-15 20:14:51,695 - app.services.market_data - INFO - Delegating to provider: YFinanceProvider
+2025-03-15 20:14:51,696 - app.services.yfinance_provider - INFO - search_tickers called with query: AAPL
+2025-03-15 20:14:51,696 - app.services.yfinance_provider - INFO - Standardized ticker: AAPL
+2025-03-15 20:14:51,696 - app.services.yfinance_provider - INFO - Checking cache for key: yfinance:ticker_validation:AAPL
+2025-03-15 20:14:51,697 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:ticker_validation:AAPL
+2025-03-15 20:14:51,697 - app.services.yfinance_provider - INFO - Cache hit for yfinance:ticker_validation:AAPL: ['AAPL']
+2025-03-15 20:14:51,697 - app.services.market_data - INFO - Provider returned results: ['AAPL']
+2025-03-15 20:14:51,697 - app.routes.options - INFO - Received results from market_data_service: ['AAPL']
+2025-03-15 20:14:51,697 - app.routes.options - INFO - Returning limited results: ['AAPL']
+2025-03-15 20:14:51,698 - app.main - INFO - RESPONSE: GET /options/search/AAPL - Status: 200 - Time: 0.0040s
+2025-03-15 20:14:53,479 - app.main - INFO - REQUEST: GET /options/chains/AAPL/expirations? from 127.0.0.1
+2025-03-15 20:14:53,479 - app.dependencies - DEBUG - Creating new MarketDataService instance
+2025-03-15 20:14:53,479 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:14:53,479 - app.dependencies - DEBUG - Creating new OptionChainService instance with MarketDataService
+2025-03-15 20:14:53,480 - app.routes.options - INFO - Getting expirations for ticker: AAPL
+2025-03-15 20:14:53,480 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:option_expirations:AAPL
+2025-03-15 20:14:53,481 - app.routes.options - INFO - Found 19 expirations for AAPL
+2025-03-15 20:14:53,481 - app.main - INFO - RESPONSE: GET /options/chains/AAPL/expirations - Status: 200 - Time: 0.0023s
+2025-03-15 20:14:53,489 - app.main - INFO - REQUEST: GET /options/chains/AAPL/2025-03-21? from 127.0.0.1
+2025-03-15 20:14:53,489 - app.dependencies - DEBUG - Creating new MarketDataService instance
+2025-03-15 20:14:53,489 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:14:53,489 - app.dependencies - DEBUG - Creating new OptionChainService instance with MarketDataService
+2025-03-15 20:14:53,490 - app.routes.options - INFO - Getting options for ticker: AAPL, expiration: 2025-03-21, type: None
+2025-03-15 20:14:53,490 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_option_chain called for ticker: AAPL, expiration: 2025-03-21 00:00:00
+2025-03-15 20:14:53,490 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Cache key: yfinance:option_chain:AAPL:2025-03-21 00:00:00
+2025-03-15 20:14:53,490 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking for cached data with key: yfinance:option_chain:AAPL:2025-03-21 00:00:00
+2025-03-15 20:14:53,490 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Creating yfinance Ticker object for AAPL
+2025-03-15 20:14:53,490 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Fetching available expirations for AAPL
+2025-03-15 20:14:53,490 - yfinance - DEBUG - Entering get()
+2025-03-15 20:14:53,491 - yfinance - DEBUG -  Entering _make_request()
+2025-03-15 20:14:53,491 - yfinance - DEBUG - url=https://query2.finance.yahoo.com/v7/finance/options/AAPL
+2025-03-15 20:14:53,491 - yfinance - DEBUG - params=None
+2025-03-15 20:14:53,491 - yfinance - DEBUG -   Entering _get_cookie_and_crumb()
+2025-03-15 20:14:53,491 - yfinance - DEBUG - cookie_mode = 'basic'
+2025-03-15 20:14:53,491 - yfinance - DEBUG -    Entering _get_cookie_and_crumb_basic()
+2025-03-15 20:14:53,491 - yfinance - DEBUG - reusing cookie
+2025-03-15 20:14:53,491 - yfinance - DEBUG - reusing crumb
+2025-03-15 20:14:53,491 - yfinance - DEBUG -    Exiting _get_cookie_and_crumb_basic()
+2025-03-15 20:14:53,491 - yfinance - DEBUG -   Exiting _get_cookie_and_crumb()
+2025-03-15 20:14:53,629 - urllib3.connectionpool - DEBUG - https://query2.finance.yahoo.com:443 "GET /v7/finance/options/AAPL?crumb=IKqTE59qPrl HTTP/1.1" 200 None
+2025-03-15 20:14:53,641 - yfinance - DEBUG - response code=200
+2025-03-15 20:14:53,641 - yfinance - DEBUG -  Exiting _make_request()
+2025-03-15 20:14:53,641 - yfinance - DEBUG - Exiting get()
+2025-03-15 20:14:53,642 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Found 19 expirations for AAPL
+2025-03-15 20:14:53,643 - yfinance - DEBUG - Entering get()
+2025-03-15 20:14:53,643 - yfinance - DEBUG -  Entering _make_request()
+2025-03-15 20:14:53,643 - yfinance - DEBUG - url=https://query2.finance.yahoo.com/v7/finance/options/AAPL?date=1742515200
+2025-03-15 20:14:53,643 - yfinance - DEBUG - params=None
+2025-03-15 20:14:53,643 - yfinance - DEBUG -   Entering _get_cookie_and_crumb()
+2025-03-15 20:14:53,643 - yfinance - DEBUG - cookie_mode = 'basic'
+2025-03-15 20:14:53,643 - yfinance - DEBUG -    Entering _get_cookie_and_crumb_basic()
+2025-03-15 20:14:53,643 - yfinance - DEBUG - reusing cookie
+2025-03-15 20:14:53,643 - yfinance - DEBUG - reusing crumb
+2025-03-15 20:14:53,643 - yfinance - DEBUG -    Exiting _get_cookie_and_crumb_basic()
+2025-03-15 20:14:53,643 - yfinance - DEBUG -   Exiting _get_cookie_and_crumb()
+2025-03-15 20:14:53,750 - urllib3.connectionpool - DEBUG - https://query2.finance.yahoo.com:443 "GET /v7/finance/options/AAPL?date=1742515200&crumb=IKqTE59qPrl HTTP/1.1" 200 None
+2025-03-15 20:14:53,752 - yfinance - DEBUG - response code=200
+2025-03-15 20:14:53,752 - yfinance - DEBUG -  Exiting _make_request()
+2025-03-15 20:14:53,752 - yfinance - DEBUG - Exiting get()
+2025-03-15 20:14:53,764 - app.services.yfinance_provider - INFO - Sample option data structure: {'contractSymbol': 'AAPL250321C00005000', 'lastTradeDate': 1741872606000, 'strike': 5.0, 'lastPrice': 207.01, 'bid': 207.4, 'ask': 209.25, 'change': -3.4100037, 'percentChange': -1.6205702, 'volume': 1.0, 'openInterest': 43, 'impliedVolatility': 16.8437547363, 'inTheMoney': True, 'contractSize': 'REGULAR', 'currency': 'USD', 'optionType': 'call', 'underlying': 'AAPL', 'expiration_date': '2025-03-21'}
+2025-03-15 20:14:53,764 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Getting underlying price for AAPL before processing options
+2025-03-15 20:14:53,764 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AAPL
+2025-03-15 20:14:53,764 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AAPL
+2025-03-15 20:14:53,764 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AAPL
+2025-03-15 20:14:53,764 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AAPL, returning price: 213.49000549316406
+2025-03-15 20:14:53,764 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Retrieved underlying price for AAPL: 213.49000549316406
+2025-03-15 20:14:53,765 - app.services.yfinance_provider - DEBUG - Sample option keys: dict_keys(['contractSymbol', 'lastTradeDate', 'strike', 'lastPrice', 'bid', 'ask', 'change', 'percentChange', 'volume', 'openInterest', 'impliedVolatility', 'inTheMoney', 'contractSize', 'currency', 'optionType', 'underlying', 'expiration_date'])
+2025-03-15 20:14:53,765 - app.services.yfinance_provider - DEBUG - Sample standardized option: {'ticker': 'AAPL', 'expiration': '2025-03-21T00:00:00', 'strike': 5.0, 'option_type': 'call', 'bid': 207.4, 'ask': 209.25, 'last': 207.01, 'volume': 1, 'open_interest': 43, 'implied_volatility': 16.8437547363, 'delta': None, 'gamma': None, 'theta': None, 'vega': None, 'rho': None, 'in_the_money': True, 'underlying_price': 213.49000549316406}
+2025-03-15 20:14:53,768 - app.services.yfinance_provider - DEBUG - Saved data to database cache: yfinance:option_chain:AAPL:2025-03-21 00:00:00
+2025-03-15 20:14:53,768 - app.routes.options - INFO - Found 164 options for AAPL expiring on 2025-03-21
+2025-03-15 20:14:53,768 - app.routes.options - INFO - Returning 164 options after filtering
+2025-03-15 20:14:53,769 - app.main - INFO - RESPONSE: GET /options/chains/AAPL/2025-03-21 - Status: 200 - Time: 0.2805s
+2025-03-15 20:15:07,058 - app.main - INFO - REQUEST: GET /options/chains/AAPL/2025-05-16? from 127.0.0.1
+2025-03-15 20:15:07,060 - app.dependencies - DEBUG - Creating new MarketDataService instance
+2025-03-15 20:15:07,060 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-15 20:15:07,060 - app.dependencies - DEBUG - Creating new OptionChainService instance with MarketDataService
+2025-03-15 20:15:07,061 - app.routes.options - INFO - Getting options for ticker: AAPL, expiration: 2025-05-16, type: None
+2025-03-15 20:15:07,061 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_option_chain called for ticker: AAPL, expiration: 2025-05-16 00:00:00
+2025-03-15 20:15:07,061 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Cache key: yfinance:option_chain:AAPL:2025-05-16 00:00:00
+2025-03-15 20:15:07,061 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking for cached data with key: yfinance:option_chain:AAPL:2025-05-16 00:00:00
+2025-03-15 20:15:07,062 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Creating yfinance Ticker object for AAPL
+2025-03-15 20:15:07,062 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Fetching available expirations for AAPL
+2025-03-15 20:15:07,062 - yfinance - DEBUG - Entering get()
+2025-03-15 20:15:07,063 - yfinance - DEBUG -  Entering _make_request()
+2025-03-15 20:15:07,063 - yfinance - DEBUG - url=https://query2.finance.yahoo.com/v7/finance/options/AAPL
+2025-03-15 20:15:07,063 - yfinance - DEBUG - params=None
+2025-03-15 20:15:07,063 - yfinance - DEBUG -   Entering _get_cookie_and_crumb()
+2025-03-15 20:15:07,063 - yfinance - DEBUG - cookie_mode = 'basic'
+2025-03-15 20:15:07,063 - yfinance - DEBUG -    Entering _get_cookie_and_crumb_basic()
+2025-03-15 20:15:07,063 - yfinance - DEBUG - reusing cookie
+2025-03-15 20:15:07,063 - yfinance - DEBUG - reusing crumb
+2025-03-15 20:15:07,063 - yfinance - DEBUG -    Exiting _get_cookie_and_crumb_basic()
+2025-03-15 20:15:07,063 - yfinance - DEBUG -   Exiting _get_cookie_and_crumb()
+2025-03-15 20:15:07,170 - urllib3.connectionpool - DEBUG - https://query2.finance.yahoo.com:443 "GET /v7/finance/options/AAPL?crumb=IKqTE59qPrl HTTP/1.1" 200 None
+2025-03-15 20:15:07,176 - yfinance - DEBUG - response code=200
+2025-03-15 20:15:07,176 - yfinance - DEBUG -  Exiting _make_request()
+2025-03-15 20:15:07,177 - yfinance - DEBUG - Exiting get()
+2025-03-15 20:15:07,179 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Found 19 expirations for AAPL
+2025-03-15 20:15:07,179 - yfinance - DEBUG - Entering get()
+2025-03-15 20:15:07,179 - yfinance - DEBUG -  Entering _make_request()
+2025-03-15 20:15:07,180 - yfinance - DEBUG - url=https://query2.finance.yahoo.com/v7/finance/options/AAPL?date=1747353600
+2025-03-15 20:15:07,180 - yfinance - DEBUG - params=None
+2025-03-15 20:15:07,180 - yfinance - DEBUG -   Entering _get_cookie_and_crumb()
+2025-03-15 20:15:07,180 - yfinance - DEBUG - cookie_mode = 'basic'
+2025-03-15 20:15:07,180 - yfinance - DEBUG -    Entering _get_cookie_and_crumb_basic()
+2025-03-15 20:15:07,180 - yfinance - DEBUG - reusing cookie
+2025-03-15 20:15:07,180 - yfinance - DEBUG - reusing crumb
+2025-03-15 20:15:07,180 - yfinance - DEBUG -    Exiting _get_cookie_and_crumb_basic()
+2025-03-15 20:15:07,180 - yfinance - DEBUG -   Exiting _get_cookie_and_crumb()
+2025-03-15 20:15:07,253 - urllib3.connectionpool - DEBUG - https://query2.finance.yahoo.com:443 "GET /v7/finance/options/AAPL?date=1747353600&crumb=IKqTE59qPrl HTTP/1.1" 200 None
+2025-03-15 20:15:07,254 - yfinance - DEBUG - response code=200
+2025-03-15 20:15:07,255 - yfinance - DEBUG -  Exiting _make_request()
+2025-03-15 20:15:07,255 - yfinance - DEBUG - Exiting get()
+2025-03-15 20:15:07,263 - app.services.yfinance_provider - INFO - Sample option data structure: {'contractSymbol': 'AAPL250516C00100000', 'lastTradeDate': 1741703444000, 'strike': 100.0, 'lastPrice': 123.5, 'bid': 113.8, 'ask': 114.65, 'change': 0.0, 'percentChange': 0.0, 'volume': 1.0, 'openInterest': 15, 'impliedVolatility': 0.9926758545, 'inTheMoney': True, 'contractSize': 'REGULAR', 'currency': 'USD', 'optionType': 'call', 'underlying': 'AAPL', 'expiration_date': '2025-05-16'}
+2025-03-15 20:15:07,263 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Getting underlying price for AAPL before processing options
+2025-03-15 20:15:07,263 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AAPL
+2025-03-15 20:15:07,263 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AAPL
+2025-03-15 20:15:07,264 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AAPL
+2025-03-15 20:15:07,264 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AAPL, returning price: 213.49000549316406
+2025-03-15 20:15:07,264 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Retrieved underlying price for AAPL: 213.49000549316406
+2025-03-15 20:15:07,264 - app.services.yfinance_provider - DEBUG - Sample option keys: dict_keys(['contractSymbol', 'lastTradeDate', 'strike', 'lastPrice', 'bid', 'ask', 'change', 'percentChange', 'volume', 'openInterest', 'impliedVolatility', 'inTheMoney', 'contractSize', 'currency', 'optionType', 'underlying', 'expiration_date'])
+2025-03-15 20:15:07,264 - app.services.yfinance_provider - DEBUG - Sample standardized option: {'ticker': 'AAPL', 'expiration': '2025-05-16T00:00:00', 'strike': 100.0, 'option_type': 'call', 'bid': 113.8, 'ask': 114.65, 'last': 123.5, 'volume': 1, 'open_interest': 15, 'implied_volatility': 0.9926758545, 'delta': None, 'gamma': None, 'theta': None, 'vega': None, 'rho': None, 'in_the_money': True, 'underlying_price': 213.49000549316406}
+2025-03-15 20:15:07,266 - app.services.yfinance_provider - DEBUG - Saved data to database cache: yfinance:option_chain:AAPL:2025-05-16 00:00:00
+2025-03-15 20:15:07,266 - app.routes.options - INFO - Found 89 options for AAPL expiring on 2025-05-16
+2025-03-15 20:15:07,267 - app.routes.options - INFO - Returning 89 options after filtering
+2025-03-15 20:15:07,267 - app.main - INFO - RESPONSE: GET /options/chains/AAPL/2025-05-16 - Status: 200 - Time: 0.2087s
+2025-03-15 20:15:09,026 - app.main - INFO - REQUEST: POST /debug/log? from 127.0.0.1
+2025-03-15 20:15:09,052 - app.main - INFO - RESPONSE: POST /debug/log - Status: 200 - Time: 0.0251s
