@@ -404,19 +404,51 @@ export class ApiClient {
   private async handleResponse<T>(response: Response): Promise<T> {
     // Try to parse the response as JSON
     try {
-      const data = await response.json();
+      let data;
+      const contentType = response.headers.get('content-type');
+      
+      // Only try to parse as JSON if the content type is JSON
+      if (contentType && contentType.includes('application/json')) {
+        const textData = await response.text();
+        try {
+          data = textData ? JSON.parse(textData) : {};
+        } catch (parseError) {
+          console.error(`Failed to parse JSON response: ${textData}`, parseError);
+          data = { parseError: true, rawText: textData };
+        }
+      } else {
+        // For non-JSON responses, store as text
+        data = { text: await response.text(), contentType };
+      }
       
       // Enhanced logging for response data
       console.log(`API PARSED RESPONSE for ${response.url}:`, {
         status: response.status,
         ok: response.ok,
         hasData: !!data,
-        dataType: data ? typeof data : 'null'
+        dataType: data ? typeof data : 'null',
+        contentType
       });
       
       if (!response.ok) {
         // Extract error message from response if available
-        const errorMessage = data?.detail || data?.message || response.statusText;
+        let errorMessage = '';
+        
+        if (typeof data === 'object' && data !== null) {
+          errorMessage = data.detail || data.message || data.error || response.statusText;
+          
+          // If we have a nested error object, extract its message
+          if (data.errors && Array.isArray(data.errors) && data.errors.length > 0) {
+            errorMessage = data.errors.map((err: any) => 
+              typeof err === 'string' ? err : (err.message || JSON.stringify(err))
+            ).join(', ');
+          }
+        } else if (typeof data === 'string') {
+          errorMessage = data || response.statusText;
+        } else {
+          errorMessage = response.statusText || 'Unknown error';
+        }
+        
         console.error(`API ERROR DETAILS:`, { 
           status: response.status, 
           statusText: response.statusText,

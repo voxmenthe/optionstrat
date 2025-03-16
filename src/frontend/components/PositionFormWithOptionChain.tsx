@@ -6,6 +6,7 @@ import OptionChainSelector from './OptionChainSelector';
 import { OptionContract } from '../lib/api/optionsApi';
 import { useOptionChainStore } from '../lib/stores';
 import { OptionPosition, usePositionStore } from '../lib/stores/positionStore';
+import { ApiError } from '../lib/api/apiClient';
 
 // Define the props, extending from PositionForm
 interface PositionFormWithOptionChainProps {
@@ -82,6 +83,22 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
   
   // Convert option contract to position form data
   const mapOptionToFormData = useCallback((option: OptionContract): PositionFormData => {
+    // Validate option data first
+    if (!option || typeof option !== 'object') {
+      console.error('Invalid option object provided to mapOptionToFormData:', option);
+      // Return a placeholder to prevent crashes, but this should never happen
+      // due to the validation in handleOptionSelect
+      return {
+        ticker: '',
+        type: 'call',
+        strike: 0,
+        expiration: '',
+        premium: 0,
+        action: 'buy',
+        quantity: 1,
+      };
+    }
+    
     // Calculate mid price if both bid and ask are available
     const midPrice = option.bid && option.ask 
       ? (option.bid + option.ask) / 2 
@@ -90,18 +107,29 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     // Format expiration date for form
     let formattedExpDate = '';
     try {
-      const expDate = new Date(option.expiration);
-      if (!isNaN(expDate.getTime())) {
-        formattedExpDate = `${expDate.getFullYear()}-${String(expDate.getMonth() + 1).padStart(2, '0')}-${String(expDate.getDate()).padStart(2, '0')}`;
+      // Ensure we have a valid date object
+      if (option.expiration) {
+        const expDate = new Date(option.expiration);
+        if (!isNaN(expDate.getTime())) {
+          // Format as ISO string but truncate the time part
+          // This ensures compatibility with the backend API
+          formattedExpDate = expDate.toISOString().split('T')[0];
+          console.log('Formatted expiration date:', formattedExpDate);
+        } else {
+          console.error('Invalid expiration date:', option.expiration);
+        }
+      } else {
+        console.error('Missing expiration date in option data');
       }
     } catch (e) {
-      console.error('Error formatting option expiration date:', e);
+      console.error('Error formatting option expiration date:', e, option.expiration);
     }
     
+    // Create the position data with proper fallbacks
     return {
-      ticker: option.ticker,
-      type: option.optionType as 'call' | 'put', // Add type assertion to ensure correct type
-      strike: option.strike,
+      ticker: option.ticker || '',
+      type: (option.optionType as 'call' | 'put') || 'call', // Add type assertion with fallback
+      strike: option.strike || 0,
       expiration: formattedExpDate,
       premium: midPrice,
       // Default values for other fields
@@ -121,31 +149,69 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
       setIsAddingPosition(true);
       setAddPositionError(null);
       
+      // Double-check that the selected option has all required fields
+      if (!selectedOption.ticker || !selectedOption.optionType || 
+          !selectedOption.strike || !selectedOption.expiration) {
+        throw new Error('Selected option is missing required fields');
+      }
+      
       // Map the selected option to position data
       const positionData = mapOptionToFormData(selectedOption);
       
+      // Validate the position data before sending to API
+      if (!positionData.ticker || !positionData.expiration || !positionData.type || !positionData.strike) {
+        throw new Error('Invalid position data: Missing required fields');
+      }
+      
       console.log('Adding position directly to positions table:', positionData);
       
-      // Add the position to the store
-      await addPosition(positionData);
-      
-      // Show success message
-      setAddPositionSuccess(true);
-      
-      // Reset form state
-      setSelectedOption(null);
-      setFormData(null);
-      setHasUnsavedChanges(false);
-      setUserModifiedForm(false);
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setAddPositionSuccess(false);
-      }, 3000);
-      
+      // Add the position to the store with improved error handling
+      try {
+        // Use a more robust approach with proper error handling
+        const result = await addPosition(positionData);
+        console.log('Position added successfully:', result);
+        
+        // Show success message
+        setAddPositionSuccess(true);
+        
+        // Reset form state
+        setSelectedOption(null);
+        setFormData(null);
+        setHasUnsavedChanges(false);
+        setUserModifiedForm(false);
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => {
+          setAddPositionSuccess(false);
+        }, 3000);
+      } catch (error: unknown) {
+        // More detailed API error handling
+        console.error('API Error adding position:', error);
+        let errorMessage = 'Failed to add position';
+        
+        if (error instanceof ApiError) {
+          errorMessage = `API Error (${error.status}): ${error.message || error.statusText}`;
+          console.error('API Error details:', { 
+            status: error.status, 
+            statusText: error.statusText, 
+            message: error.message,
+            name: error.name
+          });
+          
+          // Don't show success message if there was an error
+          setAddPositionSuccess(false);
+        } else if (error instanceof Error) {
+          errorMessage = `Error: ${error.message}`;
+        } else {
+          errorMessage = `Error: ${String(error)}`;
+        }
+        
+        throw new Error(errorMessage);
+      }
     } catch (error) {
-      console.error('Error adding position:', error);
-      setAddPositionError(`Failed to add position: ${error instanceof Error ? error.message : String(error)}`);
+      console.error('Error in position addition workflow:', error);
+      setAddPositionError(`${error instanceof Error ? error.message : String(error)}`);
+      setAddPositionSuccess(false); // Ensure success message is not shown
       
       // Clear error message after 5 seconds
       setTimeout(() => {
@@ -160,14 +226,22 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
   const handleOptionSelect = useCallback((option: OptionContract) => {
     console.log('Option selected from chain:', option);
     
+    // Validate option data before proceeding
+    if (!option) {
+      console.warn('No option provided to handleOptionSelect');
+      return;
+    }
+    
+    // Check for required fields
+    if (!option.ticker || !option.optionType || !option.strike || !option.expiration) {
+      console.error('Invalid option data received:', option);
+      console.error('Missing required fields in option data');
+      return;
+    }
+    
     // Use requestAnimationFrame to ensure UI updates before heavy operations
     requestAnimationFrame(() => {
       try {
-        if (!option) {
-          console.warn('No option provided to handleOptionSelect');
-          return;
-        }
-        
         // First set the selected option
         setSelectedOption(option);
         
@@ -421,11 +495,13 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
   const getPositionFromFormData = (): Partial<OptionPosition> | undefined => {
     if (!formData) return undefined;
     
-    return {
-      ...formData,
-      // Add an id if needed but only for display purposes, the real ID will be generated on the server
-      id: props.existingPosition?.id || 'temp_id',
+    // Create a position object without an ID to ensure we create a new position
+    // rather than trying to update a non-existent one
+    const position: Partial<OptionPosition> = {
+      ...formData
     };
+    
+    return position;
   };
   
   return (
@@ -562,8 +638,9 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
               </div>
               
               <PositionForm 
-                {...props} 
-                existingPosition={getPositionFromFormData() as any}
+                // Don't pass existingPosition when it's a new position from option chain
+                // This ensures we create a new position instead of trying to update a non-existent one
+                existingPosition={undefined}
                 onSuccess={handleSuccess}
                 onChange={handleFormChange}
                 readonlyFields={['ticker', 'type', 'strike', 'expiration']}

@@ -247,8 +247,42 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
               
               logger.info(`OPTION_CHAIN_DEBUG: API call successful. Received ${result.length} options`);
               
-              // Return the result, or empty array if undefined (shouldn't happen)
-              return result || [];
+              // Log the raw response data for debugging
+              logger.info('OPTION_CHAIN_DEBUG: Raw API response sample', {
+                sample: result.length > 0 ? JSON.stringify(result[0]).substring(0, 200) + '...' : 'empty',
+                count: result.length
+              });
+              
+              // Check if we have any data at all
+              if (!result || !Array.isArray(result) || result.length === 0) {
+                logger.warn('OPTION_CHAIN_DEBUG: Empty or invalid result from API');
+                return [];
+              }
+              
+              // Less strict validation - only log warnings but don't filter out options
+              // This ensures we don't lose data due to validation issues
+              result.forEach((option, index) => {
+                if (!option || typeof option !== 'object') {
+                  logger.warn(`OPTION_CHAIN_DEBUG: Invalid option at index ${index}:`, option);
+                } else {
+                  // Check for missing required fields but don't filter
+                  const missingFields = [];
+                  if (!option.ticker) missingFields.push('ticker');
+                  if (!option.optionType) missingFields.push('optionType');
+                  if (!option.strike) missingFields.push('strike');
+                  if (!option.expiration) missingFields.push('expiration');
+                  
+                  if (missingFields.length > 0) {
+                    logger.warn(`OPTION_CHAIN_DEBUG: Option at index ${index} missing fields:`, {
+                      missingFields,
+                      option
+                    });
+                  }
+                }
+              });
+              
+              // Return the original results without filtering
+              return result;
             } catch (fetchError) {
               logger.error('OPTION_CHAIN_DEBUG: Error during API fetch', 
                 fetchError instanceof Error 
@@ -280,10 +314,25 @@ export const useOptionChainStore = create<OptionChainState>((set, get) => ({
         // Update the state with the chain data
         // Use requestAnimationFrame again to ensure smooth UI updates
         requestAnimationFrame(() => {
-          set({ chain, isLoading: false, error: null });
+          // Log the chain data for debugging
+          logger.info('OPTION_CHAIN_DEBUG: Chain data received', {
+            length: chain.length,
+            sample: chain.length > 0 ? JSON.stringify(chain[0]).substring(0, 200) + '...' : 'none'
+          });
           
-          // Debug log of first option data for verification
-          if (chain.length > 0) {
+          // Check if we have any data
+          if (chain.length === 0) {
+            logger.warn('OPTION_CHAIN_DEBUG: Empty chain data received');
+            set({
+              chain: [],
+              isLoading: false,
+              error: 'No option data available for this date. Try another expiration date.'
+            });
+          } else {
+            // We have data, update the state
+            set({ chain, isLoading: false, error: null });
+            
+            // Debug log of first option data for verification
             logger.info('OPTION_CHAIN_DEBUG: First option in chain:', chain[0]);
           }
         });

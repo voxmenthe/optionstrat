@@ -68,10 +68,7 @@ const OptionChainTable: React.FC<OptionChainTableProps> = ({
   
   // Determine if an option is in the money
   const isInTheMoney = (option: OptionContract): boolean => {
-    if (option.inTheMoney !== undefined) {
-      return option.inTheMoney;
-    }
-    
+    // Calculate ITM status based on option type and underlying price
     if (underlyingPrice) {
       return option.optionType === 'call' 
         ? underlyingPrice > option.strike 
@@ -93,13 +90,36 @@ const OptionChainTable: React.FC<OptionChainTableProps> = ({
     return value.toFixed(3);
   };
   
-  // Handle option selection with improved logging
+  // Handle option selection with improved validation
   const handleSelect = (option: OptionContract) => {
     console.log('Option selected from table:', option);
     
-    // Use requestAnimationFrame to ensure UI updates before callback execution
+    // Validate option data before selection
+    if (!option || typeof option !== 'object') {
+      console.error('Invalid option object provided to handleSelect:', option);
+      return;
+    }
+    
+    // Check for required fields
+    if (!option.ticker || !option.optionType || !option.strike || !option.expiration) {
+      console.error('Option missing required fields:', {
+        ticker: option.ticker,
+        optionType: option.optionType,
+        strike: option.strike,
+        expiration: option.expiration
+      });
+      return;
+    }
+    
+    // Use requestAnimationFrame to not block the UI
     requestAnimationFrame(() => {
       try {
+        console.log('Selecting valid option:', {
+          ticker: option.ticker,
+          optionType: option.optionType,
+          strike: option.strike,
+          expiration: option.expiration
+        });
         onSelect(option);
       } catch (error) {
         console.error('Error in option selection handler:', error);
@@ -110,6 +130,15 @@ const OptionChainTable: React.FC<OptionChainTableProps> = ({
   // Render individual option cell
   const renderOptionCell = (option: OptionContract | undefined) => {
     if (!option) return <td className="px-2 py-2 text-center text-gray-400">-</td>;
+    
+    // Validate option has all required fields before rendering interactive cell
+    const isValidOption = option.ticker && option.optionType && 
+                         option.strike && option.expiration;
+    
+    if (!isValidOption) {
+      console.warn('Invalid option data in renderOptionCell:', option);
+      return <td className="px-2 py-2 text-center text-gray-400">Invalid</td>;
+    }
     
     const isSelected = selectedOption && 
       selectedOption.ticker === option.ticker && 
@@ -127,11 +156,12 @@ const OptionChainTable: React.FC<OptionChainTableProps> = ({
           itm ? 'font-medium' : ''
         }`}
         onClick={() => handleSelect(option)}
+        title={`${option.ticker} ${option.optionType.toUpperCase()} $${option.strike} ${option.expiration}`}
       >
         <div className="flex justify-between">
           <span className="mr-2">{formatPrice(option.bid)}</span>
           <span className="mr-2">{formatPrice(option.ask)}</span>
-          <span>{formatPrice(option.last)}</span>
+          <span>{formatPrice(option.lastPrice)}</span>
         </div>
         
         {showGreeks && (

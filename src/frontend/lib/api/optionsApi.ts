@@ -25,6 +25,30 @@ export interface OptionExpiration {
   daysToExpiration: number;
 }
 
+// Helper function to convert snake_case API response to camelCase
+const mapOptionResponseToCamelCase = (option: any): OptionContract => {
+  // Create a new object with camelCase keys
+  const mappedOption: any = {};
+  
+  // Map known snake_case keys to camelCase
+  if (option.option_type !== undefined) mappedOption.optionType = option.option_type;
+  else if (option.optionType !== undefined) mappedOption.optionType = option.optionType;
+  
+  // Copy all other properties, preferring camelCase if both exist
+  Object.keys(option).forEach(key => {
+    // Skip already mapped properties
+    if (key === 'option_type' && mappedOption.optionType !== undefined) return;
+    
+    // Convert snake_case to camelCase
+    const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+    
+    // Use the camelCase key
+    mappedOption[camelKey] = option[key];
+  });
+  
+  return mappedOption as OptionContract;
+};
+
 // Create a dedicated axios instance for options API
 const optionsClient = axios.create({
   baseURL: `${API_BASE_URL}`,
@@ -132,7 +156,41 @@ export const optionsApi = {
         count: response.data.length 
       });
       
-      return response.data;
+      // Enhanced logging to debug the response structure
+      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
+        const sampleOption = response.data[0];
+        logger.info('OPTIONS_API: Sample option data structure', {
+          keys: Object.keys(sampleOption),
+          sample: JSON.stringify(sampleOption).substring(0, 200) + '...'
+        });
+        
+        // Check for snake_case vs camelCase property names
+        const hasSnakeCaseProps = sampleOption.option_type !== undefined;
+        logger.info('OPTIONS_API: Property format detection', {
+          hasSnakeCaseProps,
+          optionType: sampleOption.optionType,
+          option_type: sampleOption.option_type
+        });
+      } else {
+        logger.warn('OPTIONS_API: Unexpected response data format', {
+          isArray: Array.isArray(response.data),
+          length: response.data?.length,
+          data: response.data ? JSON.stringify(response.data).substring(0, 200) + '...' : 'null'
+        });
+      }
+      
+      // Convert snake_case to camelCase if needed
+      const mappedOptions = response.data.map(mapOptionResponseToCamelCase);
+      
+      // Log the mapped data
+      if (mappedOptions.length > 0) {
+        logger.info('OPTIONS_API: Mapped option data sample', {
+          keys: Object.keys(mappedOptions[0]),
+          sample: JSON.stringify(mappedOptions[0]).substring(0, 200) + '...'
+        });
+      }
+      
+      return mappedOptions;
     } catch (error) {
       // Don't log aborted requests as errors
       if (error.name === 'CanceledError' || error.name === 'AbortError') {
