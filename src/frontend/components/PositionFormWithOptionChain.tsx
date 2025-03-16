@@ -5,7 +5,7 @@ import PositionForm from './PositionForm';
 import OptionChainSelector from './OptionChainSelector';
 import { OptionContract } from '../lib/api/optionsApi';
 import { useOptionChainStore } from '../lib/stores';
-import { OptionPosition } from '../lib/stores/positionStore';
+import { OptionPosition, usePositionStore } from '../lib/stores/positionStore';
 
 // Define the props, extending from PositionForm
 interface PositionFormWithOptionChainProps {
@@ -72,6 +72,14 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
   // State to track if form has been modified by user (separate from initial loading)
   const [userModifiedForm, setUserModifiedForm] = useState<boolean>(false);
   
+  // States for adding position directly to the positions table
+  const [isAddingPosition, setIsAddingPosition] = useState<boolean>(false);
+  const [addPositionError, setAddPositionError] = useState<string | null>(null);
+  const [addPositionSuccess, setAddPositionSuccess] = useState<boolean>(false);
+  
+  // Get the addPosition function from the position store
+  const { addPosition } = usePositionStore();
+  
   // Convert option contract to position form data
   const mapOptionToFormData = useCallback((option: OptionContract): PositionFormData => {
     // Calculate mid price if both bid and ask are available
@@ -101,6 +109,52 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
       quantity: 1,
     };
   }, []);
+  
+  // Handle adding the selected option directly to positions
+  const handleAddToPositions = useCallback(async () => {
+    if (!selectedOption) {
+      console.warn('No option selected for adding to positions');
+      return;
+    }
+    
+    try {
+      setIsAddingPosition(true);
+      setAddPositionError(null);
+      
+      // Map the selected option to position data
+      const positionData = mapOptionToFormData(selectedOption);
+      
+      console.log('Adding position directly to positions table:', positionData);
+      
+      // Add the position to the store
+      await addPosition(positionData);
+      
+      // Show success message
+      setAddPositionSuccess(true);
+      
+      // Reset form state
+      setSelectedOption(null);
+      setFormData(null);
+      setHasUnsavedChanges(false);
+      setUserModifiedForm(false);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setAddPositionSuccess(false);
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Error adding position:', error);
+      setAddPositionError(`Failed to add position: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Clear error message after 5 seconds
+      setTimeout(() => {
+        setAddPositionError(null);
+      }, 5000);
+    } finally {
+      setIsAddingPosition(false);
+    }
+  }, [selectedOption, mapOptionToFormData, addPosition]);
   
   // Handle option selection from the chain with improved performance
   const handleOptionSelect = useCallback((option: OptionContract) => {
@@ -430,23 +484,79 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
             />
           </div>
           
+          {/* Success message */}
+          {addPositionSuccess && (
+            <div className="bg-green-100 border-l-4 border-green-500 p-4 mb-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-green-800">
+                    Position added successfully! Check the positions table to see your new position.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
+          {/* Error message */}
+          {addPositionError && (
+            <div className="bg-red-100 border-l-4 border-red-500 p-4 mb-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <svg className="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm font-medium text-red-800">
+                    {addPositionError}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           {/* Position Form with selected option data */}
           {selectedOption && (
             <div>
               <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
-                <div className="flex">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
+                <div className="flex justify-between">
+                  <div className="flex">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-green-400" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-green-800">
+                        Option selected: {selectedOption.ticker} {selectedOption.optionType?.toUpperCase() || ''} ${selectedOption.strike} {selectedOption.expiration ? new Date(selectedOption.expiration).toLocaleDateString() : ''}
+                      </p>
+                      <p className="text-xs text-green-700 mt-1">
+                        Bid: ${(selectedOption.bid || 0).toFixed(2)} | Ask: ${(selectedOption.ask || 0).toFixed(2)} | Mid: ${(((selectedOption.bid || 0) + (selectedOption.ask || 0)) / 2).toFixed(2)}
+                      </p>
+                    </div>
                   </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-green-800">
-                      Option selected: {selectedOption.ticker} {selectedOption.optionType?.toUpperCase() || ''} ${selectedOption.strike} {selectedOption.expiration ? new Date(selectedOption.expiration).toLocaleDateString() : ''}
-                    </p>
-                    <p className="text-xs text-green-700 mt-1">
-                      Bid: ${(selectedOption.bid || 0).toFixed(2)} | Ask: ${(selectedOption.ask || 0).toFixed(2)} | Mid: ${(((selectedOption.bid || 0) + (selectedOption.ask || 0)) / 2).toFixed(2)}
-                    </p>
+                  <div>
+                    <button 
+                      onClick={handleAddToPositions}
+                      className={`px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors ${isAddingPosition ? 'opacity-75 cursor-not-allowed' : ''}`}
+                      disabled={isAddingPosition}
+                      title="Add this option directly to your positions table"
+                    >
+                      {isAddingPosition ? (
+                        <span className="flex items-center">
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Adding...
+                        </span>
+                      ) : 'Add to Positions'}
+                    </button>
                   </div>
                 </div>
               </div>
