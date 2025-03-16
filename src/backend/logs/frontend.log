@@ -1,0 +1,59 @@
+2025-03-16T07:16:58.777Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Searching for ticker | {"query":"I","limit":10}
+2025-03-16T07:16:58.779Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/search/I | {"params":{"limit":10}}
+2025-03-16T07:16:59.078Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Searching for ticker | {"query":"IB","limit":10}
+2025-03-16T07:16:59.079Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/search/IB | {"params":{"limit":10}}
+2025-03-16T07:16:59.131Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/search/I
+2025-03-16T07:16:59.252Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/search/IB
+2025-03-16T07:16:59.272Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Searching for ticker | {"query":"IBM","limit":10}
+2025-03-16T07:16:59.273Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/search/IBM | {"params":{"limit":10}}
+2025-03-16T07:16:59.513Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/search/IBM
+2025-03-16T07:17:01.480Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: setTicker called with | {"ticker":"IBM"}
+2025-03-16T07:17:01.480Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Fetching expirations for | {"ticker":"IBM"}
+2025-03-16T07:17:01.480Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Getting expirations for ticker | {"ticker":"IBM"}
+2025-03-16T07:17:01.481Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/chains/IBM/expirations | {}
+2025-03-16T07:17:01.621Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/chains/IBM/expirations
+2025-03-16T07:17:01.621Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Received expirations | {"ticker":"IBM","count":15}
+2025-03-16T07:17:01.621Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Received expirations | {"ticker":"IBM","count":15}
+2025-03-16T07:17:01.621Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Auto-selecting first expiration | {"firstExpiration":"2025-03-21"}
+2025-03-16T07:17:01.622Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: setSelectedExpiration called with | {"date":"2025-03-21","currentSelection":null,"previouslySelectedDate":null,"ticker":"IBM"}
+2025-03-16T07:17:01.622Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Formatted date | {"originalDate":"2025-03-21","formattedDate":"2025-03-21"}
+2025-03-16T07:17:01.627Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Starting to fetch option chain | {"ticker":"IBM","formattedDate":"2025-03-21","baseApiUrl":"http://localhost:8003"}
+2025-03-16T07:17:01.627Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Current filters | {"optionType":"all","minStrike":null,"maxStrike":null,"minIV":null,"maxIV":null}
+2025-03-16T07:17:01.627Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Generated cache key | {"cacheKey":"option_chain:IBM:2025-03-21:{}"}
+2025-03-16T07:17:01.627Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Attempting to fetch option chain from cache or API
+2025-03-16T07:17:01.627Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API endpoint target | {"apiUrl":"/options/chains/IBM/2025-03-21","params":{}}
+2025-03-16T07:17:01.628Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Cache miss for option chain, fetching from API
+2025-03-16T07:17:01.628Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: About to call API.getOptionsForExpiration | {"ticker":"IBM","formattedDate":"2025-03-21","params":{}}
+2025-03-16T07:17:01.628Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Getting options for expiration | {"ticker":"IBM","expirationDate":"2025-03-21","params":{}}
+2025-03-16T07:17:01.628Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/chains/IBM/2025-03-21 | {"params":{}}
+2025-03-16T07:17:01.745Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/chains/IBM/2025-03-21
+2025-03-16T07:17:01.745Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Received options | {"ticker":"IBM","expirationDate":"2025-03-21","count":114}
+2025-03-16T07:17:01.745Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Sample option data structure | {"keys":["ticker","expiration","strike","option_type","bid","ask","last","volume","open_interest","implied_volatility","delta","gamma","theta","vega","rho","in_the_money","underlying_price"],"sample":"{\"ticker\":\"IBM\",\"expiration\":\"2025-03-21T00:00:00\",\"strike\":95,\"option_type\":\"call\",\"bid\":161,\"ask\":162.75,\"last\":157.4,\"volume\":10,\"open_interest\":5,\"implied_volatility\":6.7812515234,\"delta\":null,\"ga..."}
+2025-03-16T07:17:01.745Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Property format detection | {"hasSnakeCaseProps":true,"option_type":"call"}
+2025-03-16T07:17:01.747Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Mapped option data sample | {"keys":["optionType","ticker","expiration","strike","bid","ask","last","volume","openInterest","impliedVolatility","delta","gamma","theta","vega","rho","inTheMoney","underlyingPrice"],"sample":"{\"optionType\":\"call\",\"ticker\":\"IBM\",\"expiration\":\"2025-03-21T00:00:00\",\"strike\":95,\"bid\":161,\"ask\":162.75,\"last\":157.4,\"volume\":10,\"openInterest\":5,\"impliedVolatility\":6.7812515234,\"delta\":null,\"gamma..."}
+2025-03-16T07:17:01.747Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API call successful. Received 114 options
+2025-03-16T07:17:01.747Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Raw API response sample | {"sample":"{\"optionType\":\"call\",\"ticker\":\"IBM\",\"expiration\":\"2025-03-21T00:00:00\",\"strike\":95,\"bid\":161,\"ask\":162.75,\"last\":157.4,\"volume\":10,\"openInterest\":5,\"impliedVolatility\":6.7812515234,\"delta\":null,\"gamma...","count":114}
+2025-03-16T07:17:01.747Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Received chain data with 114 options | {"chainLength":114,"sampleOption":"{\"optionType\":\"call\",\"ticker\":\"IBM\",\"expiration\":\"2025-03-21T00:00:00\",\"strike\":95,\"bid\":161,\"ask\":162.75,\"last\":157.4,\"volume\":10,\"openInterest\":5,\"impliedVolatility\":6.7812515234,\"delta\":null,\"gamma..."}
+2025-03-16T07:17:01.747Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Chain data received | {"length":114,"sample":"{\"optionType\":\"call\",\"ticker\":\"IBM\",\"expiration\":\"2025-03-21T00:00:00\",\"strike\":95,\"bid\":161,\"ask\":162.75,\"last\":157.4,\"volume\":10,\"openInterest\":5,\"impliedVolatility\":6.7812515234,\"delta\":null,\"gamma..."}
+2025-03-16T07:17:01.747Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: First option in chain: | {"optionType":"call","ticker":"IBM","expiration":"2025-03-21T00:00:00","strike":95,"bid":161,"ask":162.75,"last":157.4,"volume":10,"openInterest":5,"impliedVolatility":6.7812515234,"delta":null,"gamma":null,"theta":null,"vega":null,"rho":null,"inTheMoney":true,"underlyingPrice":248.35000610351562}
+2025-03-16T07:17:07.304Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: setSelectedExpiration called with | {"date":"2025-10-17","currentSelection":"2025-03-21","previouslySelectedDate":"2025-03-21","ticker":"IBM"}
+2025-03-16T07:17:07.304Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Formatted date | {"originalDate":"2025-10-17","formattedDate":"2025-10-17"}
+2025-03-16T07:17:07.307Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Starting to fetch option chain | {"ticker":"IBM","formattedDate":"2025-10-17","baseApiUrl":"http://localhost:8003"}
+2025-03-16T07:17:07.307Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Current filters | {"optionType":"all","minStrike":null,"maxStrike":null,"minIV":null,"maxIV":null}
+2025-03-16T07:17:07.307Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Generated cache key | {"cacheKey":"option_chain:IBM:2025-10-17:{}"}
+2025-03-16T07:17:07.307Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Attempting to fetch option chain from cache or API
+2025-03-16T07:17:07.307Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API endpoint target | {"apiUrl":"/options/chains/IBM/2025-10-17","params":{}}
+2025-03-16T07:17:07.307Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Cache miss for option chain, fetching from API
+2025-03-16T07:17:07.307Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: About to call API.getOptionsForExpiration | {"ticker":"IBM","formattedDate":"2025-10-17","params":{}}
+2025-03-16T07:17:07.307Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Getting options for expiration | {"ticker":"IBM","expirationDate":"2025-10-17","params":{}}
+2025-03-16T07:17:07.307Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_REQUEST: GET /options/chains/IBM/2025-10-17 | {"params":{}}
+2025-03-16T07:17:07.481Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API_RESPONSE: 200 /options/chains/IBM/2025-10-17
+2025-03-16T07:17:07.481Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Received options | {"ticker":"IBM","expirationDate":"2025-10-17","count":51}
+2025-03-16T07:17:07.481Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Sample option data structure | {"keys":["ticker","expiration","strike","option_type","bid","ask","last","volume","open_interest","implied_volatility","delta","gamma","theta","vega","rho","in_the_money","underlying_price"],"sample":"{\"ticker\":\"IBM\",\"expiration\":\"2025-10-17T00:00:00\",\"strike\":165,\"option_type\":\"call\",\"bid\":85.25,\"ask\":87.35,\"last\":98.35,\"volume\":null,\"open_interest\":40,\"implied_volatility\":0.4482477051,\"delta\":nul..."}
+2025-03-16T07:17:07.481Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Property format detection | {"hasSnakeCaseProps":true,"option_type":"call"}
+2025-03-16T07:17:07.482Z [INFO] OPTION_CHAIN_DEBUG: OPTIONS_API: Mapped option data sample | {"keys":["optionType","ticker","expiration","strike","bid","ask","last","volume","openInterest","impliedVolatility","delta","gamma","theta","vega","rho","inTheMoney","underlyingPrice"],"sample":"{\"optionType\":\"call\",\"ticker\":\"IBM\",\"expiration\":\"2025-10-17T00:00:00\",\"strike\":165,\"bid\":85.25,\"ask\":87.35,\"last\":98.35,\"volume\":null,\"openInterest\":40,\"impliedVolatility\":0.4482477051,\"delta\":null,\"..."}
+2025-03-16T07:17:07.482Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: API call successful. Received 51 options
+2025-03-16T07:17:07.482Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Raw API response sample | {"sample":"{\"optionType\":\"call\",\"ticker\":\"IBM\",\"expiration\":\"2025-10-17T00:00:00\",\"strike\":165,\"bid\":85.25,\"ask\":87.35,\"last\":98.35,\"volume\":null,\"openInterest\":40,\"impliedVolatility\":0.4482477051,\"delta\":null,\"...","count":51}
+2025-03-16T07:17:07.482Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Received chain data with 51 options | {"chainLength":51,"sampleOption":"{\"optionType\":\"call\",\"ticker\":\"IBM\",\"expiration\":\"2025-10-17T00:00:00\",\"strike\":165,\"bid\":85.25,\"ask\":87.35,\"last\":98.35,\"volume\":null,\"openInterest\":40,\"impliedVolatility\":0.4482477051,\"delta\":null,\"..."}
+2025-03-16T07:17:07.486Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: Chain data received | {"length":51,"sample":"{\"optionType\":\"call\",\"ticker\":\"IBM\",\"expiration\":\"2025-10-17T00:00:00\",\"strike\":165,\"bid\":85.25,\"ask\":87.35,\"last\":98.35,\"volume\":null,\"openInterest\":40,\"impliedVolatility\":0.4482477051,\"delta\":null,\"..."}
+2025-03-16T07:17:07.486Z [INFO] OPTION_CHAIN_DEBUG: OPTION_CHAIN_DEBUG: First option in chain: | {"optionType":"call","ticker":"IBM","expiration":"2025-10-17T00:00:00","strike":165,"bid":85.25,"ask":87.35,"last":98.35,"volume":null,"openInterest":40,"impliedVolatility":0.4482477051,"delta":null,"gamma":null,"theta":null,"vega":null,"rho":null,"inTheMoney":true,"underlyingPrice":248.35000610351562}

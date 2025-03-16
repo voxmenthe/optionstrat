@@ -43,7 +43,7 @@
     -->
     <Progress>
         <LoggingInstructions>
-            Document all tasks. There is an existing folder in the project root named .windsurf  You will use this folder to keep a log of tasks in the following format:
+            Document all tasks. There is an existing folder in the project root named .windsurf and also an existing folder named task-logs within this. You will use this folder to keep a log of tasks in the following format:
 
             GOAL: Detail the goal of the task
             IMPLEMENTATION: Describe how it was implemented.
@@ -51,7 +51,7 @@
 
             [root]
                 [.windsurf]
-                    [.task-logs]
+                    [task-logs]
                         task-log_dd-mm-yy-hh-mm.log
         </LoggingInstructions>
     </Progress>
