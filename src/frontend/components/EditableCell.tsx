@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, KeyboardEvent, FocusEvent } from 'react';
+import React, { useState, useRef, useEffect, useMemo, KeyboardEvent, FocusEvent } from 'react';
 
 export interface EditableCellProps {
   // Current value to display/edit
@@ -47,16 +47,18 @@ const EditableCell: React.FC<EditableCellProps> = ({
   align = 'left',
 }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editValue, setEditValue] = useState<any>(value);
+  // Initialize editValue, ensuring it's never undefined for number inputs
+  const [editValue, setEditValue] = useState<any>(type === 'number' && (value === undefined || value === null) ? '' : value);
   const [isValid, setIsValid] = useState(true);
   const inputRef = useRef<HTMLInputElement | HTMLSelectElement>(null);
   
   // Update editValue when value prop changes (and not editing)
   useEffect(() => {
     if (!isEditing) {
-      setEditValue(value);
+      // For number inputs, convert undefined/null to empty string to avoid controlled/uncontrolled warning
+      setEditValue(type === 'number' && (value === undefined || value === null || isNaN(value)) ? '' : value);
     }
-  }, [value, isEditing]);
+  }, [value, isEditing, type]);
   
   // Focus input when entering edit mode
   useEffect(() => {
@@ -168,7 +170,22 @@ const EditableCell: React.FC<EditableCellProps> = ({
     setIsEditing(false);
   };
   
-  const displayValue = formatter ? formatter(value) : value?.toString() || '';
+  // Format the display value based on the formatter prop or default formatting
+  const displayValue = useMemo(() => {
+    if (isCalculating) {
+      return <div className="animate-pulse">Loading...</div>;
+    }
+    
+    if (formatter) {
+      return formatter(value);
+    }
+    
+    if (value === undefined || value === null || (typeof value === 'number' && isNaN(value))) {
+      return '';
+    }
+    
+    return String(value);
+  }, [value, formatter, isCalculating]);
   
   // Determine text alignment class
   const alignClass = align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
@@ -192,7 +209,7 @@ const EditableCell: React.FC<EditableCellProps> = ({
         return (
           <input
             type="number"
-            value={editValue}
+            value={editValue === undefined || editValue === null || isNaN(editValue) ? '' : editValue}
             onChange={handleChange}
             step="any"
             {...commonProps}
@@ -202,7 +219,7 @@ const EditableCell: React.FC<EditableCellProps> = ({
       case 'select':
         return (
           <select
-            value={editValue}
+            value={editValue === undefined || editValue === null ? '' : editValue}
             onChange={handleChange}
             {...commonProps}
           >
@@ -218,7 +235,7 @@ const EditableCell: React.FC<EditableCellProps> = ({
         return (
           <input
             type="date"
-            value={editValue}
+            value={editValue === undefined || editValue === null ? '' : editValue}
             onChange={handleChange}
             {...commonProps}
           />
@@ -228,7 +245,7 @@ const EditableCell: React.FC<EditableCellProps> = ({
         return (
           <input
             type="text"
-            value={editValue}
+            value={editValue === undefined || editValue === null ? '' : editValue}
             onChange={handleChange}
             {...commonProps}
           />

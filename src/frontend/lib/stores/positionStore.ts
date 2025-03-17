@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { positionsApi, greeksApi } from '../api';
-import { calculateMarkPrice } from '../utils/optionPriceUtils';
+import { calculateMarkPrice, calculatePnL, calculateCurrentValue } from '../utils/optionPriceUtils';
 import { PnLCalculationParams } from '../api/positionsApi';
 
 // Types for our store
@@ -23,6 +23,7 @@ export interface PnLResult {
   calculationTimestamp?: string;
   error?: string; // Added to handle error cases gracefully
   endpointNotImplemented?: boolean; // Flag to indicate if the endpoint is not implemented yet
+  clientCalculated?: boolean; // Flag to indicate if the P&L was calculated client-side
 }
 
 export interface OptionPosition {
@@ -54,6 +55,7 @@ export interface GroupedPosition {
     currentValue: number;
     impliedVolatility?: number;
     underlyingPrice?: number;
+    clientCalculated?: boolean;
   };
   totalTheoreticalPnl?: {
     pnlAmount: number;
@@ -61,6 +63,7 @@ export interface GroupedPosition {
     initialValue: number;
     currentValue: number;
     impliedVolatility?: number;
+    clientCalculated?: boolean;
   };
 }
 
@@ -110,7 +113,9 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
     
     // If option data is provided, calculate mark price from bid/ask
     if (optionData) {
+      console.log(`Calculating mark price for position ${position.id} with bid=${optionData.bid}, ask=${optionData.ask}`);
       const markPrice = calculateMarkPrice(optionData.bid, optionData.ask);
+      console.log(`Calculated mark price: ${markPrice}`);
       
       // Update the position with the calculated mark price
       set(state => {
@@ -128,6 +133,8 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
     if (position.markPriceOverride) return;
     
     try {
+      console.log(`Fetching option data for position ${position.id}:`, position.ticker, position.expiration, position.strike, position.type);
+      
       // Import directly from the file to avoid circular dependencies
       const optionsApi = (await import('../api/optionsApi')).optionsApi;
       
@@ -135,8 +142,15 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
       const optionData = await optionsApi.getOptionDataForPosition(position);
       
       if (optionData) {
+        console.log(`Received option data for position ${position.id}:`, {
+          bid: optionData.bid,
+          ask: optionData.ask,
+          lastPrice: optionData.lastPrice
+        });
+        
         // Calculate and update mark price
         const markPrice = calculateMarkPrice(optionData.bid, optionData.ask);
+        console.log(`Calculated mark price for position ${position.id}: ${markPrice}`);
         
         if (markPrice !== undefined) {
           // Update the position with the calculated mark price
@@ -149,7 +163,11 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
           
           console.log(`Updated mark price for position ${position.id} to ${markPrice}`);
           return markPrice;
+        } else {
+          console.warn(`Could not calculate mark price for position ${position.id} - bid/ask unavailable`);
         }
+      } else {
+        console.warn(`No option data found for position ${position.id}`);
       }
       
       return undefined;
@@ -170,20 +188,39 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
     
     console.log(`Fetching mark prices for all ${positions.length} positions`);
     
+    // Set a timeout to ensure we don't hang indefinitely
+    let timeoutId: number | undefined;
+    const timeoutPromise = new Promise<void>((_, reject) => {
+      timeoutId = window.setTimeout(() => {
+        reject(new Error('Mark price fetch timeout - continuing with available data'));
+      }, 15000); // 15 second timeout
+    });
+    
     try {
-      // Group positions by ticker and expiration to minimize API calls
-      const positionsByTickerAndExpiry: Record<string, OptionPosition[]> = {};
-      
-      positions.forEach(position => {
-        // Skip positions with manual overrides unless forceUpdate is true
-        if (position.markPriceOverride && !forceUpdate) return;
+      // Race the fetch against a timeout
+      const fetchPromise = (async () => {
+        // Group positions by ticker and expiration to minimize API calls
+        const positionsByTickerAndExpiry: Record<string, OptionPosition[]> = {};
         
-        const key = `${position.ticker}|${position.expiration}`;
-        if (!positionsByTickerAndExpiry[key]) {
-          positionsByTickerAndExpiry[key] = [];
-        }
-        positionsByTickerAndExpiry[key].push(position);
-      });
+        positions.forEach(position => {
+          // Skip positions with manual overrides unless forceUpdate is true
+          if (position.markPriceOverride && !forceUpdate) return;
+          
+          const key = `${position.ticker}|${position.expiration}`;
+          if (!positionsByTickerAndExpiry[key]) {
+            positionsByTickerAndExpiry[key] = [];
+          }
+          positionsByTickerAndExpiry[key].push(position);
+        });
+        
+        return positionsByTickerAndExpiry;
+      })();
+      
+      // Race the fetch against the timeout
+      const positionsByTickerAndExpiry = await Promise.race([
+        fetchPromise,
+        timeoutPromise.then(() => ({} as Record<string, OptionPosition[]>))
+      ]);
       
       // Import directly from the file to avoid circular dependencies
       const optionsApi = (await import('../api/optionsApi')).optionsApi;
@@ -194,27 +231,59 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
           const [ticker, expiration] = key.split('|');
           
           try {
+            console.log(`Fetching options for ${ticker} expiring ${expiration}...`);
             // Fetch options for this expiration
             const options = await optionsApi.getOptionsForExpiration(ticker, expiration);
+            console.log(`Received ${options.length} options for ${ticker} expiring ${expiration}`);
+            
+            if (options.length > 0) {
+              console.log('Sample option data:', {
+                strike: options[0].strike,
+                type: options[0].optionType,
+                bid: options[0].bid,
+                ask: options[0].ask
+              });
+            }
             
             // Match options to positions and update mark prices
             const updates: Array<{position: OptionPosition, markPrice: number}> = [];
             
             positionGroup.forEach(position => {
+              console.log(`Looking for matching option for position: ${position.ticker} ${position.type.toUpperCase()} ${position.strike} ${position.expiration}`);
+              
               const matchingOption = options.find(option => 
                 option.strike === position.strike && 
                 option.optionType.toLowerCase() === position.type.toLowerCase()
               );
               
               if (matchingOption) {
-                const markPrice = calculateMarkPrice(matchingOption.bid, matchingOption.ask);
+                console.log(`Found matching option for position ${position.id}:`, {
+                  strike: matchingOption.strike,
+                  type: matchingOption.optionType,
+                  bid: matchingOption.bid,
+                  ask: matchingOption.ask
+                });
+                
+                // Ensure bid and ask are numbers before calculating mark price
+                const bid = typeof matchingOption.bid === 'number' ? matchingOption.bid : undefined;
+                const ask = typeof matchingOption.ask === 'number' ? matchingOption.ask : undefined;
+                
+                console.log(`Using bid: ${bid}, ask: ${ask} for mark price calculation`);
+                const markPrice = calculateMarkPrice(bid, ask);
+                console.log(`Calculated mark price for position ${position.id}: ${markPrice}`);
                 
                 if (markPrice !== undefined) {
                   updates.push({ position, markPrice });
+                  console.log(`Added mark price update for position ${position.id}: ${markPrice}`);
+                } else {
+                  console.warn(`Could not calculate mark price for position ${position.id} - bid/ask unavailable`);
                 }
+              } else {
+                console.warn(`No matching option found for position ${position.id}`);
               }
             });
             
+            console.log(`Created ${updates.length} mark price updates for ${ticker} expiring ${expiration}`);
             return { key, updates };
           } catch (error) {
             console.error(`Failed to fetch options for ${ticker} expiring ${expiration}:`, error);
@@ -234,15 +303,33 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
       
       if (allUpdates.length > 0) {
         // Update all positions with new mark prices in a single state update
+        console.log('About to update positions with mark prices:', allUpdates.map(u => ({ id: u.position.id, markPrice: u.markPrice })));
+        
         set(state => {
           const updatedPositions = [...state.positions];
           
           allUpdates.forEach(({ position, markPrice }) => {
             const posIndex = updatedPositions.findIndex(p => p.id === position.id);
             if (posIndex >= 0) {
-              updatedPositions[posIndex] = { ...updatedPositions[posIndex], markPrice };
+              console.log(`Updating position ${position.id} mark price from ${updatedPositions[posIndex].markPrice} to ${markPrice}`);
+              
+              // Ensure the mark price is a number
+              const numericMarkPrice = Number(markPrice);
+              if (!isNaN(numericMarkPrice)) {
+                updatedPositions[posIndex] = { 
+                  ...updatedPositions[posIndex], 
+                  markPrice: numericMarkPrice 
+                };
+              } else {
+                console.error(`Invalid mark price value: ${markPrice} for position ${position.id}`);
+              }
+            } else {
+              console.warn(`Position ${position.id} not found in state when updating mark price`);
             }
           });
+          
+          // Debug log the updated positions
+          console.log('Updated positions:', updatedPositions.map(p => ({ id: p.id, markPrice: p.markPrice })));
           
           return { positions: updatedPositions };
         });
@@ -252,7 +339,18 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
         console.log('No mark prices were updated');
       }
     } catch (error) {
-      console.error('Failed to fetch mark prices:', error);
+      // If it's a timeout, we'll still try to use whatever data we have
+      if (error instanceof Error && error.message.includes('timeout')) {
+        console.warn('Mark price fetch timed out - continuing with available data');
+        // Don't set an error state for timeouts, as we'll continue with partial data
+      } else {
+        console.error('Failed to fetch mark prices:', error);
+      }
+    } finally {
+      // Clear timeout if it was set
+      if (timeoutId !== undefined) {
+        window.clearTimeout(timeoutId);
+      }
     }
   },
   positions: [],
@@ -559,26 +657,70 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
       } catch (apiError) {
         // Check if this is a 404 or similar error that might indicate endpoint not implemented
         if (apiError && typeof apiError === 'object' && 'status' in apiError && (apiError.status === 404 || apiError.status === 501)) {
-          console.log(`P&L calculation endpoint not implemented for position ${position.id}`);
-          // Create a placeholder PnL result with error info
-          const placeholderPnl: PnLResult = {
-            positionId: position.id,
-            pnlAmount: 0,
-            pnlPercent: 0,
-            initialValue: 0,
-            currentValue: 0,
-            error: 'P&L calculation not implemented'
-          };
+          console.log(`P&L calculation endpoint not implemented for position ${position.id}, using client-side calculation`);
           
-          // Store the placeholder in local state
-          set(state => {
-            const updatedPositions = state.positions.map(pos => 
-              pos.id === position.id ? { ...pos, pnl: placeholderPnl } : pos
+          // Use client-side calculation with mark price
+          if (position.markPrice !== undefined && position.premium !== undefined && 
+              position.quantity !== undefined && position.action !== undefined) {
+            
+            // Calculate P&L using the mark price
+            const { pnlAmount, pnlPercent } = calculatePnL(
+              position.quantity,
+              position.premium,
+              position.markPrice,
+              position.action
             );
-            return { positions: updatedPositions };
-          });
-          
-          return placeholderPnl;
+            
+            // Calculate cost basis and current value
+            const initialValue = Math.abs(position.quantity * position.premium * 100);
+            const currentValue = calculateCurrentValue(position.quantity, position.markPrice) || 0;
+            
+            // Create a client-calculated PnL result
+            const clientPnl: PnLResult = {
+              positionId: position.id,
+              pnlAmount,
+              pnlPercent,
+              initialValue,
+              currentValue,
+              calculationTimestamp: new Date().toISOString(),
+              clientCalculated: true
+            };
+            
+            console.log(`Client-side P&L calculation for position ${position.id}:`, clientPnl);
+            
+            // Store the client-calculated result in local state
+            set(state => {
+              const updatedPositions = state.positions.map(pos => 
+                pos.id === position.id ? { ...pos, pnl: clientPnl } : pos
+              );
+              return { positions: updatedPositions };
+            });
+            
+            return clientPnl;
+          } else {
+            // Missing required data for client-side calculation
+            console.log(`Cannot calculate P&L for position ${position.id}: missing required data`);
+            // Create a placeholder PnL result with error info
+            const placeholderPnl: PnLResult = {
+              positionId: position.id,
+              pnlAmount: 0,
+              pnlPercent: 0,
+              initialValue: 0,
+              currentValue: 0,
+              error: 'Missing data for P&L calculation',
+              clientCalculated: true
+            };
+            
+            // Store the placeholder in local state
+            set(state => {
+              const updatedPositions = state.positions.map(pos => 
+                pos.id === position.id ? { ...pos, pnl: placeholderPnl } : pos
+              );
+              return { positions: updatedPositions };
+            });
+            
+            return placeholderPnl;
+          }
         }
         
         // For other errors, rethrow to be handled by the retry logic
@@ -603,7 +745,8 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
         pnlPercent: 0,
         initialValue: 0,
         currentValue: 0,
-        error: `Failed after ${MAX_RETRIES} attempts: ${error instanceof Error ? error.message : String(error)}`
+        error: `Failed after ${MAX_RETRIES} attempts: ${error instanceof Error ? error.message : String(error)}`,
+        clientCalculated: true // Mark as client-calculated since we're handling the error client-side
       };
       
       // Store the error result in local state
@@ -642,20 +785,54 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
           // If we get a 404/501 (endpoint not implemented) or a network error (status 0)
           if (endpointError && typeof endpointError === 'object' && 'status' in endpointError && 
               (endpointError.status === 404 || endpointError.status === 501 || endpointError.status === 0)) {
-            console.log('P&L calculation endpoint not implemented - skipping calculations');
+            console.log('P&L calculation endpoint not implemented - using client-side calculations');
             
-            // Create placeholder PnL results for all positions
-            const updatedPositions = positions.map(position => ({
-              ...position,
-              pnl: {
-                positionId: position.id,
-                pnlAmount: 0,
-                pnlPercent: 0,
-                initialValue: 0,
-                currentValue: 0,
-                error: 'P&L calculation not implemented'
-              } as PnLResult
-            }));
+            // Use client-side calculation with mark prices
+            const updatedPositions = positions.map(position => {
+              // Only calculate if we have the necessary data
+              if (position.markPrice !== undefined && position.premium !== undefined && 
+                  position.quantity !== undefined && position.action !== undefined) {
+                
+                // Calculate P&L using the mark price
+                const { pnlAmount, pnlPercent } = calculatePnL(
+                  position.quantity,
+                  position.premium,
+                  position.markPrice,
+                  position.action
+                );
+                
+                // Calculate cost basis and current value
+                const initialValue = Math.abs(position.quantity * position.premium * 100);
+                const currentValue = calculateCurrentValue(position.quantity, position.markPrice) || 0;
+                
+                return {
+                  ...position,
+                  pnl: {
+                    positionId: position.id,
+                    pnlAmount,
+                    pnlPercent,
+                    initialValue,
+                    currentValue,
+                    calculationTimestamp: new Date().toISOString(),
+                    clientCalculated: true
+                  } as PnLResult
+                };
+              } else {
+                // Missing required data
+                return {
+                  ...position,
+                  pnl: {
+                    positionId: position.id,
+                    pnlAmount: 0,
+                    pnlPercent: 0,
+                    initialValue: 0,
+                    currentValue: 0,
+                    error: 'Missing data for P&L calculation',
+                    clientCalculated: true
+                  } as PnLResult
+                };
+              }
+            });
             
             set({ positions: updatedPositions, calculatingPnL: false });
             return;
@@ -680,7 +857,8 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
               pnlPercent: 0,
               initialValue: 0,
               currentValue: 0,
-              error: error instanceof Error ? error.message : String(error)
+              error: error instanceof Error ? error.message : String(error),
+              clientCalculated: true // Mark as client-calculated since we're handling the error client-side
             };
             return { position, pnl: errorPnl, success: false };
           }
@@ -748,7 +926,66 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
         // Check if this is a 404/501 error (endpoint not implemented) or a network error (status 0)
         if (apiError && typeof apiError === 'object' && 'status' in apiError && 
             (apiError.status === 404 || apiError.status === 501 || apiError.status === 0)) {
-          console.log(`Theoretical P&L calculation endpoint not implemented for position ${position.id}`);
+          console.log(`Theoretical P&L calculation endpoint not implemented for position ${position.id}, using client-side calculation`);
+          
+          // Use client-side calculation with mark price
+          if (position.markPrice !== undefined && position.premium !== undefined && 
+              position.quantity !== undefined && position.action !== undefined) {
+            
+            // Simple theoretical calculation based on price change percentage
+            const priceChangeMultiplier = 1 + (theoreticalPnLSettings.priceChangePercent / 100);
+            
+            // For calls, price increases are good for buyers, bad for sellers
+            // For puts, price increases are bad for buyers, good for sellers
+            let theoreticalMarkPrice = position.markPrice;
+            
+            if (position.type === 'call') {
+              theoreticalMarkPrice = position.markPrice * priceChangeMultiplier;
+            } else { // put
+              // For puts, price increases reduce value, decreases increase value
+              theoreticalMarkPrice = position.markPrice * (2 - priceChangeMultiplier);
+            }
+            
+            // Ensure mark price doesn't go below zero
+            theoreticalMarkPrice = Math.max(0, theoreticalMarkPrice);
+            
+            // Calculate theoretical P&L using the adjusted mark price
+            const { pnlAmount, pnlPercent } = calculatePnL(
+              position.quantity,
+              position.premium,
+              theoreticalMarkPrice,
+              position.action
+            );
+            
+            // Calculate cost basis and theoretical value
+            const initialValue = Math.abs(position.quantity * position.premium * 100);
+            const currentValue = calculateCurrentValue(position.quantity, theoreticalMarkPrice) || 0;
+            
+            // Create a client-calculated theoretical PnL result
+            const clientPnl: PnLResult = {
+              positionId: position.id,
+              pnlAmount,
+              pnlPercent,
+              initialValue,
+              currentValue,
+              calculationTimestamp: new Date().toISOString(),
+              clientCalculated: true
+            };
+            
+            console.log(`Client-side theoretical P&L calculation for position ${position.id}:`, clientPnl);
+            
+            // Store the client-calculated result in local state
+            set(state => {
+              const updatedPositions = state.positions.map(pos => 
+                pos.id === position.id ? { ...pos, theoreticalPnl: clientPnl } : pos
+              );
+              return { positions: updatedPositions };
+            });
+            
+            return clientPnl;
+          }
+          
+          console.log(`Cannot calculate theoretical P&L for position ${position.id}: missing required data`);
           // Create a placeholder PnL result with error info
           const placeholderPnl: PnLResult = {
             positionId: position.id,
@@ -756,7 +993,8 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
             pnlPercent: 0,
             initialValue: 0,
             currentValue: 0,
-            error: 'Theoretical P&L calculation not implemented'
+            error: 'Missing data for theoretical P&L calculation',
+            clientCalculated: true
           };
           
           // Store the placeholder in local state
@@ -792,7 +1030,8 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
         pnlPercent: 0,
         initialValue: 0,
         currentValue: 0,
-        error: `Failed after ${MAX_RETRIES} attempts: ${error instanceof Error ? error.message : String(error)}`
+        error: `Failed after ${MAX_RETRIES} attempts: ${error instanceof Error ? error.message : String(error)}`,
+        clientCalculated: true // Mark as client-calculated since we're handling the error client-side
       };
       
       // Store the error result in local state
@@ -835,20 +1074,72 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
           // If we get a 404/501 (endpoint not implemented) or a network error (status 0)
           if (endpointError && typeof endpointError === 'object' && 'status' in endpointError && 
               (endpointError.status === 404 || endpointError.status === 501 || endpointError.status === 0)) {
-            console.log('Theoretical P&L calculation endpoint not implemented - skipping calculations');
+            console.log('Theoretical P&L calculation endpoint not implemented - using client-side calculations');
             
-            // Create placeholder theoretical PnL results for all positions
-            const updatedPositions = positions.map(position => ({
-              ...position,
-              theoreticalPnl: {
-                positionId: position.id,
-                pnlAmount: 0,
-                pnlPercent: 0,
-                initialValue: 0,
-                currentValue: 0,
-                error: 'Theoretical P&L calculation not implemented'
-              } as PnLResult
-            }));
+            // Use client-side calculation with mark prices
+            const updatedPositions = positions.map(position => {
+              // Only calculate if we have the necessary data
+              if (position.markPrice !== undefined && position.premium !== undefined && 
+                  position.quantity !== undefined && position.action !== undefined && 
+                  position.type !== undefined) {
+                
+                // Simple theoretical calculation based on price change percentage
+                const priceChangeMultiplier = 1 + (theoreticalPnLSettings.priceChangePercent / 100);
+                
+                // For calls, price increases are good for buyers, bad for sellers
+                // For puts, price increases are bad for buyers, good for sellers
+                let theoreticalMarkPrice = position.markPrice;
+                
+                if (position.type === 'call') {
+                  theoreticalMarkPrice = position.markPrice * priceChangeMultiplier;
+                } else { // put
+                  // For puts, price increases reduce value, decreases increase value
+                  theoreticalMarkPrice = position.markPrice * (2 - priceChangeMultiplier);
+                }
+                
+                // Ensure mark price doesn't go below zero
+                theoreticalMarkPrice = Math.max(0, theoreticalMarkPrice);
+                
+                // Calculate theoretical P&L using the adjusted mark price
+                const { pnlAmount, pnlPercent } = calculatePnL(
+                  position.quantity,
+                  position.premium,
+                  theoreticalMarkPrice,
+                  position.action
+                );
+                
+                // Calculate cost basis and theoretical value
+                const initialValue = Math.abs(position.quantity * position.premium * 100);
+                const currentValue = calculateCurrentValue(position.quantity, theoreticalMarkPrice) || 0;
+                
+                return {
+                  ...position,
+                  theoreticalPnl: {
+                    positionId: position.id,
+                    pnlAmount,
+                    pnlPercent,
+                    initialValue,
+                    currentValue,
+                    calculationTimestamp: new Date().toISOString(),
+                    clientCalculated: true
+                  } as PnLResult
+                };
+              } else {
+                // Missing required data
+                return {
+                  ...position,
+                  theoreticalPnl: {
+                    positionId: position.id,
+                    pnlAmount: 0,
+                    pnlPercent: 0,
+                    initialValue: 0,
+                    currentValue: 0,
+                    error: 'Missing data for theoretical P&L calculation',
+                    clientCalculated: true
+                  } as PnLResult
+                };
+              }
+            });
             
             set({ positions: updatedPositions, calculatingTheoreticalPnL: false });
             return;
@@ -897,7 +1188,8 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
                   pnlPercent: 0,
                   initialValue: 0,
                   currentValue: 0,
-                  error: error instanceof Error ? error.message : String(error)
+                  error: error instanceof Error ? error.message : String(error),
+                  clientCalculated: true // Mark as client-calculated since we're handling the error client-side
                 };
                 return { position, pnl: errorPnl, success: false };
               }
@@ -1001,7 +1293,8 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
           pnlPercent: 0,
           initialValue: 0,
           currentValue: 0,
-          impliedVolatility: 0
+          impliedVolatility: 0,
+          clientCalculated: false // Initialize as false, will set to true if any position has client-calculated P&L
         };
         
         let totalInitialValue = 0;
@@ -1025,6 +1318,11 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
             // Set the underlying price (should be the same for all positions in the group)
             if (position.pnl.underlyingPrice) {
               totalPnl!.underlyingPrice = position.pnl.underlyingPrice;
+            }
+            
+            // If any position has client-calculated P&L, mark the group as client-calculated
+            if (position.pnl.clientCalculated) {
+              totalPnl!.clientCalculated = true;
             }
           }
         });
@@ -1057,7 +1355,8 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
           pnlAmount: 0,
           pnlPercent: 0,
           initialValue: 0,
-          currentValue: 0
+          currentValue: 0,
+          clientCalculated: false // Initialize as false, will set to true if any position has client-calculated theoretical P&L
         };
         
         let totalInitialValue = 0;
@@ -1068,6 +1367,11 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
             totalTheoreticalPnl!.initialValue += position.theoreticalPnl.initialValue;
             totalTheoreticalPnl!.currentValue += position.theoreticalPnl.currentValue;
             totalInitialValue += position.theoreticalPnl.initialValue;
+            
+            // If any position has client-calculated theoretical P&L, mark the group as client-calculated
+            if (position.theoreticalPnl.clientCalculated) {
+              totalTheoreticalPnl!.clientCalculated = true;
+            }
           }
         });
         

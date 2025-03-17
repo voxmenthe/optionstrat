@@ -40,7 +40,35 @@ const EDITABLE_POSITION_FIELDS: Record<string, EditablePositionField> = {
     editable: true,
     type: 'number',
     validator: (value) => value >= 0,
-    formatter: (value) => value !== undefined ? value.toFixed(2) : 'N/A'
+    formatter: (value) => {
+      // Debug log to see what's coming in
+      console.log('markPrice formatter called with:', { value, type: typeof value, valueIsNaN: typeof value === 'number' && isNaN(value) });
+      
+      // Handle undefined, null, or NaN values
+      if (value === undefined || value === null) {
+        console.log('markPrice is undefined or null, returning N/A');
+        return 'N/A';
+      }
+      
+      // Try to convert to a number if it's not already
+      let numericValue: number;
+      if (typeof value !== 'number') {
+        numericValue = Number(value);
+        console.log(`Converted non-numeric value to number: ${value} → ${numericValue}`);
+      } else {
+        numericValue = value;
+      }
+      
+      // Check if the value is NaN after conversion
+      if (isNaN(numericValue)) {
+        console.log('markPrice is NaN after conversion, returning N/A');
+        return 'N/A';
+      }
+      
+      // Format the valid number
+      console.log(`markPrice is valid number: ${numericValue}, returning formatted value: ${numericValue.toFixed(2)}`);
+      return numericValue.toFixed(2);
+    }
   },
   expiration: {
     fieldName: 'expiration',
@@ -122,6 +150,21 @@ const EditablePositionTable: FC = () => {
   useEffect(() => {
     setIsRecalculating(calculatingAllGreeks || calculatingPnL || calculatingTheoreticalPnL);
   }, [calculatingAllGreeks, calculatingPnL, calculatingTheoreticalPnL]);
+  
+  // Debug effect to log positions and their mark prices
+  useEffect(() => {
+    if (positions.length > 0) {
+      console.log('Current positions with mark prices:', positions.map(p => ({
+        id: p.id,
+        ticker: p.ticker,
+        type: p.type,
+        strike: p.strike,
+        markPrice: p.markPrice,
+        markPriceType: typeof p.markPrice,
+        isOverride: p.markPriceOverride
+      })));
+    }
+  }, [positions]);
 
   const handleEdit = (position: OptionPosition) => {
     setEditingPosition(position);
@@ -370,14 +413,16 @@ const EditablePositionTable: FC = () => {
     return value.toFixed(4);
   };
 
-  const formatMoney = (value?: number) => {
+  const formatMoney = (value?: number, clientCalculated?: boolean) => {
     if (value === undefined || value === null) return '-';
-    return `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const formattedValue = `$${value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return clientCalculated ? `${formattedValue}*` : formattedValue;
   };
 
-  const formatPercent = (value?: number) => {
+  const formatPercent = (value?: number, clientCalculated?: boolean) => {
     if (value === undefined || value === null) return '-';
-    return `${value.toFixed(2)}%`;
+    const formattedValue = `${value.toFixed(2)}%`;
+    return clientCalculated ? `${formattedValue}*` : formattedValue;
   };
 
   const formatIV = (value?: number) => {
@@ -513,6 +558,7 @@ const EditablePositionTable: FC = () => {
       </td>
       <td className="py-2 px-3">
         <div className="flex items-center">
+          {/* Debug log for mark price - use useEffect to avoid React node issues */}
           <EditableCell
             value={position.markPrice}
             isEditable={EDITABLE_POSITION_FIELDS.markPrice.editable}
@@ -541,16 +587,16 @@ const EditablePositionTable: FC = () => {
         }
       </td>
       <td className="py-2 px-3 text-right">{formatIV(position.pnl?.impliedVolatility)}</td>
-      <td className="py-2 px-3 text-right">{formatMoney(position.pnl?.currentValue)}</td>
+      <td className="py-2 px-3 text-right">{formatMoney(position.pnl?.currentValue, position.pnl?.clientCalculated)}</td>
       <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.delta)}</td>
       <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.gamma)}</td>
       <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.theta)}</td>
       <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.vega)}</td>
       <td className="py-2 px-3 text-right">{formatGreeks(position.greeks?.rho)}</td>
-      <td className="py-2 px-3 text-right">{formatMoney(position.pnl?.pnlAmount)}</td>
-      <td className="py-2 px-3 text-right">{formatPercent(position.pnl?.pnlPercent)}</td>
-      <td className="py-2 px-3 text-right">{formatMoney(position.theoreticalPnl?.pnlAmount)}</td>
-      <td className="py-2 px-3 text-right">{formatPercent(position.theoreticalPnl?.pnlPercent)}</td>
+      <td className="py-2 px-3 text-right">{formatMoney(position.pnl?.pnlAmount, position.pnl?.clientCalculated)}</td>
+      <td className="py-2 px-3 text-right">{formatPercent(position.pnl?.pnlPercent, position.pnl?.clientCalculated)}</td>
+      <td className="py-2 px-3 text-right">{formatMoney(position.theoreticalPnl?.pnlAmount, position.theoreticalPnl?.clientCalculated)}</td>
+      <td className="py-2 px-3 text-right">{formatPercent(position.theoreticalPnl?.pnlPercent, position.theoreticalPnl?.clientCalculated)}</td>
       <td className="py-2 px-3">
         <div className="flex space-x-2">
           <button 
@@ -582,16 +628,16 @@ const EditablePositionTable: FC = () => {
             </span>
           </td>
           <td className="py-3 px-3 text-right">{formatIV(group.totalPnl?.impliedVolatility)}</td>
-          <td className="py-3 px-3 text-right">{formatMoney(group.totalPnl?.currentValue)}</td>
+          <td className="py-3 px-3 text-right">{formatMoney(group.totalPnl?.currentValue, group.totalPnl?.clientCalculated)}</td>
           <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.delta)}</td>
           <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.gamma)}</td>
           <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.theta)}</td>
           <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.vega)}</td>
           <td className="py-3 px-3 text-right">{formatGreeks(group.totalGreeks?.rho)}</td>
-          <td className="py-3 px-3 text-right">{formatMoney(group.totalPnl?.pnlAmount)}</td>
-          <td className="py-3 px-3 text-right">{formatPercent(group.totalPnl?.pnlPercent)}</td>
-          <td className="py-3 px-3 text-right">{formatMoney(group.totalTheoreticalPnl?.pnlAmount)}</td>
-          <td className="py-3 px-3 text-right">{formatPercent(group.totalTheoreticalPnl?.pnlPercent)}</td>
+          <td className="py-3 px-3 text-right">{formatMoney(group.totalPnl?.pnlAmount, group.totalPnl?.clientCalculated)}</td>
+          <td className="py-3 px-3 text-right">{formatPercent(group.totalPnl?.pnlPercent, group.totalPnl?.clientCalculated)}</td>
+          <td className="py-3 px-3 text-right">{formatMoney(group.totalTheoreticalPnl?.pnlAmount, group.totalTheoreticalPnl?.clientCalculated)}</td>
+          <td className="py-3 px-3 text-right">{formatPercent(group.totalTheoreticalPnl?.pnlPercent, group.totalTheoreticalPnl?.clientCalculated)}</td>
           <td></td>
         </tr>
         {group.positions.map(renderPositionRow)}
@@ -657,6 +703,11 @@ const EditablePositionTable: FC = () => {
             </button>
           </div>
         </div>
+      </div>
+      
+      {/* Add a legend for client-side calculations */}
+      <div className="text-sm text-gray-600 italic">
+        * Values calculated client-side using mark prices when backend endpoints are unavailable
       </div>
       
       <div className="overflow-x-auto rounded border border-gray-200">
