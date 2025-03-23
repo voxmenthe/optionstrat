@@ -180,7 +180,9 @@ export default function PositionForm({
     if (validateForm()) {
       setIsSubmitting(true);
       try {
-        if (existingPosition) {
+        // Check if this is a valid existing position with ID (for updates)
+        // or if it's a new position
+        if (existingPosition && existingPosition.id !== null && existingPosition.id !== undefined) {
           // Update existing position
           await updatePosition(existingPosition.id, position);
           if (onSuccess) {
@@ -190,12 +192,15 @@ export default function PositionForm({
           // Create new position
           await addPosition(position);
           setPosition(initialPosition); // Reset form after successful submission
+          if (onSuccess) {
+            onSuccess();
+          }
         }
       } catch (error) {
         if (error instanceof ApiError) {
           setFormError(`API Error (${error.status}): ${error.message}`);
         } else {
-          const action = existingPosition ? 'updating' : 'adding';
+          const action = existingPosition && existingPosition.id !== null && existingPosition.id !== undefined ? 'updating' : 'adding';
           setFormError(`Error ${action} position: ${error instanceof Error ? error.message : String(error)}`);
         }
       } finally {

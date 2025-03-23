@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import PositionForm from './PositionForm';
 import OptionChainSelector from './OptionChainSelector';
 import { OptionContract } from '../lib/api/optionsApi';
@@ -12,6 +12,7 @@ import { ApiError } from '../lib/api/apiClient';
 interface PositionFormWithOptionChainProps {
   existingPosition?: OptionPosition;
   onSuccess?: () => void;
+  onChange?: (data: PositionFormData) => void;
 }
 
 // Type for the form data mapping from the option contract
@@ -80,7 +81,7 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
   
   // Get the addPosition function from the position store
   const { addPosition } = usePositionStore();
-  
+
   // Convert option contract to position form data
   const mapOptionToFormData = useCallback((option: OptionContract): PositionFormData => {
     // Validate option data first
@@ -222,57 +223,6 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     }
   }, [selectedOption, mapOptionToFormData, addPosition]);
   
-  // Handle option selection from the chain with improved performance
-  const handleOptionSelect = useCallback((option: OptionContract) => {
-    console.log('Option selected from chain:', option);
-    
-    // Validate option data before proceeding
-    if (!option) {
-      console.warn('No option provided to handleOptionSelect');
-      return;
-    }
-    
-    // Check for required fields
-    if (!option.ticker || !option.optionType || !option.strike || !option.expiration) {
-      console.error('Invalid option data received:', option);
-      console.error('Missing required fields in option data');
-      return;
-    }
-    
-    // Use requestAnimationFrame to ensure UI updates before heavy operations
-    requestAnimationFrame(() => {
-      try {
-        // First set the selected option
-        setSelectedOption(option);
-        
-        // Map the option to form data
-        const mappedData = mapOptionToFormData(option);
-        console.log('Mapped option data:', mappedData);
-        
-        // Update form data
-        setFormData(mappedData);
-        // This is a system action, not a user modification, so we don't set userModifiedForm
-        // But we do need to mark that the form has changed for React's state tracking
-        setHasUnsavedChanges(true);
-        
-        // Safely access option properties with null checks
-        const optionType = option.optionType ? option.optionType.toUpperCase() : '';
-        const expirationDate = option.expiration ? option.expiration.split('T')[0] : '';
-        const optionDescription = `${option.ticker} ${optionType} $${option.strike} ${expirationDate}`;
-        console.log(`Selected: ${optionDescription}`);
-        
-        // Scroll to the form section for better UX
-        const formElement = document.getElementById('position-form');
-        if (formElement) {
-          formElement.scrollIntoView({ behavior: 'smooth' });
-        }
-      } catch (error) {
-        console.error('Error handling option selection:', error);
-        console.error('Failed to process option selection. Please try again.');
-      }
-    });
-  }, [mapOptionToFormData]);
-  
   // Handle form changes from PositionForm
   const handleFormChange = useCallback((data: PositionFormData) => {
     // Prevent unnecessary state updates
@@ -317,6 +267,61 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
       }
     }
   }, [useOptionChain, storeTicker, selectedExpiration, setTicker, setSelectedExpiration, formData]);
+  
+  // Handle option selection from the chain with improved performance
+  const handleOptionSelect = useCallback((option: OptionContract) => {
+    console.log('Option selected from chain:', option);
+    
+    // Validate option data before proceeding
+    if (!option) {
+      console.warn('No option provided to handleOptionSelect');
+      return;
+    }
+    
+    // Check for required fields
+    if (!option.ticker || !option.optionType || !option.strike || !option.expiration) {
+      console.error('Invalid option data received:', option);
+      console.error('Missing required fields in option data');
+      return;
+    }
+    
+    // Use requestAnimationFrame to ensure UI updates before heavy operations
+    requestAnimationFrame(() => {
+      try {
+        // First set the selected option
+        setSelectedOption(option);
+        
+        // Map the option to form data
+        const mappedData = mapOptionToFormData(option);
+        console.log('Mapped option data:', mappedData);
+        
+        // Update form data
+        setFormData(mappedData);
+        
+        // Explicitly call handleFormChange to initialize the form
+        handleFormChange(mappedData);
+        
+        // This is a system action, not a user modification, so we don't set userModifiedForm
+        // But we do need to mark that the form has changed for React's state tracking
+        setHasUnsavedChanges(true);
+        
+        // Safely access option properties with null checks
+        const optionType = option.optionType ? option.optionType.toUpperCase() : '';
+        const expirationDate = option.expiration ? option.expiration.split('T')[0] : '';
+        const optionDescription = `${option.ticker} ${optionType} $${option.strike} ${expirationDate}`;
+        console.log(`Selected: ${optionDescription}`);
+        
+        // Scroll to the form section for better UX
+        const formElement = document.getElementById('position-form');
+        if (formElement) {
+          formElement.scrollIntoView({ behavior: 'smooth' });
+        }
+      } catch (error) {
+        console.error('Error handling option selection:', error);
+        console.error('Failed to process option selection. Please try again.');
+      }
+    });
+  }, [mapOptionToFormData, handleFormChange]);
   
   // Allow smooth transitions between modes without confirmation dialog
   const handleModeToggle = useCallback(() => {
@@ -483,6 +488,23 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     }
   }, [props.onSuccess]);
   
+  // Create a new position from form data specifically for form initialization
+  // This ensures we're creating a new position, not updating an existing one
+  const createNewPositionFromFormData = (): Partial<PositionFormData> | undefined => {
+    if (!formData) return undefined;
+    
+    // Return only the form data without any position ID
+    return {
+      ticker: formData.ticker,
+      expiration: formData.expiration,
+      strike: formData.strike,
+      type: formData.type,
+      action: formData.action || 'buy',
+      quantity: formData.quantity || 1,
+      premium: formData.premium
+    };
+  };
+
   // Convert form data to option position for the position form
   const getPositionFromFormData = (): Partial<OptionPosition> | undefined => {
     if (!formData) return undefined;
@@ -490,12 +512,40 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     // Create a position object without an ID to ensure we create a new position
     // rather than trying to update a non-existent one
     const position: Partial<OptionPosition> = {
-      ...formData
+      ...formData,
+      id: undefined // Explicitly set id to undefined to ensure it's treated as a new position
     };
     
     return position;
   };
   
+  // Add useEffect to sync selected option with form initialization
+  useEffect(() => {
+    if (selectedOption && formData) {
+      // Manually trigger onChange to initialize form
+      handleFormChange(formData);
+    }
+  }, [selectedOption, formData, handleFormChange]);
+
+  // Initialize form with selected option data without triggering update
+  const createTemporaryPosition = useCallback((): any => {
+    if (!formData) return undefined;
+    
+    // Create a temporary object based on formData but with no ID
+    // PositionForm will initialize values but won't try to update
+    return {
+      ticker: formData.ticker || '',
+      expiration: formData.expiration || '',
+      strike: formData.strike || 0,
+      type: formData.type || 'call',
+      action: formData.action || 'buy',
+      quantity: formData.quantity || 1,
+      premium: formData.premium,
+      // Important: id is null to prevent updatePosition from being called
+      id: null
+    };
+  }, [formData]);
+
   return (
     <div className="mb-6">
       {/* Toggle switch between manual entry and option chain */}
@@ -623,20 +673,21 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
                           </svg>
                           Adding...
                         </span>
-                      ) : 'Add to Positions'}
+                      ) : 'Quick Add (1 Contract)'}
                     </button>
                   </div>
                 </div>
               </div>
               
-              <PositionForm 
-                // Don't pass existingPosition when it's a new position from option chain
-                // This ensures we create a new position instead of trying to update a non-existent one
-                existingPosition={undefined}
-                onSuccess={handleSuccess}
-                onChange={handleFormChange}
-                readonlyFields={['ticker', 'type', 'strike', 'expiration']}
-              />
+              <div>
+                <PositionForm 
+                  // Use a temporary position with null ID to prevent update operation
+                  existingPosition={createTemporaryPosition()}
+                  onSuccess={handleSuccess}
+                  onChange={handleFormChange}
+                  readonlyFields={['ticker', 'type', 'strike', 'expiration']}
+                />
+              </div>
             </div>
           )}
         </div>
