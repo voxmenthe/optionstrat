@@ -5,6 +5,9 @@ import { useParams, useRouter } from 'next/navigation';
 import { usePositionStore, OptionPosition } from '../../../lib/stores/positionStore';
 import { useScenariosStore } from '../../../lib/stores/scenariosStore';
 import { ApiError } from '../../../lib/api';
+import { PayoffDiagram } from '../../../components/visualizations/charts';
+import { PayoffDiagramData } from '../../../types/visualization';
+import { transformToPricePayoffData } from '../../../components/visualizations/common/utils';
 
 export default function PositionDetailPage() {
   const params = useParams();
@@ -15,19 +18,22 @@ export default function PositionDetailPage() {
     analyzeVolatilityScenario, 
     analyzeTimeDecayScenario, 
     analyzePriceVsVolatilitySurface,
-    loading: scenarioLoading 
+    priceScenario,
+    loading: scenarioLoading,
+    error: scenarioError
   } = useScenariosStore();
   
   const [position, setPosition] = useState<OptionPosition | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   
-  // Visualization state
-  const [visualizationType, setVisualizationType] = useState<'price-vol' | 'price-time' | 'pnl'>('price-vol');
+  // Visualization state and data
+  const [visualizationType, setVisualizationType] = useState<'price-vol' | 'price-time' | 'payoff'>('payoff');
   const [priceRange, setPriceRange] = useState<[number, number]>([-20, 20]); // Percentage change
   const [volRange, setVolRange] = useState<[number, number]>([-50, 50]); // Percentage change
   const [days, setDays] = useState<number>(30);
   const [calculating, setCalculating] = useState(false);
+  const [payoffData, setPayoffData] = useState<PayoffDiagramData | null>(null);
   
   useEffect(() => {
     const positionId = params.id as string;
@@ -66,6 +72,31 @@ export default function PositionDetailPage() {
     loadPosition();
   }, [params.id, positions, fetchPositions, router]);
   
+  // Load payoff data when position loads
+  useEffect(() => {
+    if (position && visualizationType === 'payoff') {
+      handleCalculateVisualization();
+    }
+  }, [position, visualizationType]);
+  
+  // Update payoff data when price scenario data changes
+  useEffect(() => {
+    if (position && priceScenario.length > 0) {
+      // Calculate the current price of the underlying if available
+      const currentPrice = position.pnl?.underlyingPrice || 
+                          (position.strike * 1.05); // Fallback estimation if no price available
+      
+      // Transform the price scenario data into payoff diagram data
+      const payoffData = transformToPricePayoffData(
+        priceScenario, 
+        [position], 
+        currentPrice
+      );
+      
+      setPayoffData(payoffData);
+    }
+  }, [position, priceScenario]);
+  
   const handleCalculateVisualization = async () => {
     if (!position) return;
     
@@ -76,7 +107,7 @@ export default function PositionDetailPage() {
         await analyzePriceVsVolatilitySurface([position]);
       } else if (visualizationType === 'price-time') {
         await analyzeTimeDecayScenario([position]);
-      } else if (visualizationType === 'pnl') {
+      } else if (visualizationType === 'payoff') {
         await analyzePriceScenario([position]);
       }
       
@@ -233,6 +264,13 @@ export default function PositionDetailPage() {
           <label className="form-label">Visualization Type</label>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-1">
             <button
+              className={`py-2 px-4 border rounded-md ${visualizationType === 'payoff' ? 'bg-blue-100 border-blue-300' : 'bg-white border-gray-300'}`}
+              onClick={() => setVisualizationType('payoff')}
+              disabled={calculating}
+            >
+              Payoff Diagram
+            </button>
+            <button
               className={`py-2 px-4 border rounded-md ${visualizationType === 'price-vol' ? 'bg-blue-100 border-blue-300' : 'bg-white border-gray-300'}`}
               onClick={() => setVisualizationType('price-vol')}
               disabled={calculating}
@@ -246,154 +284,61 @@ export default function PositionDetailPage() {
             >
               Price vs Time
             </button>
-            <button
-              className={`py-2 px-4 border rounded-md ${visualizationType === 'pnl' ? 'bg-blue-100 border-blue-300' : 'bg-white border-gray-300'}`}
-              onClick={() => setVisualizationType('pnl')}
-              disabled={calculating}
-            >
-              Profit & Loss
-            </button>
           </div>
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-          {visualizationType === 'price-vol' && (
-            <>
-              <div>
-                <label className="form-label">Price Range (%)</label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="number"
-                    value={priceRange[0]}
-                    onChange={(e) => setPriceRange([Number(e.target.value), priceRange[1]])}
-                    className="form-input w-24"
-                    disabled={calculating}
-                  />
-                  <span>to</span>
-                  <input
-                    type="number"
-                    value={priceRange[1]}
-                    onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
-                    className="form-input w-24"
-                    disabled={calculating}
-                  />
-                  <span>%</span>
-                </div>
-              </div>
-              
-              <div>
-                <label className="form-label">Volatility Range (%)</label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="number"
-                    value={volRange[0]}
-                    onChange={(e) => setVolRange([Number(e.target.value), volRange[1]])}
-                    className="form-input w-24"
-                    disabled={calculating}
-                  />
-                  <span>to</span>
-                  <input
-                    type="number"
-                    value={volRange[1]}
-                    onChange={(e) => setVolRange([volRange[0], Number(e.target.value)])}
-                    className="form-input w-24"
-                    disabled={calculating}
-                  />
-                  <span>%</span>
-                </div>
-              </div>
-            </>
-          )}
-          
-          {visualizationType === 'price-time' && (
-            <>
-              <div>
-                <label className="form-label">Price Range (%)</label>
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="number"
-                    value={priceRange[0]}
-                    onChange={(e) => setPriceRange([Number(e.target.value), priceRange[1]])}
-                    className="form-input w-24"
-                    disabled={calculating}
-                  />
-                  <span>to</span>
-                  <input
-                    type="number"
-                    value={priceRange[1]}
-                    onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
-                    className="form-input w-24"
-                    disabled={calculating}
-                  />
-                  <span>%</span>
-                </div>
-              </div>
-              
-              <div>
-                <label className="form-label">Days to Expiry</label>
-                <input
-                  type="number"
-                  value={days}
-                  onChange={(e) => setDays(Number(e.target.value))}
-                  className="form-input"
-                  min="1"
-                  max="365"
-                  disabled={calculating}
-                />
-              </div>
-            </>
-          )}
-          
-          {visualizationType === 'pnl' && (
-            <div>
-              <label className="form-label">Price Range (%)</label>
-              <div className="flex items-center space-x-2">
-                <input
-                  type="number"
-                  value={priceRange[0]}
-                  onChange={(e) => setPriceRange([Number(e.target.value), priceRange[1]])}
-                  className="form-input w-24"
-                  disabled={calculating}
-                />
-                <span>to</span>
-                <input
-                  type="number"
-                  value={priceRange[1]}
-                  onChange={(e) => setPriceRange([priceRange[0], Number(e.target.value)])}
-                  className="form-input w-24"
-                  disabled={calculating}
-                />
-                <span>%</span>
-              </div>
-            </div>
-          )}
+        <div className="mt-4">
+          <button
+            className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
+            onClick={handleCalculateVisualization}
+            disabled={calculating || !position}
+          >
+            {calculating ? 'Calculating...' : 'Calculate'}
+          </button>
         </div>
-        
-        <button 
-          className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-          onClick={handleCalculateVisualization}
-          disabled={calculating || scenarioLoading}
-        >
-          {calculating || scenarioLoading ? (
-            <span className="flex items-center">
-              <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-              Calculating...
-            </span>
-          ) : 'Calculate & Visualize'}
-        </button>
       </div>
       
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-gray-200 min-h-[400px] flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-500 mb-4">Visualization will appear here when calculated.</p>
-          <p className="text-sm text-gray-400">
-            Note: In a full implementation, this would display interactive 3D surfaces, 
-            charts, and other visualizations using Plotly.js.
-          </p>
-        </div>
+      {/* Visualization Card */}
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-6 border border-gray-200">
+        <h2 className="text-lg font-semibold mb-4">
+          {visualizationType === 'payoff' && 'Payoff Diagram'}
+          {visualizationType === 'price-vol' && 'Price vs Volatility Surface'}
+          {visualizationType === 'price-time' && 'Price vs Time Decay'}
+        </h2>
+        
+        {visualizationType === 'payoff' && payoffData ? (
+          <div className="h-[500px]">
+            <PayoffDiagram
+              data={payoffData}
+              config={{
+                title: `${position.ticker} ${position.strike} ${position.type.toUpperCase()} Payoff`,
+                showLegend: true,
+                colorScale: 'profits',
+                showGridLines: true,
+                showTooltips: true,
+                responsiveResize: true,
+              }}
+              isLoading={calculating || scenarioLoading}
+              error={scenarioError || null}
+            />
+          </div>
+        ) : visualizationType === 'payoff' ? (
+          <div className="flex flex-col items-center justify-center h-[400px] bg-gray-50 rounded-lg">
+            <p className="text-gray-500 mb-4">No payoff data available yet</p>
+            <button
+              className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-md"
+              onClick={handleCalculateVisualization}
+              disabled={calculating}
+            >
+              Calculate Payoff
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center h-[400px] bg-gray-50 rounded-lg">
+            <p className="text-gray-500">Visualization type not yet implemented</p>
+            <p className="text-sm text-gray-400 mt-2">Please select 'Payoff Diagram' from the visualization types</p>
+          </div>
+        )}
       </div>
     </div>
   );

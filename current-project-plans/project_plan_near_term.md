@@ -109,40 +109,105 @@ Frontend-backend integration is now complete, with real API calls replacing mock
 
 ### 1. Implement Visualization Components (Highest Priority)
 
-- [ ] Create a dedicated visualization components directory
-  - [ ] Set up base visualization component structure
-  - [ ] Create reusable chart configuration utilities
-  - [ ] Implement common visualization helpers
+- [ ] Set up visualization foundation
+  - [ ] Create dedicated visualization components directory structure
+    - [ ] Set up `components/visualizations/` folder with subdirectories for `common/`, `surfaces/`, `charts/`
+    - [ ] Add type definitions in `types/visualization.ts` for chart data structures
+    - [ ] Create visualization configuration interfaces
+  - [ ] Implement core utilities (`common/utils.ts`)
+    - [ ] Create data transformation helpers for API responses
+    - [ ] Implement common color scale utilities
+    - [ ] Build responsive sizing helpers
+  - [ ] Create base chart container component (`common/ChartContainer.tsx`)
+    - [ ] Implement responsive wrapper with loading states
+    - [ ] Add error handling for data loading failures
+    - [ ] Create common props interface with shared configuration options
 
-- [ ] Implement price vs. volatility surface visualization
-  - [ ] Create 3D surface component using Plotly.js
-  - [ ] Implement color mapping for profit/loss
-  - [ ] Add interactive controls (rotation, zoom, pan)
-  - [ ] Support hover tooltips with detailed information
-  - [ ] Add axis labels and legends
+- [ ] Implement basic 2D chart components (start with simpler visualizations)
+  - [ ] Create profit/loss payoff diagram component (`charts/PayoffDiagram.tsx`)
+    - [ ] Implement basic line chart using Plotly.js
+    - [ ] Add break-even point markers
+    - [ ] Implement hover tooltips with position information
+    - [ ] Create simple controls for chart customization
+  - [ ] Build price vs. time visualization (`charts/PriceTimeChart.tsx`)
+    - [ ] Implement multi-line chart for different price scenarios
+    - [ ] Add time decay visualization
+    - [ ] Create interactive legend
+    - [ ] Enable date range selection
 
-- [ ] Implement price vs. time visualization
-  - [ ] Create 2D line chart for time decay
-  - [ ] Add multiple lines for different price points
-  - [ ] Implement range selection for time frames
-  - [ ] Support interactive data exploration
+- [ ] Integrate visualization components with state management
+  - [ ] Connect charts to position and scenarios store
+  - [ ] Implement data fetching logic
+  - [ ] Create visualization settings store
+  - [ ] Add caching for previously calculated scenarios
 
-- [ ] Create profit and loss diagrams
-  - [ ] Implement payoff diagram component
-  - [ ] Support multiple legs in a single chart
-  - [ ] Add break-even point indicators
-  - [ ] Support comparison between strategies
+- [ ] Implement advanced 3D visualization
+  - [ ] Build price vs. volatility surface component (`surfaces/PriceVolatilitySurface.tsx`)
+    - [ ] Create basic 3D surface plot
+    - [ ] Implement color mapping for profit/loss regions
+    - [ ] Add interactive controls (rotation, zoom)
+    - [ ] Implement cross-section view options
 
-- [ ] Add Greeks profile visualizations
-  - [ ] Create Delta vs. price chart
-  - [ ] Implement Gamma surface visualization
-  - [ ] Add Theta decay chart
-  - [ ] Create Vega sensitivity visualization
+- [ ] Create Greeks profile visualizations
+  - [ ] Implement Delta vs. price chart
+  - [ ] Create Gamma surface visualization
+  - [ ] Build Theta decay chart
+  - [ ] Add Vega sensitivity visualization
 
-- [ ] Implement visualization export functionality
-  - [ ] Add image export (PNG, JPG, SVG)
-  - [ ] Support data export (CSV, JSON)
-  - [ ] Create sharable links for visualizations
+- [ ] Add sharing and export capabilities
+  - [ ] Implement image export (PNG, JPG, SVG)
+  - [ ] Create data export functionality (CSV, JSON)
+  - [ ] Add URL-based sharing with visualization state
+
+### Technical Design for First Phase of Visualization Components
+
+```typescript
+// Sample type definitions for chart data
+interface ChartConfiguration {
+  title?: string;
+  showLegend: boolean;
+  colorScale: 'profits' | 'greeks' | 'custom';
+  customColors?: string[];
+  showGridLines: boolean;
+  showTooltips: boolean;
+  height?: number;
+  width?: number;
+  responsiveResize: boolean;
+}
+
+interface PayoffDiagramData {
+  underlyingPrices: number[];
+  payoffValues: number[];
+  breakEvenPoints: number[];
+  maxProfit?: number;
+  maxLoss?: number;
+}
+
+interface PriceTimeData {
+  dates: string[];
+  prices: {
+    scenarioName: string;
+    values: number[];
+  }[];
+  currentPrice: number;
+}
+```
+
+**Implementation Approach:**
+
+1. First iteration: Implement the base `ChartContainer` component and utility functions.
+2. Second iteration: Create the profit/loss payoff diagram as the simplest visualization.
+3. Third iteration: Implement the price vs. time chart with multi-line support.
+4. Fourth iteration: Connect charts to the state management system.
+5. Fifth iteration: Build the more complex 3D surface visualization.
+6. Final iteration: Add Greeks visualizations and export capabilities.
+
+Each visualization component should:
+- Accept standardized data structures from the API
+- Handle loading, error, and empty states gracefully
+- Support responsive resizing for different screen sizes
+- Include appropriate interactive elements (tooltips, zooming, etc.)
+- Follow consistent styling and user experience patterns
 
 ### 2. Implement Preset Strategy Selection and What-If Analysis
 

@@ -14,10 +14,12 @@
   "description": "",
   "dependencies": {
     "@tailwindcss/postcss": "^4.0.8",
+    "@types/plotly.js": "^2.35.2",
     "autoprefixer": "^10.4.20",
     "axios": "^1.8.3",
     "next": "^15.1.7",
     "plotly.js": "^3.0.1",
+    "plotly.js-dist-min": "^3.0.1",
     "postcss": "^8.5.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -1,121 +1,144 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePositionStore } from '../../lib/stores/positionStore';
-import { ApiError } from '../../lib/api';
 
+/**
+ * Visualizations Page
+ * Displays chart visualizations for option strategies
+ */
 export default function VisualizationsPage() {
-  const { positions, loading, error, fetchPositions } = usePositionStore();
+  const { positions, fetchPositions, loading, error } = usePositionStore();
+  const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<Error | null>(null);
 
   useEffect(() => {
-    fetchPositions().catch(err => {
-      console.error('Failed to fetch positions:', err);
-    });
+    const loadPositions = async () => {
+      setIsLoading(true);
+      try {
+        await fetchPositions();
+      } catch (err) {
+        console.error('Failed to fetch positions:', err);
+        setFetchError(err instanceof Error ? err : new Error('Failed to fetch positions'));
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    loadPositions();
   }, [fetchPositions]);
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
+      year: 'numeric'
     });
   };
 
-  if (error) {
-    let errorMessage = 'An unknown error occurred';
-    const err = error as Error | ApiError | unknown;
-    
-    if (err instanceof ApiError) {
-      errorMessage = `API Error (${err.status}): ${err.message}`;
-    } else if (err instanceof Error) {
-      errorMessage = err.message;
-    }
-
-    return (
-      <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-6">
-        <h3 className="font-bold text-lg mb-2">Error Loading Positions</h3>
-        <p>{errorMessage}</p>
-        <button 
-          onClick={() => fetchPositions()} 
-          className="mt-3 bg-red-100 hover:bg-red-200 text-red-800 font-semibold py-2 px-4 rounded"
-        >
-          Try Again
-        </button>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center p-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-        <p className="ml-3 text-lg text-gray-600">Loading positions...</p>
-      </div>
-    );
-  }
-
-  if (positions.length === 0) {
-    return (
-      <div className="bg-gray-50 border border-gray-200 p-8 rounded-lg text-center">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">No Positions Found</h3>
-        <p className="text-gray-500 mb-6">You need to add positions before you can visualize them.</p>
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Visualizations</h1>
         <Link 
-          href="/positions" 
-          className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg transition duration-150"
+          href="/visualizations/demo" 
+          className="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded transition duration-150"
         >
-          Go to Positions Page
+          Demo Chart
         </Link>
       </div>
-    );
-  }
 
-  return (
-    <div className="space-y-6">
-      <h2 className="text-2xl font-bold text-gray-800">Your Positions</h2>
-      <p className="text-gray-600">Select a position to visualize its potential outcomes.</p>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {positions.map(position => (
-          <Link 
-            key={position.id} 
-            href={`/visualizations/${position.id}`}
-            className="block bg-white hover:bg-gray-50 border border-gray-200 rounded-lg p-5 transition duration-150 hover:shadow-md"
+      {isLoading || loading ? (
+        <div className="flex justify-center items-center min-h-[400px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+          <p className="ml-3 text-lg text-gray-600">Loading positions...</p>
+        </div>
+      ) : fetchError || error ? (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg">
+          <h3 className="font-bold text-lg mb-2">Error Loading Positions</h3>
+          <p>{fetchError?.message || (typeof error === 'string' ? error : 'An unknown error occurred')}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="mt-4 bg-white hover:bg-gray-100 text-gray-800 font-semibold py-2 px-4 border border-gray-300 rounded shadow-sm"
           >
-            <div className="flex justify-between items-start mb-3">
-              <h3 className="text-lg font-semibold text-gray-800">{position.ticker}</h3>
-              <span className={`px-2 py-1 rounded text-xs font-medium ${
-                position.type === 'call' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
-                {position.type.toUpperCase()}
-              </span>
-            </div>
-            
-            <div className="space-y-2 text-sm text-gray-600">
-              <div className="flex justify-between">
-                <span>Strike:</span>
-                <span className="font-medium">${position.strike.toFixed(2)}</span>
+            Try Again
+          </button>
+        </div>
+      ) : positions.length === 0 ? (
+        <div className="bg-white rounded-lg shadow-sm p-6 text-center border border-gray-200">
+          <h3 className="font-semibold text-lg mb-3">No Positions Found</h3>
+          <p className="text-gray-600 mb-6">You don't have any positions to visualize.</p>
+          <div className="flex flex-col space-y-4">
+            <Link
+              href="/positions"
+              className="inline-block bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-6 rounded transition duration-150"
+            >
+              Create a Position
+            </Link>
+            <Link
+              href="/visualizations/demo"
+              className="inline-block bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-6 rounded transition duration-150"
+            >
+              View Demo Visualization
+            </Link>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {positions.map((position) => (
+            <Link 
+              key={position.id} 
+              href={`/visualizations/${position.id}`}
+              className="block"
+            >
+              <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition duration-150 h-full">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 className="font-semibold text-lg">{position.ticker}</h3>
+                    <p className="text-gray-600 text-sm">{formatDate(position.expiration)}</p>
+                  </div>
+                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                    position.type === 'call' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                  }`}>
+                    {position.type.toUpperCase()}
+                  </span>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  <div>
+                    <p className="text-gray-500 text-xs">Strike</p>
+                    <p className="font-medium">
+                      ${position.strike.toFixed(2)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs">Quantity</p>
+                    <p className="font-medium">{position.quantity}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs">Action</p>
+                    <p className="font-medium">{position.action}</p>
+                  </div>
+                  <div>
+                    <p className="text-gray-500 text-xs">Premium</p>
+                    <p className="font-medium">
+                      {position.premium ? `$${position.premium.toFixed(2)}` : '-'}
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="mt-auto pt-3 border-t border-gray-100 flex justify-end">
+                  <span className="text-blue-600 text-sm font-medium">
+                    View Analysis →
+                  </span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span>Expiration:</span>
-                <span className="font-medium">{formatDate(position.expiration)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Action:</span>
-                <span className={`font-medium ${
-                  position.action === 'buy' ? 'text-green-600' : 'text-red-600'
-                }`}>
-                  {position.action.toUpperCase()}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Quantity:</span>
-                <span className="font-medium">{position.quantity}</span>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   );
 } 
