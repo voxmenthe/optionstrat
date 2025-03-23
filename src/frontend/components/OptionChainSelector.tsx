@@ -166,6 +166,15 @@ const OptionChainSelector: React.FC<OptionChainSelectorProps> = ({
     };
   }, []);
 
+  // Handle key press events (especially Enter key)
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && showResults && searchResults.length > 0) {
+      // Select the first result when Enter is pressed
+      handleTickerSelect(searchResults[0]);
+      e.preventDefault();
+    }
+  };
+
   return (
     <div className="option-chain-selector">
       {!compact && <h3>Option Chain Selector</h3>}
@@ -176,6 +185,7 @@ const OptionChainSelector: React.FC<OptionChainSelectorProps> = ({
           type="text"
           value={searchQuery}
           onChange={handleSearchChange}
+          onKeyDown={handleKeyPress}
           placeholder="Search ticker symbol..."
           className="search-input"
           onClick={() => searchQuery.trim() && setShowResults(true)}
