@@ -59,7 +59,7 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
   } = useOptionChainStore();
   
   // State for selection mode toggle
-  const [useOptionChain, setUseOptionChain] = useState<boolean>(false);
+  const [useOptionChain, setUseOptionChain] = useState<boolean>(true);
   
   // State for selected option
   const [selectedOption, setSelectedOption] = useState<OptionContract | null>(null);
@@ -336,7 +336,8 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     setUseOptionChain(prev => {
       const newMode = !prev;
       
-      // If switching to option chain mode and we have form data, initialize the option chain
+      // Initialize the option chain when switching TO option chain mode
+      // Since useOptionChain==true means "use option chain", we need to initialize when newMode is true
       if (newMode && formData?.ticker) {
         // Use requestAnimationFrame to ensure UI updates before heavy operations
         requestAnimationFrame(async () => {
@@ -502,22 +503,22 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Position Creation</h2>
           <div className="flex items-center">
-            <span className={`mr-3 text-sm font-medium ${!useOptionChain ? 'text-blue-600' : 'text-gray-500'}`}>
-              Manual Entry
+            <span className={`mr-3 text-sm font-medium ${useOptionChain ? 'text-blue-600' : 'text-gray-500'}`}>
+              Option Chain
             </span>
             <label className="relative inline-flex items-center cursor-pointer">
               <input 
                 type="checkbox" 
                 className="sr-only" 
-                checked={useOptionChain}
+                checked={!useOptionChain}
                 onChange={handleModeToggle}
-                aria-label="Toggle between manual entry and option chain selector"
-                title="Toggle between manual entry and option chain selector"
+                aria-label="Toggle between option chain selector and manual entry"
+                title="Toggle between option chain selector and manual entry"
               />
-              <div className={`w-11 h-6 ${useOptionChain ? 'bg-blue-600' : 'bg-gray-200'} rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${useOptionChain ? 'after:translate-x-full' : ''}`}></div>
+              <div className={`w-11 h-6 ${!useOptionChain ? 'bg-blue-600' : 'bg-gray-200'} rounded-full peer peer-focus:ring-4 peer-focus:ring-blue-300 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all ${!useOptionChain ? 'after:translate-x-full' : ''}`}></div>
             </label>
-            <span className={`ml-3 text-sm font-medium ${useOptionChain ? 'text-blue-600' : 'text-gray-500'}`}>
-              Option Chain
+            <span className={`ml-3 text-sm font-medium ${!useOptionChain ? 'text-blue-600' : 'text-gray-500'}`}>
+              Manual Entry
             </span>
           </div>
         </div>
