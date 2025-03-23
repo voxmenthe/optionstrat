@@ -2,7 +2,9 @@
 
 ## Current Status Summary
 
-As of Feb 24, 2025, we have completed the frontend implementation of the Options Analysis Tool, successfully upgraded all packages to their latest versions, and made significant progress on the backend development. We have implemented the core QuantLib integration for options pricing and Greeks calculations, set up the FastAPI project structure, and created a solid foundation for the backend services.
+As of March 23, 2025, we have completed the frontend implementation of the Options Analysis Tool, successfully upgraded all packages to their latest versions, and made significant progress on the backend development. We have implemented the core QuantLib integration for options pricing and Greeks calculations, set up the FastAPI project structure, and created a solid foundation for the backend services.
+
+Frontend-backend integration is now complete, with real API calls replacing mock data. We've also implemented an editable position management system that allows for direct manipulation of position data. The visualization framework is in place, but the actual visualization components using Plotly.js still need to be implemented.
 
 ## What's Been Completed
 
@@ -15,17 +17,21 @@ As of Feb 24, 2025, we have completed the frontend implementation of the Options
 - ✅ Position management
   - ✅ Created position form for adding new options
   - ✅ Implemented position table for displaying positions
-  - ✅ Added mock functionality for calculating Greeks
+  - ✅ Added functionality for calculating Greeks with real API
+  - ✅ Enhanced position management with editable position table
 - ✅ Visualization pages
   - ✅ Implemented visualization list view
   - ✅ Created individual position visualization page with analysis settings
-  - ✅ Added placeholders for charts and visualizations
+  - ✅ Added UI framework for visualizations
+  - ⏳ Implementation of actual chart and visualization components
 - ✅ Market data page
   - ✅ Created search interface for ticker symbols
-  - ✅ Implemented mock data display for market information
+  - ✅ Implemented real data display for market information
   - ✅ Added option chain table with calls and puts
+  - ✅ Improved option chain selection with filters
 - ✅ State management with Zustand
-- ✅ Basic configuration (package.json, tailwind.config.js, etc.)
+- ✅ API client service with Axios
+- ✅ Error handling and loading states
 
 ### Package Upgrades
 
@@ -40,9 +46,9 @@ As of Feb 24, 2025, we have completed the frontend implementation of the Options
   - ✅ Fixed styling issues
 
 - ✅ Updated other dependencies to their latest versions
-  - ✅ React and React DOM
-  - ✅ Zustand
-  - ✅ Plotly.js and React-Plotly.js
+  - ✅ React 19.0.0 and React DOM
+  - ✅ Zustand 5.0.3
+  - ✅ Plotly.js 3.0.1 and React-Plotly.js 2.6.0
   - ✅ Development dependencies (TypeScript, ESLint, etc.)
 
 ### Backend Development
@@ -66,6 +72,7 @@ As of Feb 24, 2025, we have completed the frontend implementation of the Options
 
 - ✅ Implemented market data integration
   - ✅ Set up Polygon.io client for real-time data
+  - ✅ Implemented yfinance as an alternative data source
   - ✅ Created endpoints for fetching market prices and option chains
   - ✅ Implemented Redis caching for API responses
 
@@ -87,10 +94,11 @@ As of Feb 24, 2025, we have completed the frontend implementation of the Options
 
 ### Current Technical Stack
 
-- Frontend: Next.js 15.1.7, React 18.3.0
+- Frontend: Next.js 15.1.7, React 19.0.0
 - UI: Tailwind CSS 4.0.8
-- State Management: Zustand 4.5.0
-- Visualization (planned): Plotly.js 2.29.0
+- State Management: Zustand 5.0.3
+- Visualization (planned): Plotly.js 3.0.1, React-Plotly.js 2.6.0
+- API Client: Axios 1.8.3
 - Backend: FastAPI 0.109.0, Python 3.13.2
 - Options Pricing: QuantLib 1.37
 - Database: SQLAlchemy 2.0.38, SQLite
@@ -99,327 +107,349 @@ As of Feb 24, 2025, we have completed the frontend implementation of the Options
 
 ## Immediate Next Steps
 
-### 1. Backend Testing and Validation (High Priority)
+### 1. Implement Visualization Components (Highest Priority)
 
-- [x] Create comprehensive test scripts
-  - [x] Test Polygon.io API integration for fetching option chains
-    - [x] Create mock responses for Polygon.io API endpoints
-    - [x] Test ticker symbol search functionality
-    - [x] Test option chain retrieval with various parameters
-    - [x] Test error handling for API rate limits and failures
-    - [x] Verify caching mechanism for API responses
-    - [x] Test data transformation from API response to internal models
+- [ ] Create a dedicated visualization components directory
+  - [ ] Set up base visualization component structure
+  - [ ] Create reusable chart configuration utilities
+  - [ ] Implement common visualization helpers
 
-- ✅ Implement yfinance as an alternative to Polygon.io for market data
-  - ✅ Refactor `MarketDataService` to support multiple data source providers
-  - ✅ Create a `YFinanceProvider` implementation that mirrors Polygon.io functionality
-  - ✅ Modify configuration to set yfinance as the default provider with an option to switch to Polygon.io via `MARKET_DATA_PROVIDER` environment variable
-  - ✅ Ensure caching mechanism works with both providers
-  - ✅ Add unit tests for yfinance data source
-  - ✅ Update documentation to reflect both data source options
+- [ ] Implement price vs. volatility surface visualization
+  - [ ] Create 3D surface component using Plotly.js
+  - [ ] Implement color mapping for profit/loss
+  - [ ] Add interactive controls (rotation, zoom, pan)
+  - [ ] Support hover tooltips with detailed information
+  - [ ] Add axis labels and legends
 
-#### Implementation Plan for yfinance Integration
+- [ ] Implement price vs. time visualization
+  - [ ] Create 2D line chart for time decay
+  - [ ] Add multiple lines for different price points
+  - [ ] Implement range selection for time frames
+  - [ ] Support interactive data exploration
 
-- Abstract the Market Data Provider
-- We'll need to refactor the MarketDataService to support multiple data providers via a factory pattern or strategy pattern
-- This will allow us to easily switch between Polygon.io and yfinance
+- [ ] Create profit and loss diagrams
+  - [ ] Implement payoff diagram component
+  - [ ] Support multiple legs in a single chart
+  - [ ] Add break-even point indicators
+  - [ ] Support comparison between strategies
 
-##### yfinance Implementation Details
-- The yfinance library provides similar functionality to Polygon.io for our needs:
-- Ticker details via Ticker.info and Ticker.fast_info
-- Historical prices via Ticker.history()
-- Option chains via Ticker.option_chain()
-- Option expirations via Ticker.options
+- [ ] Add Greeks profile visualizations
+  - [ ] Create Delta vs. price chart
+  - [ ] Implement Gamma surface visualization
+  - [ ] Add Theta decay chart
+  - [ ] Create Vega sensitivity visualization
 
-##### There are some format differences we'll need to handle to ensure consistent data structure
-- Configuration Changes
-Update the .env file to include a new configuration variable (e.g., MARKET_DATA_PROVIDER=yfinance)
-- Make yfinance the default, with an option to switch back to Polygon.io
-- Ensure backward compatibility for existing Polygon.io users
-- Caching Adjustments
-The current Redis caching implementation will need to be adjusted to work with both providers
-- Cache keys should include the provider to avoid conflicts
-Testing
-Create new tests for the yfinance implementation
-Ensure existing tests work with either provider
+- [ ] Implement visualization export functionality
+  - [ ] Add image export (PNG, JPG, SVG)
+  - [ ] Support data export (CSV, JSON)
+  - [ ] Create sharable links for visualizations
 
+### 2. Implement Preset Strategy Selection and What-If Analysis
 
-  - [x] Test FastAPI server startup and endpoint functionality
-    - [x] Create test fixtures for FastAPI TestClient
-    - [x] Test health check and status endpoints
-    - [x] Test authentication and authorization (if implemented)
-    - [x] Test API versioning and routing
-    - [x] Verify CORS configuration
-    - [x] Test request validation and error responses
-    - [x] Measure endpoint performance and response times
-  
-  - [x] Test database operations for position management
-    - [x] Create test fixtures with SQLAlchemy test database
-    - [x] Test position creation, retrieval, update, and deletion
-    - [x] Test position validation rules
-    - [x] Test transaction handling and rollbacks
-    - [x] Verify database migration scripts
-    - [x] Test database connection pooling and error handling
-  
-  - [x] Test scenario analysis calculations
-    - [x] Expand existing option pricing tests with more edge cases
-    - [x] Test price vs. volatility surface calculations
-    - [x] Test time decay analysis with various time intervals
-    - [x] Test multi-leg option strategies (spreads, condors, etc.)
-    - [x] Verify Greeks calculations against known values
-    - [x] Test implied volatility calculations with different models
-    - [x] Benchmark performance with large datasets
+- [ ] Create strategy template definitions
+  - [ ] Define data model for strategy templates
+  - [ ] Implement common strategy types (spreads, condors, butterflies, etc.)
+  - [ ] Create mapping of strategy parameters to option selection criteria
+  - [ ] Develop strategy configuration schema
 
-- [x] Implement integration tests
-  - [x] Develop dedicated integration test suite
-    - [x] Create separate integration test directory structure
-    - [x] Set up integration test environment with test database
-    - [x] Configure test fixtures for end-to-end testing
-  - [x] Test end-to-end flows from API request to response
-    - [x] Test complete position creation to visualization pipeline
-    - [x] Test market data retrieval to option chain display
-    - [x] Test database persistence and retrieval operations
-    - [x] Test complete strategy creation to scenario analysis flow
-  - [x] Test error handling and edge cases
-    - [x] Basic API error handling tests implemented
-    - [x] Test system behavior during API outages
-    - [x] Test database connection failures and recovery
-    - [x] Verify graceful degradation for partial system failures
-  - [ ] Test performance with realistic datasets (To be implemented later)
-    - [ ] Benchmark API response times with large option chains
-    - [ ] Test system under load with concurrent requests
-    - [ ] Identify and address performance bottlenecks
+- [ ] Build strategy selection UI
+  - [ ] Create strategy selector component with dropdown and description
+  - [ ] Implement parameter input fields based on selected strategy
+  - [ ] Add ticker search integration with existing market data functionality
+  - [ ] Develop expiry date selection based on available options
+  - [ ] Add validation for strategy parameters
 
-- [ ] Create API documentation
-  - [ ] Document all endpoints with examples
-  - [ ] Create Postman collection for API testing
-  - [ ] Add detailed descriptions for request/response schemas
+- [ ] Implement automatic option selection algorithm
+  - [ ] Develop logic to find ATM options
+  - [ ] Create algorithms for finding options at specific price offsets
+  - [ ] Implement expiration date proximity search
+  - [ ] Add filtering by delta/gamma or other Greeks
+  - [ ] Create logic for multi-leg strategy construction
 
-### Completed Integration Tests
+- [ ] Build scenario builder for preset strategies
+  - [ ] Create integration with option chain store
+  - [ ] Implement strategy construction workflow
+  - [ ] Add ability to customize generated strategies
+  - [ ] Create preview of selected options and strategy characteristics
 
-The following critical integration tests have been successfully implemented:
+- [ ] Develop what-if scenario analysis modal
+  - [ ] Create UI for scenario parameters (price movement, volatility changes, time decay)
+  - [ ] Implement calculation of scenario outcomes
+  - [ ] Integrate with visualization components
+  - [ ] Add ability to save and compare scenarios
+  - [ ] Develop tabular view of scenario outcomes
 
-1. **Options Strategy Pipeline Test** (test_strategy_pipeline.py)
-   - Creates multi-leg options strategies
-   - Calculates Greeks and pricing metrics
-   - Generates scenario analysis data
-   - Verifies visualization data output matches expected values
-   - Tests both European and American option types
+- [ ] Enhance position management with preset strategies
+  - [ ] Add option to create position from preset strategy
+  - [ ] Implement bulk position creation for multi-leg strategies
+  - [ ] Create unified workflow from strategy selection to position creation
 
-2. **Market Data Integration Test** (test_market_data_pipeline.py)
-   - Fetches ticker data with caching
-   - Retrieves option chains for multiple expirations
-   - Processes and transforms market data to internal models
-   - Verifies implied volatility surface calculation
-   - Tests fallback mechanisms for API failures
+### 3. Enhance User Experience
 
-3. **Database Persistence Test** (test_database_persistence.py)
-   - Creates complex positions with multiple option legs
-   - Saves to database with relationships intact
-   - Retrieves positions with different query parameters
-   - Modifies position attributes and verifies updates
-   - Deletes positions and verifies cascade behavior
+- [ ] Add dark mode support 
+  - [ ] Implement theme switching
+  - [ ] Create dark mode color schemes for charts
+  - [ ] Ensure proper contrast for accessibility
 
-4. **Mock Provider Test** (test_mock_providers.py)
-   - Tests the mock data providers used for development
-   - Ensures consistent behavior between mock and real implementations
-   - Verifies data format consistency
+- [ ] Improve responsive design for visualizations
+  - [ ] Ensure charts resize correctly on all devices
+  - [ ] Create mobile-optimized view for small screens
+  - [ ] Implement touch controls for mobile interaction
 
-### Integration Tests Planned for Later
+- [ ] Add user preferences for visualizations
+  - [ ] Save default chart settings
+  - [ ] Allow users to customize color schemes
+  - [ ] Remember last used visualization type
 
-The following tests will be implemented in a future phase:
+- [ ] Implement visualization comparison
+  - [ ] Create side-by-side view for comparing strategies
+  - [ ] Support overlaying multiple scenarios on one chart
+  - [ ] Add difference calculation between scenarios
 
-1. **Performance Testing**
-   - Benchmarking with large datasets
-   - Load testing with concurrent requests
-   - Identifying and addressing performance bottlenecks
+### 4. Complete Documentation
 
-2. **Front-to-Back Integration Tests**
-   - Mock frontend API calls to backend endpoints
-   - Test complete data flow from user input to visualization
-   - Verify error handling and user feedback
+- [ ] Document API endpoints
+  - [ ] Create OpenAPI documentation with FastAPI
+  - [ ] Add detailed descriptions for all endpoints
+  - [ ] Create Postman collection for testing
 
-3. **Authentication and Rate Limiting Tests**
-   - Test authentication flow with token generation
-   - Verify permissions for different user roles
-   - Test rate limiting behavior under high request volume
+- [ ] Create visualization usage guide
+  - [ ] Document each chart type and its purpose
+  - [ ] Explain how to interpret different visualizations
+  - [ ] Create examples for common scenarios
 
-### Priority Integration Tests to Implement
+- [ ] Add developer documentation for extending visualizations
+  - [ ] Document component architecture
+  - [ ] Explain how to create new visualization types
+  - [ ] Provide examples for customization
 
-The following integration tests should be implemented after frontend-backend integration:
-
-1. **API Authentication and Rate Limiting Test**
-   - Test authentication flow with token generation
-   - Verify permissions for different user roles
-   - Test rate limiting behavior under high request volume
-   - Verify token expiration and refresh mechanisms
-
-2. **Performance Testing with Large Datasets**
-   - Benchmark API response times with large option chains (100+ options)
-   - Test system under load with concurrent requests (10+ simultaneous users)
-   - Identify and address performance bottlenecks
-   - Optimize database queries and API response time
-
-3. **Front-to-Back Integration Test**
-   - Mock frontend API calls to backend endpoints
-   - Test complete data flow from user input to visualization
-   - Verify error handling and user feedback
-   - Test data consistency across the entire application
-
-### 2. Frontend-Backend Integration
-
-- [x] Connect frontend to backend API
-  - [x] Create API client service in frontend
-    - [x] Implement base API client with error handling
-    - [x] Create position API service
-    - [x] Create Greeks API service
-    - [x] Create market data API service
-    - [x] Create scenarios API service
-    - [x] Create index file for easy imports
-  - [x] Update position management to use real API
-    - [x] Refactor position store to use API services
-    - [x] Implement proper error handling
-    - [x] Add loading states
-  - [x] Implement real-time market data fetching
-    - [x] Create market data store
-    - [x] Connect to market data API
-    - [x] Implement caching for API responses
-  - [x] Replace mock data with real API calls
-    - [x] Update position components
-    - [x] Update market data components
-    - [x] Update visualization components
-
-- [x] Add error handling and loading states
-  - [x] Implement loading indicators for API calls
-  - [x] Add error messages for API failures
-  - [x] Implement retry mechanisms where appropriate
-  - [x] Add graceful degradation for partial system failures
-
-- [ ] Implement real visualizations with Plotly.js
-  - [ ] Create 3D surface visualizations for price vs. volatility
-  - [ ] Implement price vs. time charts
-  - [ ] Add profit and loss diagrams for option strategies
-  - [ ] Visualize Greeks profiles
-
-### 3. API Documentation
-
-- [ ] Document all endpoints with examples
-  - [ ] Create OpenAPI documentation
-  - [ ] Add detailed descriptions for each endpoint
-  - [ ] Include request/response schemas
-  - [ ] Document authentication requirements
-  - [ ] Add rate limiting information
-
-- [ ] Create Postman collection for API testing
-  - [ ] Create collection with all API endpoints
-  - [ ] Add example requests for each endpoint
-  - [ ] Include environment variables for different environments
-  - [ ] Add tests for validating responses
-
-- [ ] Create developer documentation
-  - [ ] Document API client usage
-  - [ ] Create examples for common operations
-  - [ ] Add troubleshooting guide
-  - [ ] Include best practices for error handling
-
-### 4. Performance Optimization
-
-- [ ] Optimize API response times
-  - [ ] Implement database query optimization
-  - [ ] Add database indexing for frequently accessed fields
-  - [ ] Implement response compression
-  - [ ] Add pagination for large datasets
-
-- [ ] Improve frontend performance
-  - [ ] Implement code splitting
-  - [ ] Optimize component rendering
-  - [ ] Add memoization for expensive calculations
-  - [ ] Implement lazy loading for visualizations
-
-- [ ] Enhance caching strategy
-  - [ ] Implement Redis caching for API responses
-  - [ ] Add browser caching for static assets
-  - [ ] Implement stale-while-revalidate pattern
-  - [ ] Add cache invalidation mechanisms
-
-### 5. User Experience Enhancements
-
-- [ ] Improve form validation and feedback
-  - [ ] Add inline validation for form fields
-  - [ ] Implement more descriptive error messages
-  - [ ] Add success notifications for completed actions
-  - [ ] Improve accessibility of form elements
-
-- [ ] Enhance visualization interactivity
-  - [ ] Add zoom and pan controls for charts
-  - [ ] Implement tooltips for data points
-  - [ ] Add ability to export visualizations
-  - [ ] Implement comparison views for multiple scenarios
-
-- [ ] Add user preferences
-  - [ ] Implement theme switching (light/dark mode)
-  - [ ] Add customizable dashboard
-  - [ ] Create user-defined defaults for analysis parameters
-  - [ ] Add ability to save and load scenarios
+- [ ] Document preset strategies and what-if analysis
+  - [ ] Create guide for each strategy type
+  - [ ] Explain parameters and selection criteria
+  - [ ] Provide examples of common use cases
+  - [ ] Document how to create custom strategies
 
 ## Updated Timeline
 
-### Week 1-2 (Completed)
-- ✅ Connect frontend to backend API
-- ✅ Update position management to use real API
-- ✅ Implement real-time market data fetching
-- ✅ Replace mock data with real API calls
-- ✅ Add error handling and loading states
+### Week 1 (March 24-30, 2025)
+- Implement core visualization components
+  - Create visualization component directory structure
+  - Implement price vs. volatility surface
+  - Add price vs. time visualization
+  - Create profit and loss diagrams
 
-### Week 3 (Current)
-- Ensure basic UI is completely working
-- Fix any remaining build errors or integration issues
-- Verify all components are properly connected to the API
+### Week 2 (March 31-April 6, 2025)
+- Complete visualization implementation
+  - Add Greeks profile visualizations
+  - Implement export functionality
+  - Add responsive design for all visualizations
+- Begin preset strategy template implementation
+  - Define strategy template data model
+  - Create initial set of common strategy templates
 
-### Week 4-5
-- Implement real visualizations with Plotly.js
-- Create API documentation
-- Begin performance optimization
+### Week 3 (April 7-13, 2025)
+- Implement strategy selection UI and option selection algorithm
+  - Create strategy selector component
+  - Implement parameter inputs
+  - Develop option selection algorithms
+  - Build scenario builder integration
+- Enhance user experience
+  - Implement dark mode support
+  - Add user preferences
 
-### Week 6-7
-- Complete performance optimization
-- Implement user experience enhancements
+### Week 4 (April 14-20, 2025)
+- Complete preset strategy and what-if analysis
+  - Finalize what-if scenario modal
+  - Integrate visualization components
+  - Add scenario comparison functionality
+- Complete documentation
+  - Document API endpoints
+  - Create visualization usage guide
+  - Document preset strategies
 - Conduct user testing and gather feedback
 
-### Week 8
-- Address feedback from user testing
-- Finalize documentation
-- Prepare for production deployment
+## Technical Design for Visualization Components
 
-## Next Immediate Steps (Next 1-2 Weeks)
+### Visualization Component Directory Structure
 
-1. **Ensure Basic UI is Completely Working**
-   - Fix any remaining build errors (like the scenariosStore import issue)
-   - Test all components with real API integration
-   - Verify proper error handling in all components
-   - Ensure consistent naming conventions across the codebase
-   - Add comprehensive integration tests for UI components
+```
+src/frontend/components/visualizations/
+├── common/
+│   ├── ChartContainer.tsx
+│   ├── ChartControls.tsx
+│   ├── ColorScales.ts
+│   └── utils.ts
+├── surfaces/
+│   ├── PriceVolatilitySurface.tsx
+│   └── GreeksSurface.tsx
+├── charts/
+│   ├── PriceTimeChart.tsx
+│   ├── PayoffDiagram.tsx
+│   └── GreeksChart.tsx
+└── index.ts
+```
 
-2. **Implement Real Visualizations**
-   - Research Plotly.js capabilities for options visualization
-   - Create prototype for 3D surface visualization
-   - Implement price vs. time chart component
-   - Develop profit and loss diagram component
-   - Integrate visualization components with scenario data
+### Key Visualization Components
 
-3. **Create API Documentation**
-   - Set up OpenAPI documentation with FastAPI
-   - Document all endpoints with examples
-   - Create Postman collection for testing
-   - Write developer documentation for API client usage
+1. **PriceVolatilitySurface**: 3D surface visualization showing option value across different price and volatility points.
+
+2. **PriceTimeChart**: 2D line chart showing option value changes over time for different price points.
+
+3. **PayoffDiagram**: 2D chart showing profit/loss at expiration across a range of underlying prices.
+
+4. **GreeksChart**: Collection of charts showing how Greeks change with price, volatility, and time.
+
+### Integration with Scenarios Store
+
+Visualization components will connect to the existing scenariosStore to fetch data:
+
+1. User selects a position and visualization type
+2. UI triggers the appropriate scenario analysis in the store
+3. Store makes API call to backend for calculations
+4. Visualization component renders the results using Plotly.js
+
+### Responsive Design Strategy
+
+1. Use container queries to adapt charts to available space
+2. Create tailored layouts for mobile, tablet, and desktop
+3. Simplify interactions on small screens
+4. Implement touch-friendly controls for mobile
+
+## Technical Design for Preset Strategy Selection
+
+### Strategy Template Data Model
+
+```typescript
+interface StrategyTemplate {
+  id: string;
+  name: string;
+  description: string;
+  type: 'spread' | 'condor' | 'butterfly' | 'straddle' | 'strangle' | 'custom';
+  legs: StrategyLegTemplate[];
+  parameters: StrategyParameter[];
+}
+
+interface StrategyLegTemplate {
+  action: 'buy' | 'sell';
+  optionType: 'call' | 'put';
+  // Selection criteria relative to parameters
+  strikeSelectionMethod: 'atm' | 'otm' | 'itm' | 'offset' | 'delta';
+  strikeOffset?: StrategyParameterRef; // Reference to a parameter
+  expirySelectionMethod: 'days' | 'weeks' | 'months' | 'specific';
+  expiryOffset?: StrategyParameterRef; // Reference to a parameter
+  quantity?: StrategyParameterRef; // Reference to a parameter
+}
+
+interface StrategyParameter {
+  id: string;
+  name: string;
+  description: string;
+  type: 'number' | 'percentage' | 'date' | 'select';
+  defaultValue: any;
+  min?: number;
+  max?: number;
+  step?: number;
+  options?: { value: any; label: string }[];
+}
+
+interface StrategyParameterRef {
+  parameterId: string;
+  transform?: (value: any) => any; // Optional transformation function
+}
+```
+
+### Common Strategy Templates
+
+1. **Long Call Spread**
+   - Buy 1 ATM call
+   - Sell 1 OTM call (strike offset parameter)
+   - Parameters: expiry days, strike percentage offset
+
+2. **Long Put Spread**
+   - Buy 1 ATM put
+   - Sell 1 OTM put (strike offset parameter)
+   - Parameters: expiry days, strike percentage offset
+
+3. **Iron Condor**
+   - Sell 1 OTM put (strike offset parameter)
+   - Buy 1 further OTM put (strike offset parameter)
+   - Sell 1 OTM call (strike offset parameter)
+   - Buy 1 further OTM call (strike offset parameter)
+   - Parameters: expiry days, put spread width, call spread width, center offset
+
+4. **Butterfly**
+   - Buy 1 ITM call/put (strike offset parameter)
+   - Sell 2 ATM calls/puts
+   - Buy 1 OTM call/put (equal distance as first leg)
+   - Parameters: expiry days, wing width, option type (call/put)
+
+### Option Selection Algorithm
+
+1. **Find ATM options**
+   - Fetch current underlying price
+   - Find option strikes closest to current price
+   - Calculate distance and select closest strike
+
+2. **Find options by offset**
+   - Calculate target strike (underlying price * (1 + offset))
+   - Find option with strike closest to target
+
+3. **Find options by expiry**
+   - Calculate target expiry date (current date + days)
+   - Find available expiry dates
+   - Select closest expiry date
+
+4. **Find options by delta**
+   - Sort options by delta
+   - Find option with delta closest to target
+
+### What-If Scenario Analysis Modal
+
+1. **Input Parameters Section**
+   - Ticker input with autocomplete
+   - Strategy type selection
+   - Strategy-specific parameters (adjustable)
+   - Scenario parameters (price range, volatility range, time range)
+
+2. **Results Section**
+   - Selected options details
+   - Strategy summary (max profit, max loss, breakeven)
+   - Visualization integration
+   - Tabular scenario results
+
+3. **Actions Section**
+   - Save to positions
+   - Export visualization
+   - Compare with other strategies
+   - Adjust parameters
+
+## Next Immediate Steps (Next Week)
+
+1. **Set up visualization component structure**
+   - Create the directory structure for visualization components
+   - Implement base visualization utilities and helpers
+   - Create chart container and control components
+
+2. **Implement first visualization component**
+   - Start with the price vs. volatility surface (3D)
+   - Connect it to the scenarios store
+   - Implement basic interactivity
+   - Add color mapping for profit/loss regions
+
+3. **Define strategy template data model**
+   - Create interfaces for strategy templates
+   - Implement initial set of common strategies
+   - Develop parameter schema
 
 ## Technical Debt & Improvements
 
-- Enhance test coverage for edge cases
-- Optimize performance for large option chains
-- Add user authentication and portfolio management
-- Implement real-time data updates
-- Add advanced analytics features
+- Optimize visualization performance for large data sets
+- Implement client-side caching for visualization data
+- Add offline support for previously calculated visualizations
+- Improve accessibility of visualization components
+- Add more sophisticated option selection algorithms based on liquidity and other factors
+- Implement strategy backtesting using historical data
+- Add more complex multi-leg strategies with advanced parameters
 
 ---
 

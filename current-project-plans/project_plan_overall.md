@@ -12,6 +12,7 @@ OptionsStrat is a comprehensive options analysis and visualization tool designed
 4. Integrate real-time market data from Polygon.io
 5. Enable scenario analysis for different price, volatility, and time conditions
 6. Deliver a responsive, accessible, and performant user experience
+7. Support preset strategy templates with automatic option selection
 
 ## Project Phases
 
@@ -33,10 +34,22 @@ OptionsStrat is a comprehensive options analysis and visualization tool designed
   - ✅ Position management with real API
   - ✅ Market data fetching with real API
 - 🔄 Real data visualizations
+  - ✅ Scenario store implementation
+  - ✅ Visualization UI framework
+  - 🔄 Interactive charts implementation
+  - 🔄 3D surface visualizations
+  - ⏳ Position profit/loss diagrams
 - ✅ Error handling and loading states
+- ✅ Editable position management
 - 🔄 API documentation
 - 🔄 Developer documentation
-- 🔄 CI/CD pipeline setup
+- ✅ CI/CD pipeline setup
+- 🔄 Preset strategy templates and what-if analysis
+  - ⏳ Strategy preset definitions
+  - ⏳ Strategy selection UI
+  - ⏳ Automatic option selection algorithm
+  - ⏳ Scenario builder for preset strategies
+  - ⏳ What-if analysis modal
 
 ### Phase 3: Enhancement and Optimization
 
@@ -44,9 +57,11 @@ OptionsStrat is a comprehensive options analysis and visualization tool designed
 - ⏳ Portfolio analysis and risk management
 - ⏳ Performance optimization for large option chains
 - ⏳ Advanced analytics features
-- ⏳ User preferences and settings
+- 🔄 User preferences and settings
 - ⏳ Offline mode and data caching
 - ⏳ Accessibility improvements
+- ⏳ Strategy comparison tools
+- ⏳ Strategy performance backtesting
 
 ### Phase 4: Production and Scaling
 
@@ -57,17 +72,18 @@ OptionsStrat is a comprehensive options analysis and visualization tool designed
 - ⏳ Monitoring and logging
 - ⏳ Performance analytics
 - ⏳ Security hardening
+- ⏳ Strategy sharing and social features
 
 ## Technical Architecture
 
 ### Frontend
 
 - **Framework**: Next.js 15.1.7
-- **UI Library**: React 18.3.0
+- **UI Library**: React 19.0.0
 - **Styling**: Tailwind CSS 4.0.8
-- **State Management**: Zustand 4.5.0
-- **Visualization**: Plotly.js 2.29.0
-- **API Client**: Custom fetch wrapper
+- **State Management**: Zustand 5.0.3
+- **Visualization**: Plotly.js 3.0.1, React-Plotly.js 2.6.0
+- **API Client**: Axios 1.8.3
 
 ### Backend
 
@@ -76,7 +92,7 @@ OptionsStrat is a comprehensive options analysis and visualization tool designed
 - **Options Pricing**: QuantLib 1.37
 - **Database**: SQLAlchemy 2.0.38 with SQLite (development) / PostgreSQL (production)
 - **Caching**: Redis
-- **Market Data**: Polygon.io API
+- **Market Data**: Polygon.io API, yfinance (as alternative)
 - **Package Management**: Poetry
 
 ### Infrastructure
@@ -88,42 +104,32 @@ OptionsStrat is a comprehensive options analysis and visualization tool designed
 
 ## Immediate Next Steps (Next 2 Weeks)
 
-1. ~~Create test scripts for backend components~~
-   - ~~Test Polygon.io API integration~~
-   - ~~Test FastAPI server functionality~~
-   - ~~Test database operations~~
-   - ~~Test scenario analysis calculations~~
+1. Complete visualization implementation
+   - Implement interactive charts using Plotly.js
+   - Create 3D surface visualizations for price vs. volatility
+   - Add profit and loss diagrams for option strategies
+   - Implement responsive visualization components
+   - Add export functionality for visualization data
 
-2. ~~Connect frontend to backend API~~
-   - ~~Create API client service~~
-   - ~~Update position management~~
-   - ~~Implement real-time market data fetching~~
-   - ~~Replace mock data with real API calls~~
+2. Implement preset strategy selection and what-if analysis
+   - Define common strategy templates (e.g., spreads, condors, butterflies)
+   - Create strategy selection UI with customizable parameters
+   - Develop automatic option selection algorithm based on parameters
+   - Build what-if scenario analysis modal
+   - Integrate with visualization components for strategy evaluation
 
-3. Ensure basic UI is completely working
-   - Fix any remaining build errors or integration issues
-   - Test all components with real API integration
-   - Verify proper error handling in all components
-   - Ensure consistent naming conventions across the codebase
-   - Add comprehensive integration tests for UI components
+3. Enhance user experience
+   - Add user preferences for visualization defaults
+   - Implement theme switching (light/dark mode)
+   - Add visualization comparison features
+   - Improve mobile responsiveness
 
-4. Implement real visualizations
-   - Create 3D surface visualizations with Plotly.js
-   - Implement price vs. time charts
-   - Add profit and loss diagrams
-   - Visualize Greeks profiles
-
-5. Create comprehensive API documentation
-   - Document all endpoints with examples
-   - Create Postman collection for API testing
-   - Add detailed descriptions for request/response schemas
-   - Write developer documentation for API usage
-
-6. Optimize performance
-   - Implement database query optimization
-   - Add caching for frequently accessed data
-   - Optimize frontend rendering performance
-   - Add pagination for large datasets
+4. Documentation
+   - Complete API documentation
+   - Add developer documentation for visualization customization
+   - Create user guide for interpreting visualizations
+   - Document scenario analysis methodologies
+   - Document preset strategies and usage patterns
 
 ## Long-term Roadmap
 
@@ -132,18 +138,21 @@ OptionsStrat is a comprehensive options analysis and visualization tool designed
 - Begin Phase 3 (Enhancement and Optimization)
 - Implement advanced option strategies
 - Add portfolio analysis features
+- Enhance preset strategy capabilities with more templates
 
 ### Q3 2025
 - Complete Phase 3
 - Begin Phase 4 (Production and Scaling)
 - Implement user authentication
 - Deploy to cloud environment
+- Add strategy backtesting features
 
 ### Q4 2025
 - Complete Phase 4
 - Add mobile responsiveness
 - Implement real-time data updates
 - Explore potential for mobile app version
+- Add strategy sharing and social features
 
 ## Success Metrics
 
@@ -152,6 +161,7 @@ OptionsStrat is a comprehensive options analysis and visualization tool designed
 3. **Usability**: Users can easily create, analyze, and visualize option strategies
 4. **Reliability**: System is stable with proper error handling and fallbacks
 5. **Scalability**: Architecture can handle increased load and data volume
+6. **User Adoption**: Users can quickly generate and analyze strategies with minimal effort
 
 ## Risk Management
 
@@ -159,13 +169,15 @@ OptionsStrat is a comprehensive options analysis and visualization tool designed
    - QuantLib integration complexity
    - Real-time data reliability
    - Performance with large datasets
+   - Accuracy of automatic option selection algorithms
 
 2. **Mitigation Strategies**:
    - Comprehensive testing of QuantLib wrapper
    - Implement caching and fallback mechanisms for market data
    - Performance profiling and optimization
+   - Validate strategy templates with real market data
 
 ## Conclusion
 
-The OptionsStrat project is well underway with a solid foundation in place. The focus now shifts to integration, testing, and refinement to ensure a high-quality user experience. With careful planning and execution, we aim to deliver a powerful tool that helps traders and investors make informed decisions about options strategies.
+The OptionsStrat project has made significant progress with a solid foundation in place and many key components successfully implemented. The focus now shifts to completing the visualization capabilities and implementing the preset strategy selection feature, which will provide users with powerful tools to analyze and understand option strategies. With the recent improvements to the editable position management and the upcoming preset strategy selector, the application is becoming more intuitive and user-friendly. The next phase will bring these visualizations to life and enable users to quickly evaluate trading strategies with minimal effort.
 
