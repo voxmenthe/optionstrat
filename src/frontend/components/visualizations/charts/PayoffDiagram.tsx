@@ -207,14 +207,26 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
       gridcolor: chartConfig.showGridLines ? '#e9e9e9' : 'transparent',
       zeroline: false,
       tickformat: '$,.2f',
-      autorange: true,
+      // Set precise range with extra padding
+      range: [
+        Math.min(...data.underlyingPrices) * 0.95,
+        Math.max(...data.underlyingPrices) * 1.05
+      ],
+      fixedrange: false,
     },
     yaxis: {
       title: 'Profit/Loss',
       gridcolor: chartConfig.showGridLines ? '#e9e9e9' : 'transparent',
-      zeroline: false,
+      zeroline: true, 
+      zerolinecolor: '#888888',
+      zerolinewidth: 1,
       tickformat: '$,.2f',
-      autorange: true,
+      // Set precise range with extra padding
+      range: [
+        data.maxLoss ? Math.min(0, data.maxLoss * 1.2) : -100, 
+        data.maxProfit ? Math.max(0, data.maxProfit * 1.2) : 100
+      ],
+      fixedrange: false,
     },
     hovermode: 'closest',
     showlegend: chartConfig.showLegend,
@@ -224,13 +236,11 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
       orientation: 'h',
       bgcolor: 'rgba(255, 255, 255, 0.5)',
     },
-    margin: chartConfig.margin ? 
-      { l: chartConfig.margin.left, r: chartConfig.margin.right, t: chartConfig.margin.top, b: chartConfig.margin.bottom } : 
-      { l: 50, r: 50, t: 50, b: 50 },
+    // Set precise margins
+    margin: { l: 80, r: 20, t: 50, b: 50, pad: 0 },
     annotations: createAnnotations(data),
-    // Divide the chart into profit (green) and loss (red) regions with a light fill
     shapes: [
-      // Profit region
+      // Profit region (green tint above zero line)
       {
         type: 'rect',
         xref: 'paper',
@@ -238,33 +248,30 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
         x0: 0,
         y0: 0,
         x1: 1,
-        y1: data.maxProfit || 1000000, // Use a large value to ensure it covers the chart
+        y1: data.maxProfit ? data.maxProfit * 1.2 : 100,
         fillcolor: 'rgba(82, 196, 26, 0.05)',
-        line: {
-          width: 0,
-        },
+        line: { width: 0 },
       },
-      // Loss region
+      // Loss region (red tint below zero line)
       {
         type: 'rect',
         xref: 'paper',
         yref: 'y',
         x0: 0,
-        y0: data.maxLoss || -1000000, // Use a large negative value to ensure it covers the chart
+        y0: data.maxLoss ? data.maxLoss * 1.2 : -100,
         x1: 1,
         y1: 0,
         fillcolor: 'rgba(255, 77, 79, 0.05)',
-        line: {
-          width: 0,
-        },
+        line: { width: 0 },
       },
     ],
+    plot_bgcolor: 'white',
+    paper_bgcolor: 'white',
   };
   
   // Plotly config options
   const plotlyConfig: Partial<Config> = {
-    displayModeBar: true,
-    modeBarButtonsToRemove: ['lasso2d', 'select2d', 'autoScale2d'] as any[],
+    displayModeBar: false, // Hide mode bar completely to remove visual artifacts
     responsive: true,
   };
   
@@ -277,13 +284,15 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
       onConfigChange={handleConfigChange}
       className={className}
     >
-      <Plot
-        data={prepareChartData(data)}
-        layout={layout}
-        config={plotlyConfig}
-        style={{ width: '100%', height: '100%' }}
-        useResizeHandler={true}
-      />
+      <div className="h-full w-full overflow-hidden"> {/* Add overflow hidden to prevent visual artifacts */}
+        <Plot
+          data={prepareChartData(data)}
+          layout={layout}
+          config={plotlyConfig}
+          style={{ width: '100%', height: '100%' }}
+          useResizeHandler={true}
+        />
+      </div>
     </ChartContainer>
   );
 };

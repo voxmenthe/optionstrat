@@ -87,15 +87,24 @@ export function transformToPricePayoffData(
   positions: OptionPosition[],
   currentPrice?: number
 ): PayoffDiagramData {
+  // Sort price points by price to ensure proper order for all chart types
+  const sortedPoints = [...pricePoints].sort((a, b) => a.price - b.price);
+  
   // Extract underlying prices and payoff values
-  const underlyingPrices = pricePoints.map(point => point.price);
-  const payoffValues = pricePoints.map(point => point.value);
+  const underlyingPrices = sortedPoints.map(point => point.price);
+  
+  // Apply reasonable scaling to prevent extreme values
+  // Cap values at ±$1000 for better visualization
+  const payoffValues = sortedPoints.map(point => {
+    // Limit to reasonable range for display purposes
+    return Math.min(1000, Math.max(-1000, point.value));
+  });
   
   // Calculate break-even points (where value crosses zero)
   const breakEvenPoints: number[] = [];
-  for (let i = 1; i < pricePoints.length; i++) {
-    const prev = pricePoints[i - 1];
-    const curr = pricePoints[i];
+  for (let i = 1; i < sortedPoints.length; i++) {
+    const prev = sortedPoints[i - 1];
+    const curr = sortedPoints[i];
     
     // Check if value crosses zero between these points
     if ((prev.value <= 0 && curr.value >= 0) || (prev.value >= 0 && curr.value <= 0)) {
@@ -106,9 +115,13 @@ export function transformToPricePayoffData(
     }
   }
   
-  // Find max profit and max loss
+  // Find max profit and max loss (within reasonable limits)
   const maxProfit = Math.max(...payoffValues);
   const maxLoss = Math.min(...payoffValues);
+  
+  // If we have no currentPrice from the API, estimate it
+  const estimatedCurrentPrice = currentPrice || 
+    (positions.length > 0 ? positions[0].strike : undefined);
   
   return {
     underlyingPrices,
@@ -116,7 +129,7 @@ export function transformToPricePayoffData(
     breakEvenPoints,
     maxProfit: maxProfit > 0 ? maxProfit : undefined,
     maxLoss: maxLoss < 0 ? maxLoss : undefined,
-    currentPrice,
+    currentPrice: estimatedCurrentPrice,
     positions
   };
 }

@@ -113,16 +113,28 @@ export const useScenariosStore = create<ScenariosStore>((set, get) => ({
     
     set({ loading: true, error: null });
     try {
-      // Calculate dynamic price range based on position strike prices
-      // This ensures we get a wide enough range for visualization regardless of strike price
+      // Calculate dynamic price range based on position strike prices and option types
       let minPrice = 0;
       let maxPrice = 0;
+      let steps = settings.priceSteps;
       
       if (positions.length > 0) {
         const avgStrike = positions.reduce((sum, pos) => sum + pos.strike, 0) / positions.length;
-        // Create a range from 60% to 140% of average strike price
-        minPrice = avgStrike * 0.6;
-        maxPrice = avgStrike * 1.4;
+        
+        // Adapt price range based on option type
+        const isPut = positions[0].type === 'put';
+        
+        if (isPut) {
+          // For PUT options: focus on area below strike with logarithmic distribution
+          minPrice = avgStrike * 0.3;  // 70% below strike
+          maxPrice = avgStrike * 1.5;  // 50% above strike for context
+          // More steps for PUT to get better resolution in the important regions
+          steps = Math.max(100, settings.priceSteps);
+        } else {
+          // For CALL options: focus on area above strike
+          minPrice = avgStrike * 0.5;  // 50% below strike for context
+          maxPrice = avgStrike * 1.7;  // 70% above strike
+        }
       } else {
         // Default fallback
         minPrice = settings.minPrice;
@@ -134,7 +146,7 @@ export const useScenariosStore = create<ScenariosStore>((set, get) => ({
         {
           min_price: minPrice,
           max_price: maxPrice,
-          steps: settings.priceSteps,
+          steps: steps,
           base_volatility: settings.baseVolatility,
           risk_free_rate: settings.riskFreeRate,
           dividend_yield: settings.dividendYield
