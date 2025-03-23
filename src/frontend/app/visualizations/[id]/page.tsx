@@ -12,109 +12,107 @@ import { transformToPricePayoffData } from '../../../components/visualizations/c
 // Helper function to generate sample payoff data when API is not available
 function generateSamplePayoffData(position: OptionPosition): PayoffDiagramData {
   const basePrice = position.strike;
-  const steps = 100; // More steps for smoother curve
   
-  // Generate price points with appropriate range based on option type
+  // Simple, direct price point generation - use more points for smoother curve
+  // Generate 150 evenly spaced points for consistent data
+  const steps = 150;
   let underlyingPrices: number[] = [];
   
   if (position.type === 'put') {
-    // For PUT options, focus heavily on prices below the strike
-    // Range from 30% to 150% of strike with more points below strike
-    const minPrice = basePrice * 0.3;
-    const maxPrice = basePrice * 1.5;
+    // For PUT options, use more points below strike where the interesting behavior is
+    // Generate half the points from 40% to 100% of strike (below)
+    const belowPoints = Math.floor(steps * 0.6);
+    const minPrice = basePrice * 0.4; // 60% below strike
     
-    // Create two sets of points with different density
-    // More dense below strike, less dense above strike
-    for (let i = 0; i <= steps * 0.7; i++) {
-      // Points below and around strike (higher density)
-      const price = minPrice + ((basePrice - minPrice) * i / (steps * 0.7));
+    for (let i = 0; i <= belowPoints; i++) {
+      const price = minPrice + ((basePrice - minPrice) * i / belowPoints);
       underlyingPrices.push(price);
     }
     
-    for (let i = 1; i <= steps * 0.3; i++) {
-      // Points above strike (lower density)
-      const price = basePrice + ((maxPrice - basePrice) * i / (steps * 0.3));
+    // Generate remaining points from 100% to 140% of strike (above)
+    const abovePoints = steps - belowPoints;
+    const maxPrice = basePrice * 1.4; // 40% above strike
+    
+    for (let i = 1; i <= abovePoints; i++) {
+      const price = basePrice + ((maxPrice - basePrice) * i / abovePoints);
       underlyingPrices.push(price);
     }
-    
-    // Sort to ensure correct order
-    underlyingPrices.sort((a, b) => a - b);
   } else {
-    // For CALL options, focus on prices around and above the strike
-    // Range from 50% to 170% of strike
-    const minPrice = basePrice * 0.5;
-    const maxPrice = basePrice * 1.7;
+    // For CALL options, use more points above strike where the interesting behavior is
+    // Generate half the points from 60% to 100% of strike (below)
+    const belowPoints = Math.floor(steps * 0.4);
+    const minPrice = basePrice * 0.6; // 40% below strike
     
-    // Create two sets of points with different density
-    // Less dense below strike, more dense above strike
-    for (let i = 0; i <= steps * 0.3; i++) {
-      // Points below strike (lower density)
-      const price = minPrice + ((basePrice - minPrice) * i / (steps * 0.3));
+    for (let i = 0; i <= belowPoints; i++) {
+      const price = minPrice + ((basePrice - minPrice) * i / belowPoints);
       underlyingPrices.push(price);
     }
     
-    for (let i = 1; i <= steps * 0.7; i++) {
-      // Points above strike (higher density)
-      const price = basePrice + ((maxPrice - basePrice) * i / (steps * 0.7));
+    // Generate remaining points from 100% to 180% of strike (above)
+    const abovePoints = steps - belowPoints;
+    const maxPrice = basePrice * 1.8; // 80% above strike
+    
+    for (let i = 1; i <= abovePoints; i++) {
+      const price = basePrice + ((maxPrice - basePrice) * i / abovePoints);
       underlyingPrices.push(price);
     }
-    
-    // Sort to ensure correct order
-    underlyingPrices.sort((a, b) => a - b);
   }
   
-  // Calculate premium if not provided (use realistic pricing)
+  // Ensure prices are sorted
+  underlyingPrices.sort((a, b) => a - b);
+  
+  // Use realistic premium estimation
   const premium = position.premium || calculateEstimatedPremium(position);
   
-  // Calculate payoff based on option type and action
+  // Calculate payoff with simplified, clear formulas
   const payoffValues: number[] = underlyingPrices.map(price => {
     let payoff = 0;
     
     if (position.type === 'call') {
       if (position.action === 'buy') {
-        // Long call: max(0, price - strike) - premium
+        // Long call payoff = max(0, price - strike) - premium
         payoff = Math.max(0, price - position.strike) - premium;
       } else {
-        // Short call: premium - max(0, price - strike)
+        // Short call payoff = premium - max(0, price - strike)
         payoff = premium - Math.max(0, price - position.strike);
       }
-    } else { // PUT option
+    } else { // PUT
       if (position.action === 'buy') {
-        // Long put: max(0, strike - price) - premium
+        // Long put payoff = max(0, strike - price) - premium
         payoff = Math.max(0, position.strike - price) - premium;
       } else {
-        // Short put: premium - max(0, strike - price)
+        // Short put payoff = premium - max(0, strike - price)
         payoff = premium - Math.max(0, position.strike - price);
       }
     }
     
-    // Scale the payoff by quantity and limit extreme values
-    return Math.min(1000, Math.max(-1000, payoff * position.quantity));
+    // Multiply by quantity
+    return payoff * position.quantity;
   });
   
-  // Calculate break-even points
+  // Find break-even points - where payoff crosses zero
   const breakEvenPoints: number[] = [];
   for (let i = 1; i < payoffValues.length; i++) {
+    // Check if payoff crosses zero between these points
     if ((payoffValues[i-1] <= 0 && payoffValues[i] >= 0) || 
         (payoffValues[i-1] >= 0 && payoffValues[i] <= 0)) {
-      // Linear interpolation to find the exact break-even price
+      // Linear interpolation to find break-even price
       const x1 = underlyingPrices[i-1];
       const x2 = underlyingPrices[i];
       const y1 = payoffValues[i-1];
       const y2 = payoffValues[i];
       
       if (y1 !== y2) {
-        const x = x1 + (0 - y1) * (x2 - x1) / (y2 - y1);
-        breakEvenPoints.push(parseFloat(x.toFixed(2)));
+        const breakEvenPrice = x1 + (0 - y1) * (x2 - x1) / (y2 - y1);
+        breakEvenPoints.push(parseFloat(breakEvenPrice.toFixed(2)));
       }
     }
   }
   
-  // Find max profit and max loss
+  // Calculate max profit and max loss
   const maxProfit = Math.max(...payoffValues);
   const maxLoss = Math.min(...payoffValues);
   
-  // Return the payoff data
   return {
     underlyingPrices,
     payoffValues,
@@ -126,16 +124,15 @@ function generateSamplePayoffData(position: OptionPosition): PayoffDiagramData {
   };
 }
 
-// Helper to calculate estimated premium based on simple option pricing model
+// Helper to calculate estimated premium
 function calculateEstimatedPremium(position: OptionPosition): number {
   const strike = position.strike;
   
-  // Use 5% of strike as a simple default for OTM options
-  // Adjust based on option type to create more realistic pricing
+  // Apply simple percentage based on option type
   if (position.type === 'put') {
-    return strike * 0.05; // 5% of strike for PUT
+    return strike * 0.05; // 5% for PUTs
   } else {
-    return strike * 0.07; // 7% of strike for CALL (typically more expensive)
+    return strike * 0.06; // 6% for CALLs
   }
 }
 

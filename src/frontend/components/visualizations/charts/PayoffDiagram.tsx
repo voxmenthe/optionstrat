@@ -202,6 +202,7 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
   // Create layout configuration
   const layout: Partial<Layout> = {
     title: config.title || 'Option Strategy Payoff Diagram',
+    autosize: true,
     xaxis: {
       title: 'Underlying Price',
       gridcolor: chartConfig.showGridLines ? '#e9e9e9' : 'transparent',
@@ -212,7 +213,8 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
         Math.min(...data.underlyingPrices) * 0.95,
         Math.max(...data.underlyingPrices) * 1.05
       ],
-      fixedrange: false,
+      fixedrange: true, // Prevent user zooming on x-axis
+      constrain: 'domain', // Ensure axis stays within plot area
     },
     yaxis: {
       title: 'Profit/Loss',
@@ -226,7 +228,8 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
         data.maxLoss ? Math.min(0, data.maxLoss * 1.2) : -100, 
         data.maxProfit ? Math.max(0, data.maxProfit * 1.2) : 100
       ],
-      fixedrange: false,
+      fixedrange: true, // Prevent user zooming on y-axis
+      constrain: 'domain', // Ensure axis stays within plot area
     },
     hovermode: 'closest',
     showlegend: chartConfig.showLegend,
@@ -235,9 +238,11 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
       y: 1,
       orientation: 'h',
       bgcolor: 'rgba(255, 255, 255, 0.5)',
+      xanchor: 'left',
+      yanchor: 'top',
     },
-    // Set precise margins
-    margin: { l: 80, r: 20, t: 50, b: 50, pad: 0 },
+    // Set precise margins with no padding
+    margin: { l: 80, r: 10, t: 50, b: 50, pad: 0 },
     annotations: createAnnotations(data),
     shapes: [
       // Profit region (green tint above zero line)
@@ -269,10 +274,11 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
     paper_bgcolor: 'white',
   };
   
-  // Plotly config options
+  // Plotly config options - disable all interactivity
   const plotlyConfig: Partial<Config> = {
-    displayModeBar: false, // Hide mode bar completely to remove visual artifacts
+    displayModeBar: false,
     responsive: true,
+    staticPlot: true, // Make the plot static (no interactions)
   };
   
   return (
@@ -284,14 +290,26 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
       onConfigChange={handleConfigChange}
       className={className}
     >
-      <div className="h-full w-full overflow-hidden"> {/* Add overflow hidden to prevent visual artifacts */}
-        <Plot
-          data={prepareChartData(data)}
-          layout={layout}
-          config={plotlyConfig}
-          style={{ width: '100%', height: '100%' }}
-          useResizeHandler={true}
-        />
+      {/* Wrap the chart in multiple nested containers to prevent any artifacts from escaping */}
+      <div className="relative w-full h-full overflow-hidden"> 
+        {/* This outer container controls the overall height and prevents overflow */}
+        <div className="absolute inset-0 rounded-md overflow-hidden">
+          {/* This inner container ensures content stays within bounds */}
+          <div className="w-full h-full" style={{ isolation: 'isolate' }}>
+            <Plot
+              data={prepareChartData(data)}
+              layout={layout}
+              config={plotlyConfig}
+              style={{ 
+                width: '100%', 
+                height: '100%',
+                maxWidth: '100%',
+                maxHeight: '100%'
+              }}
+              useResizeHandler={true}
+            />
+          </div>
+        </div>
       </div>
     </ChartContainer>
   );
