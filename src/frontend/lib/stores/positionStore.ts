@@ -187,6 +187,15 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
     }
     
     console.log(`Fetching mark prices for all ${positions.length} positions`);
+    console.log('Current position mark prices before fetch:', positions.map(p => ({
+      id: p.id,
+      ticker: p.ticker,
+      type: p.type,
+      strike: p.strike,
+      markPrice: p.markPrice,
+      markPriceType: typeof p.markPrice,
+      isOverride: p.markPriceOverride
+    })));
     
     // Set a timeout to ensure we don't hang indefinitely
     let timeoutId: number | undefined;
@@ -313,15 +322,21 @@ export const usePositionStore = create<PositionStore>((set, get) => ({
             if (posIndex >= 0) {
               console.log(`Updating position ${position.id} mark price from ${updatedPositions[posIndex].markPrice} to ${markPrice}`);
               
-              // Ensure the mark price is a number
-              const numericMarkPrice = Number(markPrice);
-              if (!isNaN(numericMarkPrice)) {
-                updatedPositions[posIndex] = { 
-                  ...updatedPositions[posIndex], 
-                  markPrice: numericMarkPrice 
-                };
+              // Ensure the mark price is a valid number
+              if (markPrice === undefined || markPrice === null) {
+                console.error(`Null or undefined mark price for position ${position.id}`);
               } else {
-                console.error(`Invalid mark price value: ${markPrice} for position ${position.id}`);
+                const numericMarkPrice = typeof markPrice === 'number' ? markPrice : Number(markPrice);
+                
+                if (!isNaN(numericMarkPrice) && numericMarkPrice >= 0) {
+                  console.log(`Setting valid mark price ${numericMarkPrice} for position ${position.id}`);
+                  updatedPositions[posIndex] = { 
+                    ...updatedPositions[posIndex], 
+                    markPrice: numericMarkPrice 
+                  };
+                } else {
+                  console.error(`Invalid mark price value: ${markPrice} (${typeof markPrice}) for position ${position.id}`);
+                }
               }
             } else {
               console.warn(`Position ${position.id} not found in state when updating mark price`);

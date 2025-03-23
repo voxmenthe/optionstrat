@@ -42,8 +42,48 @@ const mapOptionResponseToCamelCase = (option: any): OptionContract => {
     // Convert snake_case to camelCase
     const camelKey = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
     
-    // Use the camelCase key
-    mappedOption[camelKey] = option[key];
+    // Handle numeric fields specifically
+    if (key === 'bid' || key === 'ask' || camelKey === 'bid' || camelKey === 'ask') {
+      const value = option[key];
+      console.log(`Processing ${camelKey} value:`, { 
+        value, 
+        type: typeof value, 
+        isNull: value === null, 
+        isUndefined: value === undefined,
+        isEmptyString: value === ''
+      });
+      
+      // Convert string values to numbers, handle null/undefined/empty string
+      if (value !== null && value !== undefined && value !== '') {
+        const numValue = typeof value === 'number' ? value : Number(value);
+        
+        // Check if conversion resulted in a valid number
+        if (!isNaN(numValue)) {
+          mappedOption[camelKey] = numValue;
+          console.log(`Successfully converted ${camelKey} from ${typeof value} (${value}) to number: ${numValue}`);
+        } else {
+          console.warn(`Failed to convert ${camelKey} value '${value}' to a valid number, got NaN`);
+          mappedOption[camelKey] = undefined;
+        }
+      } else {
+        // If null/undefined/empty string, set to undefined to ensure consistent handling
+        mappedOption[camelKey] = undefined;
+        console.log(`${camelKey} is ${value === null ? 'null' : value === '' ? 'empty string' : 'undefined'}, setting to undefined`);
+      }
+    } else {
+      // Use the camelCase key for other properties
+      mappedOption[camelKey] = option[key];
+    }
+  });
+  
+  // Add debug logging for the final bid/ask values
+  console.log(`Option ${mappedOption.optionType} ${mappedOption.strike} mapped bid/ask:`, {
+    bid: mappedOption.bid,
+    bidType: typeof mappedOption.bid,
+    bidIsNaN: typeof mappedOption.bid === 'number' && isNaN(mappedOption.bid),
+    ask: mappedOption.ask,
+    askType: typeof mappedOption.ask,
+    askIsNaN: typeof mappedOption.ask === 'number' && isNaN(mappedOption.ask)
   });
   
   return mappedOption as OptionContract;
@@ -135,15 +175,20 @@ export const optionsApi = {
     params: any = {},
     signal?: AbortSignal
   ): Promise<OptionContract[]> {
+    // Format the expiration date to YYYY-MM-DD (backend requirement)
+    const formattedDate = expirationDate.split('T')[0]; // Remove the time part if present
     try {
       logger.info('OPTIONS_API: Getting options for expiration', { 
         ticker, 
         expirationDate, 
+        formattedDate,
         params 
       });
       
+      console.log(`Fetching options for ${ticker} expiring ${expirationDate} (formatted as ${formattedDate})...`);
+      
       const response = await optionsClient.get(
-        `/options/chains/${ticker}/${expirationDate}`, 
+        `/options/chains/${ticker}/${formattedDate}`, 
         { 
           params,
           signal 
@@ -153,8 +198,11 @@ export const optionsApi = {
       logger.info('OPTIONS_API: Received options', { 
         ticker, 
         expirationDate, 
+        formattedDate,
         count: response.data.length 
       });
+      
+      console.log(`Received ${response.data.length} options for ${ticker} expiring ${expirationDate}`);
       
       // Enhanced logging to debug the response structure
       if (response.data && Array.isArray(response.data) && response.data.length > 0) {
@@ -171,11 +219,25 @@ export const optionsApi = {
           optionType: sampleOption.optionType,
           option_type: sampleOption.option_type
         });
+        
+        // Log detailed bid/ask information for debugging
+        console.log('Sample option data before mapping:', {
+          strike: sampleOption.strike,
+          type: sampleOption.option_type || sampleOption.optionType,
+          bid: sampleOption.bid,
+          bidType: typeof sampleOption.bid,
+          ask: sampleOption.ask,
+          askType: typeof sampleOption.ask
+        });
       } else {
         logger.warn('OPTIONS_API: Unexpected response data format', {
           isArray: Array.isArray(response.data),
           length: response.data?.length,
           data: response.data ? JSON.stringify(response.data).substring(0, 200) + '...' : 'null'
+        });
+        console.warn('Unexpected options data format:', {
+          isArray: Array.isArray(response.data),
+          length: response.data?.length
         });
       }
       
@@ -188,6 +250,15 @@ export const optionsApi = {
           keys: Object.keys(mappedOptions[0]),
           sample: JSON.stringify(mappedOptions[0]).substring(0, 200) + '...'
         });
+        
+        console.log('Sample mapped option data:', {
+          strike: mappedOptions[0].strike,
+          type: mappedOptions[0].optionType,
+          bid: mappedOptions[0].bid,
+          bidType: typeof mappedOptions[0].bid,
+          ask: mappedOptions[0].ask,
+          askType: typeof mappedOptions[0].ask
+        });
       }
       
       return mappedOptions;
@@ -196,12 +267,14 @@ export const optionsApi = {
       if (error.name === 'CanceledError' || error.name === 'AbortError') {
         logger.info('OPTIONS_API: Request was cancelled', { 
           ticker, 
-          expirationDate 
+          expirationDate,
+          formattedDate 
         });
       } else {
         logger.error('OPTIONS_API: Error getting options for expiration', { 
           ticker, 
           expirationDate, 
+          formattedDate,
           error: error instanceof Error ? error.message : String(error) 
         });
       }
@@ -230,13 +303,36 @@ export const optionsApi = {
         signal
       );
       
+      // Format the expiration date for logging
+      const formattedPositionDate = position.expiration.split('T')[0];
+      console.log(`Searching for option match in ${options.length} options for ${position.ticker} ${position.type} ${position.strike} expiring ${position.expiration} (formatted as ${formattedPositionDate})`);
+      
+      // Log a sample of the options to verify data structure
+      if (options.length > 0) {
+        console.log('Sample option data:', {
+          strike: options[0].strike,
+          type: options[0].optionType,
+          bid: options[0].bid,
+          bidType: typeof options[0].bid,
+          ask: options[0].ask,
+          askType: typeof options[0].ask
+        });
+      }
+      
       // Find the specific option that matches our position
-      const optionData = options.find(option => 
-        option.strike === position.strike && 
-        option.optionType.toLowerCase() === position.type.toLowerCase()
-      );
+      const optionData = options.find(option => {
+        const strikeMatch = option.strike === position.strike;
+        const typeMatch = option.optionType.toLowerCase() === position.type.toLowerCase();
+        
+        if (strikeMatch && !typeMatch) {
+          console.log(`Found strike match (${option.strike}) but type mismatch: ${option.optionType} vs ${position.type}`);
+        }
+        
+        return strikeMatch && typeMatch;
+      });
       
       if (!optionData) {
+        console.warn(`Could not find option data for ${position.ticker} ${position.type} ${position.strike} expiring ${position.expiration}`);
         logger.warn('OPTIONS_API: Could not find option data for position', {
           ticker: position.ticker,
           expiration: position.expiration,
@@ -245,6 +341,13 @@ export const optionsApi = {
         });
         return undefined;
       }
+      
+      console.log(`Found option data for ${position.ticker} ${position.type} ${position.strike}:`, {
+        bid: optionData.bid,
+        bidType: typeof optionData.bid,
+        ask: optionData.ask,
+        askType: typeof optionData.ask
+      });
       
       logger.info('OPTIONS_API: Found option data for position', {
         ticker: position.ticker,

@@ -42,11 +42,22 @@ const EDITABLE_POSITION_FIELDS: Record<string, EditablePositionField> = {
     validator: (value) => value >= 0,
     formatter: (value) => {
       // Debug log to see what's coming in
-      console.log('markPrice formatter called with:', { value, type: typeof value, valueIsNaN: typeof value === 'number' && isNaN(value) });
+      console.log('markPrice formatter called with:', { 
+        value, 
+        type: typeof value, 
+        valueIsNaN: typeof value === 'number' && isNaN(value),
+        valueIsObject: typeof value === 'object'
+      });
       
       // Handle undefined, null, or NaN values
       if (value === undefined || value === null) {
         console.log('markPrice is undefined or null, returning N/A');
+        return 'N/A';
+      }
+      
+      // If it's an object (which shouldn't happen but appears to be happening), log it and return N/A
+      if (typeof value === 'object') {
+        console.error('markPrice is an object which is unexpected:', value);
         return 'N/A';
       }
       
@@ -196,6 +207,11 @@ const EditablePositionTable: FC = () => {
     try {
       // Always recalculate Greeks (they're not cached anyway)
       await recalculateAllGreeks();
+      
+      // Also fetch mark prices when recalculating
+      console.log('Fetching mark prices as part of recalculation...');
+      const fetchMarkPrices = usePositionStore.getState().fetchAllMarkPrices;
+      await fetchMarkPrices(forceRecalculate);
       
       let pnlSuccess = true;
       let theoPnlSuccess = true;

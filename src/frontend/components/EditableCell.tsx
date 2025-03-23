@@ -55,8 +55,23 @@ const EditableCell: React.FC<EditableCellProps> = ({
   // Update editValue when value prop changes (and not editing)
   useEffect(() => {
     if (!isEditing) {
+      console.log(`EditableCell value changed:`, { value, type: typeof value, isNaN: typeof value === 'number' && isNaN(value) });
+      
       // For number inputs, convert undefined/null to empty string to avoid controlled/uncontrolled warning
-      setEditValue(type === 'number' && (value === undefined || value === null || isNaN(value)) ? '' : value);
+      if (type === 'number') {
+        if (value === undefined || value === null || (typeof value === 'number' && isNaN(value))) {
+          console.log('Setting editValue to empty string for number input');
+          setEditValue('');
+        } else {
+          // Ensure numeric values are actually numbers
+          const numValue = typeof value === 'number' ? value : Number(value);
+          console.log(`Converting value to number: ${value} (${typeof value}) → ${numValue}`);
+          setEditValue(numValue);
+        }
+      } else {
+        // For non-number types, use the value as is
+        setEditValue(value);
+      }
     }
   }, [value, isEditing, type]);
   
