@@ -48,12 +48,27 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
       onConfigChange(updatedConfig);
     }
   };
+
+  // Log data to debug PUT option issues
+  useEffect(() => {
+    if (data && data.positions && data.positions[0]?.type === 'put') {
+      console.log('PUT option data:', {
+        prices: [...data.underlyingPrices.slice(0, 5), '...', ...data.underlyingPrices.slice(-5)],
+        values: [...data.payoffValues.slice(0, 5), '...', ...data.payoffValues.slice(-5)],
+        maxLoss: data.maxLoss,
+        maxProfit: data.maxProfit
+      });
+    }
+  }, [data]);
   
-  // Prepare chart data
+  // Prepare chart data with special handling for PUT options
   const prepareChartData = (data: PayoffDiagramData): Data[] => {
     const traces: Data[] = [];
     
-    // Add main payoff line
+    // Determine if we're dealing with a PUT option
+    const isPut = data.positions && data.positions[0]?.type === 'put';
+    
+    // Add main payoff line - with special color handling for PUT options
     traces.push({
       x: data.underlyingPrices,
       y: data.payoffValues,
@@ -61,15 +76,15 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
       mode: 'lines',
       name: 'P/L',
       line: {
-        color: data.payoffValues[Math.floor(data.payoffValues.length / 2)] >= 0 ? '#1890ff' : '#ff4d4f',
+        color: isPut ? '#ff4d4f' : '#1890ff', // Red for PUT, Blue for CALL
         width: 3,
       },
       hoverinfo: 'x+y',
-      hovertemplate: 'Price: %{x}<br>P/L: $%{y:.2f}<extra></extra>',
+      hovertemplate: 'Price: $%{x:.2f}<br>P/L: $%{y:.2f}<extra></extra>',
     });
     
-    // Add break-even points
-    if (data.breakEvenPoints.length > 0) {
+    // Add break-even points if available
+    if (data.breakEvenPoints && data.breakEvenPoints.length > 0) {
       traces.push({
         x: data.breakEvenPoints,
         y: Array(data.breakEvenPoints.length).fill(0),
@@ -93,15 +108,16 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
     
     // Add current price marker if available
     if (data.currentPrice) {
+      // Find the closest price in our data to the current price
+      const closestIndex = data.underlyingPrices.reduce((closest, price, index) => {
+        return Math.abs(price - data.currentPrice!) < Math.abs(data.underlyingPrices[closest] - data.currentPrice!)
+          ? index
+          : closest;
+      }, 0);
+      
       traces.push({
         x: [data.currentPrice],
-        y: [
-          data.payoffValues[
-            data.underlyingPrices.findIndex(price => 
-              Math.abs(price - data.currentPrice!) < 0.001
-            ) || 0
-          ] || 0
-        ],
+        y: [data.payoffValues[closestIndex] || 0],
         type: 'scatter',
         mode: 'markers',
         name: 'Current Price',
@@ -149,7 +165,7 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
         annotations.push({
           x: data.underlyingPrices[maxProfitIndex],
           y: data.maxProfit,
-          text: `Max Profit: $${data.maxProfit.toFixed(2)}`,
+          text: `Max Profit: ${formatCurrency(data.maxProfit)}`,
           showarrow: true,
           arrowhead: 2,
           arrowsize: 1,
@@ -176,7 +192,7 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
         annotations.push({
           x: data.underlyingPrices[maxLossIndex],
           y: data.maxLoss,
-          text: `Max Loss: $${data.maxLoss.toFixed(2)}`,
+          text: `Max Loss: ${formatCurrency(data.maxLoss)}`,
           showarrow: true,
           arrowhead: 2,
           arrowsize: 1,
@@ -198,88 +214,156 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
     
     return annotations;
   };
-  
-  // Create layout configuration
-  const layout: Partial<Layout> = {
-    title: config.title || 'Option Strategy Payoff Diagram',
-    autosize: true,
-    xaxis: {
-      title: 'Underlying Price',
-      gridcolor: chartConfig.showGridLines ? '#e9e9e9' : 'transparent',
-      zeroline: false,
-      tickformat: '$,.2f',
-      // Set precise range with extra padding
-      range: [
-        Math.min(...data.underlyingPrices) * 0.95,
-        Math.max(...data.underlyingPrices) * 1.05
-      ],
-      fixedrange: true, // Prevent user zooming on x-axis
-      constrain: 'domain', // Ensure axis stays within plot area
-    },
-    yaxis: {
-      title: 'Profit/Loss',
-      gridcolor: chartConfig.showGridLines ? '#e9e9e9' : 'transparent',
-      zeroline: true, 
-      zerolinecolor: '#888888',
-      zerolinewidth: 1,
-      tickformat: '$,.2f',
-      // Set precise range with extra padding
-      range: [
-        data.maxLoss ? Math.min(0, data.maxLoss * 1.2) : -100, 
-        data.maxProfit ? Math.max(0, data.maxProfit * 1.2) : 100
-      ],
-      fixedrange: true, // Prevent user zooming on y-axis
-      constrain: 'domain', // Ensure axis stays within plot area
-    },
-    hovermode: 'closest',
-    showlegend: chartConfig.showLegend,
-    legend: {
-      x: 0,
-      y: 1,
-      orientation: 'h',
-      bgcolor: 'rgba(255, 255, 255, 0.5)',
-      xanchor: 'left',
-      yanchor: 'top',
-    },
-    // Set precise margins with no padding
-    margin: { l: 80, r: 10, t: 50, b: 50, pad: 0 },
-    annotations: createAnnotations(data),
-    shapes: [
-      // Profit region (green tint above zero line)
-      {
-        type: 'rect',
-        xref: 'paper',
-        yref: 'y',
-        x0: 0,
-        y0: 0,
-        x1: 1,
-        y1: data.maxProfit ? data.maxProfit * 1.2 : 100,
-        fillcolor: 'rgba(82, 196, 26, 0.05)',
-        line: { width: 0 },
+
+  // Calculate optimal axis ranges based on data
+  const calculateAxisRanges = (data: PayoffDiagramData) => {
+    // Determine if this is a PUT option
+    const isPut = data.positions && data.positions[0]?.type === 'put';
+    
+    // For x-axis: Add proper padding based on option type
+    const minPrice = Math.min(...data.underlyingPrices);
+    const maxPrice = Math.max(...data.underlyingPrices);
+    const priceRange = maxPrice - minPrice;
+    
+    // For PUT options, we need to ensure we show enough area below strike
+    // For CALL options, we need to ensure we show enough area above strike
+    const xPadding = priceRange * 0.1; // 10% padding
+    
+    // For y-axis: Calculate optimal y-axis range with proper padding
+    const minValue = Math.min(...data.payoffValues);
+    const maxValue = Math.max(...data.payoffValues);
+    const valueRange = Math.max(Math.abs(maxValue), Math.abs(minValue));
+    const yPadding = valueRange * 0.2; // 20% padding
+    
+    // Create ranges with special handling for zero crossing
+    return {
+      xaxis: {
+        range: [minPrice - xPadding, maxPrice + xPadding]
       },
-      // Loss region (red tint below zero line)
-      {
-        type: 'rect',
-        xref: 'paper',
-        yref: 'y',
-        x0: 0,
-        y0: data.maxLoss ? data.maxLoss * 1.2 : -100,
-        x1: 1,
-        y1: 0,
-        fillcolor: 'rgba(255, 77, 79, 0.05)',
-        line: { width: 0 },
-      },
-    ],
-    plot_bgcolor: 'white',
-    paper_bgcolor: 'white',
+      yaxis: {
+        // For PUT options, ensure we include sufficient negative space
+        range: [
+          isPut ? Math.min(-valueRange * 0.1, minValue - yPadding) : Math.min(0, minValue - yPadding),
+          Math.max(0, maxValue + yPadding)
+        ]
+      }
+    };
   };
   
-  // Plotly config options - disable all interactivity
+  // Create layout configuration with special handling for PUT options
+  const createLayout = (data: PayoffDiagramData): Partial<Layout> => {
+    const isPut = data.positions && data.positions[0]?.type === 'put';
+    const axisRanges = calculateAxisRanges(data);
+    
+    // Get strike price for marker
+    const strikePrice = data.positions && data.positions[0]?.strike;
+
+    // Base layout configuration
+    const layout: Partial<Layout> = {
+      title: config.title || 'Option Strategy Payoff Diagram',
+      autosize: true,
+      xaxis: {
+        title: 'Underlying Price',
+        gridcolor: chartConfig.showGridLines ? '#e9e9e9' : 'transparent',
+        zeroline: false,
+        tickformat: '$,.2f',
+        range: axisRanges.xaxis.range,
+        fixedrange: true, // Prevent user zooming
+      },
+      yaxis: {
+        title: 'Profit/Loss',
+        gridcolor: chartConfig.showGridLines ? '#e9e9e9' : 'transparent',
+        zeroline: true,
+        zerolinecolor: '#888888',
+        zerolinewidth: 1,
+        tickformat: '$,.2f',
+        range: axisRanges.yaxis.range,
+        fixedrange: true, // Prevent user zooming
+      },
+      hovermode: 'closest',
+      showlegend: chartConfig.showLegend,
+      legend: {
+        x: 0.01,
+        y: 0.99,
+        orientation: 'h',
+        bgcolor: 'rgba(255, 255, 255, 0.7)',
+        bordercolor: '#e8e8e8',
+        borderwidth: 1,
+        xanchor: 'left',
+        yanchor: 'top',
+      },
+      margin: { l: 60, r: 20, t: 40, b: 60, pad: 0 },
+      annotations: createAnnotations(data),
+      shapes: [
+        // Profit region (green tint above zero line)
+        {
+          type: 'rect',
+          xref: 'paper',
+          yref: 'y',
+          x0: 0,
+          y0: 0,
+          x1: 1,
+          y1: axisRanges.yaxis.range[1],
+          fillcolor: 'rgba(82, 196, 26, 0.05)',
+          line: { width: 0 },
+        },
+        // Loss region (red tint below zero line)
+        {
+          type: 'rect',
+          xref: 'paper',
+          yref: 'y',
+          x0: 0,
+          y0: axisRanges.yaxis.range[0],
+          x1: 1,
+          y1: 0,
+          fillcolor: 'rgba(255, 77, 79, 0.05)',
+          line: { width: 0 },
+        }
+      ],
+      plot_bgcolor: 'white',
+      paper_bgcolor: 'white',
+    };
+
+    return layout;
+  };
+  
+  // Plotly config - disable most interactivity for simpler, more reliable rendering
   const plotlyConfig: Partial<Config> = {
-    displayModeBar: false,
+    displayModeBar: false, // Hide the mode bar completely
     responsive: true,
     staticPlot: true, // Make the plot static (no interactions)
   };
+  
+  // If we're still loading or have an error, return appropriate UI
+  if (isLoading) {
+    return (
+      <ChartContainer 
+        config={chartConfig}
+        title={chartConfig.title}
+        isLoading={true}
+        className={className}
+      >
+        <div className="flex items-center justify-center h-full">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+        </div>
+      </ChartContainer>
+    );
+  }
+  
+  if (error) {
+    return (
+      <ChartContainer 
+        config={chartConfig}
+        title={chartConfig.title}
+        error={error}
+        className={className}
+      >
+        <div className="flex items-center justify-center h-full">
+          <div className="text-red-500">Error: {error}</div>
+        </div>
+      </ChartContainer>
+    );
+  }
   
   return (
     <ChartContainer
@@ -290,21 +374,27 @@ const PayoffDiagram: React.FC<PayoffDiagramProps> = ({
       onConfigChange={handleConfigChange}
       className={className}
     >
-      {/* Wrap the chart in multiple nested containers to prevent any artifacts from escaping */}
-      <div className="relative w-full h-full overflow-hidden"> 
-        {/* This outer container controls the overall height and prevents overflow */}
-        <div className="absolute inset-0 rounded-md overflow-hidden">
-          {/* This inner container ensures content stays within bounds */}
-          <div className="w-full h-full" style={{ isolation: 'isolate' }}>
+      {/* New implementation with multiple wrapper divs to contain all visual elements */}
+      <div className="w-full h-full relative">
+        <div className="absolute inset-0 overflow-hidden">
+          <div 
+            className="w-full h-full" 
+            style={{ 
+              // Use isolation to prevent visual elements from escaping
+              isolation: 'isolate', 
+              // Use CSS containment for better performance
+              contain: 'paint layout'  
+            }}
+          >
             <Plot
               data={prepareChartData(data)}
-              layout={layout}
+              layout={createLayout(data)}
               config={plotlyConfig}
-              style={{ 
-                width: '100%', 
+              style={{
+                width: '100%',
                 height: '100%',
-                maxWidth: '100%',
-                maxHeight: '100%'
+                // Ensure nothing renders outside bounds
+                overflow: 'hidden'
               }}
               useResizeHandler={true}
             />

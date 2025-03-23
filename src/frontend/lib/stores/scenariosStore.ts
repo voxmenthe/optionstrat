@@ -112,34 +112,35 @@ export const useScenariosStore = create<ScenariosStore>((set, get) => ({
     const { settings } = get();
     
     set({ loading: true, error: null });
+    
     try {
-      // Calculate dynamic price range based on option type and strike price
-      let minPrice = 0;
-      let maxPrice = 0;
-      let steps = 100; // Always use higher resolution for smoother curves
+      // Skip API call if no positions provided
+      if (!positions.length) {
+        set({ priceScenario: [], loading: false });
+        return;
+      }
       
-      if (positions.length > 0) {
-        const avgStrike = positions.reduce((sum, pos) => sum + pos.strike, 0) / positions.length;
-        const isPut = positions[0].type === 'put';
-        
-        // Use appropriate ranges based on option type
-        if (isPut) {
-          // For PUT options - critical to show range below strike
-          minPrice = avgStrike * 0.4;  // 60% below strike
-          maxPrice = avgStrike * 1.4;  // 40% above strike
-          steps = 150; // Extra resolution for PUT
-        } else {
-          // For CALL options - critical to show range above strike
-          minPrice = avgStrike * 0.6;  // 40% below strike
-          maxPrice = avgStrike * 1.8;  // 80% above strike
-        }
+      // Calculate price ranges based on option type
+      const avgStrike = positions.reduce((sum, pos) => sum + pos.strike, 0) / positions.length;
+      const isPut = positions[0].type === 'put';
+      
+      // Customize price range and steps based on option type
+      let minPrice, maxPrice, steps;
+      
+      if (isPut) {
+        // For PUT options: focus on downside
+        minPrice = Math.max(1, avgStrike * 0.5); // 50% below strike, min $1
+        maxPrice = avgStrike * 1.5; // 50% above strike
+        steps = 200; // More steps for smoother PUT curves
       } else {
-        // Default fallback if no positions
-        minPrice = settings.minPrice;
-        maxPrice = settings.maxPrice;
+        // For CALL options: focus on upside
+        minPrice = Math.max(1, avgStrike * 0.6); // 40% below strike, min $1
+        maxPrice = avgStrike * 2.0; // 100% above strike
+        steps = 150; // Fewer steps needed for CALL
       }
       
       try {
+        // Try API call first
         const priceScenario = await scenariosApi.analyzePriceScenario(
           positions,
           {
@@ -152,39 +153,114 @@ export const useScenariosStore = create<ScenariosStore>((set, get) => ({
           }
         );
         
-        set({ priceScenario, loading: false });
-      } catch (apiError) {
-        console.error("API error, using fallback data generation:", apiError);
+        // If API returns data with points, use it
+        if (priceScenario && priceScenario.length > 0) {
+          set({ priceScenario, loading: false });
+          return;
+        }
         
-        // If API call fails, generate fallback data directly
-        if (positions.length > 0) {
-          // Import the fallback data generator
-          const { generateSamplePayoffData } = require('../../app/visualizations/[id]/page');
+        // Empty response - fall through to use fallback
+        console.warn("API returned empty price scenario data, using fallback");
+        throw new Error("Empty price scenario data");
+        
+      } catch (apiError) {
+        console.error("API error, using client-side data generation:", apiError);
+        
+        // Generate fallback data directly without dynamic import
+        if (positions.length) {
+          // Get the generateSamplePayoffData function
+          const position = positions[0];
           
-          if (typeof generateSamplePayoffData === 'function') {
-            const fallbackData = generateSamplePayoffData(positions[0]);
-            const priceScenario = fallbackData.underlyingPrices.map((price: number, index: number) => ({
-              price,
-              value: fallbackData.payoffValues[index],
-              delta: 0,
-              gamma: 0,
-              theta: 0,
-              vega: 0,
-              rho: 0
-            }));
+          // Import helper functions
+          const generatePayoffData = (position: OptionPosition) => {
+            // Basic implementation matching the one in visualization page
+            const strike = position.strike;
+            const premium = position.premium || (strike * (position.type === 'put' ? 0.05 : 0.06));
+            const isCall = position.type === 'call';
+            const isBuy = position.action === 'buy';
             
-            set({ priceScenario, loading: false });
-            return;
-          }
+            // Generate price points with special handling for PUT options
+            const prices: number[] = [];
+            const values: number[] = [];
+            
+            // Create different price distributions based on option type
+            if (isCall) {
+              // For calls: focus on area above strike
+              const minPrice = Math.max(1, strike * 0.6);
+              const maxPrice = strike * 2.0;
+              
+              for (let i = 0; i <= 100; i++) {
+                // Use more points above strike than below
+                let price;
+                if (i < 40) {
+                  price = minPrice + (strike - minPrice) * (i / 40);
+                } else {
+                  price = strike + (maxPrice - strike) * ((i - 40) / 60);
+                }
+                
+                prices.push(price);
+                
+                // Calculate CALL payoff
+                let payoff = isBuy 
+                  ? Math.max(0, price - strike) - premium 
+                  : premium - Math.max(0, price - strike);
+                
+                values.push(payoff * position.quantity);
+              }
+            } else {
+              // For puts: focus on area below strike
+              const minPrice = Math.max(1, strike * 0.5);
+              const maxPrice = strike * 1.5;
+              
+              for (let i = 0; i <= 100; i++) {
+                // Use more points below strike than above
+                let price;
+                if (i < 70) {
+                  price = minPrice + (strike - minPrice) * (i / 70);
+                } else {
+                  price = strike + (maxPrice - strike) * ((i - 70) / 30);
+                }
+                
+                prices.push(price);
+                
+                // Calculate PUT payoff
+                let payoff = isBuy
+                  ? Math.max(0, strike - price) - premium
+                  : premium - Math.max(0, strike - price);
+                
+                values.push(payoff * position.quantity);
+              }
+            }
+            
+            return { prices, values };
+          };
+          
+          // Generate data and convert to API format
+          const data = generatePayoffData(position);
+          const priceScenario = data.prices.map((price, index) => ({
+            price,
+            value: data.values[index],
+            delta: 0,
+            gamma: 0,
+            theta: 0,
+            vega: 0,
+            rho: 0
+          }));
+          
+          set({ priceScenario, loading: false });
+          return;
         }
         
         // If fallback fails, re-throw the original error
         throw apiError;
       }
     } catch (error) {
+      console.error("Failed to analyze price scenario:", error);
+      
       set({ 
         error: `Failed to analyze price scenario: ${error instanceof Error ? error.message : String(error)}`, 
-        loading: false 
+        loading: false,
+        priceScenario: [] // Clear any existing data on error
       });
     }
   },

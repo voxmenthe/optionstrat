@@ -4,8 +4,11 @@ import React, { ReactNode, useState, useEffect, useRef } from 'react';
 import { ChartConfiguration } from '../../../types/visualization';
 import { calculateDimensions } from './utils';
 
+/**
+ * Chart Container Props interface
+ */
 interface ChartContainerProps {
-  children: ReactNode;
+  children: React.ReactNode;
   config: ChartConfiguration;
   title?: string;
   isLoading?: boolean;
@@ -74,69 +77,59 @@ const ChartContainer: React.FC<ChartContainerProps> = ({
   const chartHeight = config.height || dimensions.height;
 
   return (
-    <div 
-      ref={containerRef}
-      className={`chart-container relative rounded-lg border border-gray-200 bg-white shadow-sm ${className}`}
-    >
-      {/* Chart header */}
-      {(title || onConfigChange) && (
-        <div className="chart-header flex items-center justify-between border-b border-gray-200 px-4 py-3">
-          {title && <h3 className="text-lg font-medium text-gray-800">{title}</h3>}
+    <div className={`relative bg-white rounded-lg border border-gray-200 ${className}`} 
+         style={{ contain: 'paint layout', overflow: 'hidden' }}>
+      {/* Chart Header */}
+      <div className="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+        <h3 className="text-md font-medium">{title || config.title || 'Chart'}</h3>
+        
+        {/* Chart Controls */}
+        <div className="flex space-x-2">
+          {config.showLegend !== undefined && onConfigChange && (
+            <button
+              className={`px-2 py-1 text-xs rounded ${
+                config.showLegend ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+              }`}
+              onClick={() => onConfigChange({ ...config, showLegend: !config.showLegend })}
+            >
+              Legend
+            </button>
+          )}
           
-          {/* Chart controls - could be expanded with actual controls */}
-          {onConfigChange && (
-            <div className="chart-controls">
-              {/* Sample control - toggle grid lines */}
-              <button 
-                className={`mr-2 rounded px-2 py-1 text-sm ${config.showGridLines ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}
-                onClick={() => onConfigChange({ showGridLines: !config.showGridLines })}
-              >
-                Grid
-              </button>
-              
-              {/* Sample control - toggle legend */}
-              <button 
-                className={`rounded px-2 py-1 text-sm ${config.showLegend ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'}`}
-                onClick={() => onConfigChange({ showLegend: !config.showLegend })}
-              >
-                Legend
-              </button>
-            </div>
+          {config.showGridLines !== undefined && onConfigChange && (
+            <button
+              className={`px-2 py-1 text-xs rounded ${
+                config.showGridLines ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+              }`}
+              onClick={() => onConfigChange({ ...config, showGridLines: !config.showGridLines })}
+            >
+              Grid
+            </button>
           )}
         </div>
-      )}
+      </div>
       
-      {/* Chart content area */}
-      <div className="chart-content p-4">
-        {/* Loading state */}
+      {/* Chart Content */}
+      <div className="relative" style={{ minHeight: '300px', maxHeight: '600px', height: '400px' }}>
+        {/* Loading Overlay */}
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-70 z-10">
-            <div className="flex flex-col items-center">
-              <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-500 border-t-transparent"></div>
-              <p className="mt-2 text-sm text-gray-600">Loading chart data...</p>
+          <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center z-10">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+          </div>
+        )}
+        
+        {/* Error Overlay */}
+        {error && !isLoading && (
+          <div className="absolute inset-0 bg-white bg-opacity-70 flex items-center justify-center z-10">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg max-w-md">
+              <h3 className="font-bold text-lg">Error</h3>
+              <p>{typeof error === 'string' ? error : String(error)}</p>
             </div>
           </div>
         )}
         
-        {/* Error state */}
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-10">
-            <div className="mx-auto max-w-md rounded-lg bg-red-50 p-4 text-center">
-              <p className="text-sm font-medium text-red-800">Error loading chart data</p>
-              <p className="mt-1 text-xs text-red-700">{error}</p>
-            </div>
-          </div>
-        )}
-        
-        {/* Chart content */}
-        <div 
-          className="chart-wrapper"
-          style={{ 
-            width: chartWidth || '100%', 
-            height: chartHeight || 400,
-            margin: '0 auto'
-          }}
-        >
+        {/* Chart Content - Ensure all child elements are contained */}
+        <div className="absolute inset-0 overflow-hidden">
           {children}
         </div>
       </div>
