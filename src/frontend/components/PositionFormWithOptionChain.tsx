@@ -318,17 +318,8 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     }
   }, [useOptionChain, storeTicker, selectedExpiration, setTicker, setSelectedExpiration, formData]);
   
-  // Prompt before switching modes if there are unsaved changes that were made by the user
+  // Allow smooth transitions between modes without confirmation dialog
   const handleModeToggle = useCallback(() => {
-    // Only show confirmation if user has actually modified the form
-    // This prevents showing the dialog when just toggling modes with no real changes
-    if (hasUnsavedChanges && userModifiedForm) {
-      const confirmed = window.confirm(
-        "You have unsaved changes. Switching modes may cause you to lose these changes. Continue?"
-      );
-      if (!confirmed) return;
-    }
-    
     // Auto-save the current state to prevent popup on next toggle
     // We'll use localStorage to remember the current form state for this ticker
     if (formData?.ticker) {
@@ -380,7 +371,7 @@ const PositionFormWithOptionChain: React.FC<PositionFormWithOptionChainProps> = 
     // Reset the unsaved changes flags when toggling modes
     setHasUnsavedChanges(false);
     setUserModifiedForm(false); // Reset user modification flag
-  }, [hasUnsavedChanges, formData, setTicker, setSelectedExpiration]);
+  }, [formData, setTicker, setSelectedExpiration]);
   
   // Initialize form data from existing position if provided
   useEffect(() => {
