@@ -41,12 +41,21 @@ class OptionPricer:
         
         # Convert expiration date to a date object if it's not already
         if isinstance(expiration_date, str):
-            # Parse string date (expect YYYY-MM-DD format)
+            # Parse string date (expect YYYY-MM-DD format or ISO format)
             try:
-                expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d').date()
+                # First try ISO format with T separator
+                if 'T' in expiration_date:
+                    expiration_date = datetime.fromisoformat(expiration_date).date()
+                else:
+                    # Then try simple YYYY-MM-DD format
+                    expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d').date()
             except ValueError:
                 # Try with time component if simple date parse fails
-                expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d %H:%M:%S').date()
+                try:
+                    expiration_date = datetime.strptime(expiration_date, '%Y-%m-%d %H:%M:%S').date()
+                except ValueError:
+                    # Final fallback - try to strip any extra parts and keep just the date portion
+                    expiration_date = datetime.strptime(expiration_date.split('T')[0], '%Y-%m-%d').date()
         elif isinstance(expiration_date, datetime):
             expiration_date = expiration_date.date()
         

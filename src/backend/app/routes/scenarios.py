@@ -23,11 +23,32 @@ def get_option_pricer():
     """Dependency to get the option pricer service."""
     return OptionPricer()
 
-# Define a Pydantic model for the price vs volatility request
+# Define models for scenario requests
+class PriceRange(BaseModel):
+    min: float
+    max: float 
+    steps: int = 50
+
 class VolatilityRange(BaseModel):
     min: float = 0.1
     max: float = 0.5
     steps: int = 5
+
+class PositionInput(BaseModel):
+    ticker: str
+    expiration: str
+    strike: float
+    option_type: str
+    action: str
+    quantity: int
+    premium: Optional[float] = None
+
+class PriceScenarioRequest(BaseModel):
+    positions: List[PositionInput]
+    price_range: Optional[PriceRange] = None
+    base_volatility: Optional[float] = None
+    risk_free_rate: Optional[float] = 0.05
+    dividend_yield: Optional[float] = 0.0
 
 class PriceVsVolatilityRequest(BaseModel):
     option_type: str
@@ -38,6 +59,123 @@ class PriceVsVolatilityRequest(BaseModel):
     risk_free_rate: float = 0.05
     dividend_yield: float = 0.0
     american: bool = False
+
+@router.post("/price", response_model=Dict)
+async def analyze_price_scenario(
+    request: PriceScenarioRequest,
+    option_pricer: OptionPricer = Depends(get_option_pricer)
+):
+    """
+    Analyze how option positions perform across different underlying price scenarios.
+    
+    Returns price points with option values and Greeks at each price point.
+    """
+    try:
+        # Log the incoming request
+        print(f"Price scenario request received: {len(request.positions)} positions")
+        
+        # Extract positions from request
+        positions = request.positions
+        
+        if not positions:
+            raise HTTPException(status_code=400, detail="No positions provided")
+        
+        # Get reference ticker from first position
+        ticker = positions[0].ticker
+        
+        # Get current market data
+        try:
+            current_price = market_data_service.get_stock_price(ticker)
+            current_vol = market_data_service.get_implied_volatility(ticker)
+            
+            # Use provided volatility if available, otherwise use market data
+            volatility = request.base_volatility if request.base_volatility is not None else current_vol
+            
+        except Exception as e:
+            print(f"Warning: Could not fetch market data: {e}")
+            # Estimate current price as average of strikes if market data unavailable
+            current_price = sum([p.strike for p in positions]) / len(positions)
+            volatility = request.base_volatility if request.base_volatility is not None else 0.3  # Default 30% vol
+        
+        # Set up price range
+        if request.price_range:
+            price_min = request.price_range.min
+            price_max = request.price_range.max
+            steps = request.price_range.steps
+        else:
+            # Default: 50% below to 50% above current price with 50 steps
+            price_min = current_price * 0.5
+            price_max = current_price * 1.5
+            steps = 50
+        
+        # Generate price points
+        price_points = []
+        for i in range(steps + 1):
+            spot_price = price_min + (price_max - price_min) * i / steps
+            
+            # Initialize aggregated values
+            total_value = 0
+            total_delta = 0
+            total_gamma = 0
+            total_theta = 0
+            total_vega = 0
+            total_rho = 0
+            
+            # Calculate value and Greeks for each position at this price
+            for position in positions:
+                # Get option pricing
+                result = option_pricer.price_option(
+                    option_type=position.option_type,
+                    strike=position.strike,
+                    expiration_date=position.expiration,
+                    spot_price=spot_price,
+                    volatility=volatility,
+                    risk_free_rate=request.risk_free_rate,
+                    dividend_yield=request.dividend_yield,
+                    american=True  # Default to American options
+                )
+                
+                # Calculate value based on position action and quantity
+                multiplier = position.quantity * (1 if position.action == "buy" else -1)
+                position_value = result.get("price", 0) * multiplier
+                
+                # If premium is provided, subtract it for buys, add it for sells
+                if position.premium is not None:
+                    position_value -= position.premium * multiplier
+                
+                # Add weighted Greeks
+                total_value += position_value
+                total_delta += result.get("delta", 0) * multiplier
+                total_gamma += result.get("gamma", 0) * multiplier
+                total_theta += result.get("theta", 0) * multiplier
+                total_vega += result.get("vega", 0) * multiplier
+                total_rho += result.get("rho", 0) * multiplier
+            
+            # Add to price points
+            price_points.append({
+                "price": spot_price,
+                "value": total_value,
+                "delta": total_delta,
+                "gamma": total_gamma,
+                "theta": total_theta,
+                "vega": total_vega,
+                "rho": total_rho
+            })
+        
+        # Return response
+        return {
+            "price_points": price_points,
+            "current_price": current_price,
+            "current_volatility": volatility
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"Error in analyze_price_scenario: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Error analyzing price scenario: {str(e)}")
 
 @router.post("/price-vs-vol", response_model=Dict)
 def price_vs_volatility_surface(

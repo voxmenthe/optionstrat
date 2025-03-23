@@ -142,29 +142,48 @@ export const scenariosApi = {
   analyzePriceScenario: async (
     positions: OptionPosition[],
     params: {
-      min_price: number;
-      max_price: number;
-      steps: number;
+      min_price?: number;
+      max_price?: number;
+      steps?: number;
       base_volatility?: number;
       days_to_expiration?: number;
       risk_free_rate?: number;
       dividend_yield?: number;
-    }
+    } = {}
   ): Promise<PricePoint[]> => {
     const request: ScenarioParams = {
-      positions: toScenarioPositions(positions),
-      price_range: {
-        min: params.min_price,
-        max: params.max_price,
-        steps: params.steps
-      },
-      base_volatility: params.base_volatility,
-      risk_free_rate: params.risk_free_rate,
-      dividend_yield: params.dividend_yield
+      positions: toScenarioPositions(positions)
     };
     
-    const response = await apiClient.post<ScenarioResult>('/scenarios/price', request);
-    return response.price_points || [];
+    // Only add price_range if min and max are defined
+    if (params.min_price !== undefined && params.max_price !== undefined) {
+      request.price_range = {
+        min: params.min_price,
+        max: params.max_price,
+        steps: params.steps || 50
+      };
+    }
+    
+    // Add other parameters if defined
+    if (params.base_volatility !== undefined) {
+      request.base_volatility = params.base_volatility;
+    }
+    
+    if (params.risk_free_rate !== undefined) {
+      request.risk_free_rate = params.risk_free_rate;
+    }
+    
+    if (params.dividend_yield !== undefined) {
+      request.dividend_yield = params.dividend_yield;
+    }
+    
+    try {
+      const response = await apiClient.post<ScenarioResult>('/scenarios/price', request);
+      return response.price_points || [];
+    } catch (error) {
+      console.error('Price scenario API error:', error);
+      throw error;
+    }
   },
   
   /**

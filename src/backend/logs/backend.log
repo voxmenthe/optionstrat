@@ -1,5 +1,663 @@
-2025-03-23 13:46:44,068 - app.main - INFO - Backend logging initialized. Log file: /Volumes/bdrive/repos/optionstrat/src/backend/logs/backend.log
-2025-03-23 13:46:55,244 - app.main - INFO - REQUEST: OPTIONS /scenarios/price? from 127.0.0.1
-2025-03-23 13:46:55,245 - app.main - INFO - RESPONSE: OPTIONS /scenarios/price - Status: 200 - Time: 0.0003s
-2025-03-23 13:46:55,246 - app.main - INFO - REQUEST: POST /scenarios/price? from 127.0.0.1
-2025-03-23 13:46:55,247 - app.main - INFO - RESPONSE: POST /scenarios/price - Status: 404 - Time: 0.0006s
+2025-03-23 14:01:28,541 - app.main - INFO - Backend logging initialized. Log file: /Volumes/bdrive/repos/optionstrat/src/backend/logs/backend.log
+2025-03-23 14:01:37,310 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:01:37,320 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,320 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:37,320 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:37,322 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:37,322 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:37,322 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,322 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:37,322 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:37,323 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:37,323 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:37,323 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,323 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:37,323 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:37,323 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:37,323 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:37,323 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,323 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:01:37,323 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:01:37,324 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:01:37,324 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:01:37,324 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,324 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:01:37,324 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:01:37,324 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:01:37,324 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:01:37,324 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,324 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:01:37,324 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:01:37,325 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:01:37,325 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:01:37,325 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,325 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:01:37,325 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:01:37,327 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:01:37,327 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:01:37,328 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,328 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:01:37,328 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:01:37,328 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:01:37,328 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:01:37,329 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,329 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:01:37,329 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:01:37,329 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:01:37,329 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:01:37,329 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,329 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:01:37,329 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:01:37,330 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:01:37,330 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:01:37,332 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0214s
+2025-03-23 14:01:37,333 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:01:37,334 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,334 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:37,335 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:37,335 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:37,335 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:37,336 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,336 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:37,336 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:37,336 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:37,336 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:37,336 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,336 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:37,336 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:37,338 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:37,338 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:37,338 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,338 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:01:37,338 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:01:37,339 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:01:37,339 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:01:37,339 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,339 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:01:37,339 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:01:37,339 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:01:37,339 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:01:37,340 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,340 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:01:37,340 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:01:37,340 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:01:37,340 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:01:37,340 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,340 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:01:37,340 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:01:37,341 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:01:37,341 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:01:37,341 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,341 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:01:37,341 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:01:37,342 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:01:37,342 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:01:37,342 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,342 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:01:37,342 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:01:37,342 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:01:37,342 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:01:37,342 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:37,343 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:01:37,343 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:01:37,343 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:01:37,343 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:01:37,344 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0108s
+2025-03-23 14:01:41,486 - app.main - INFO - REQUEST: OPTIONS /scenarios/price? from 127.0.0.1
+2025-03-23 14:01:41,486 - app.main - INFO - RESPONSE: OPTIONS /scenarios/price - Status: 200 - Time: 0.0002s
+2025-03-23 14:01:41,487 - app.main - INFO - REQUEST: POST /scenarios/price? from 127.0.0.1
+2025-03-23 14:01:41,489 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:41,489 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:41,490 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:41,490 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:41,620 - app.main - INFO - RESPONSE: POST /scenarios/price - Status: 200 - Time: 0.1332s
+2025-03-23 14:01:47,844 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:01:47,848 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,848 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:47,848 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:47,849 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:47,849 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:47,849 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,849 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:47,849 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:47,850 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:47,850 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:47,850 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,851 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:47,851 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:47,852 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:47,852 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:47,852 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,852 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:01:47,852 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:01:47,853 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:01:47,853 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:01:47,853 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,853 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:01:47,853 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:01:47,854 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:01:47,854 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:01:47,854 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,854 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:01:47,854 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:01:47,854 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:01:47,854 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:01:47,854 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,854 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:01:47,854 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:01:47,855 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:01:47,855 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:01:47,855 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,855 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:01:47,855 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:01:47,856 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:01:47,856 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:01:47,856 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,856 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:01:47,856 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:01:47,857 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:01:47,857 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:01:47,857 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,857 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:01:47,857 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:01:47,857 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:01:47,857 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:01:47,859 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0138s
+2025-03-23 14:01:47,860 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:01:47,862 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,862 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:47,862 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:47,863 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:47,863 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:47,863 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,863 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:47,863 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:47,863 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:47,864 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:47,864 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,864 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:47,864 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:47,864 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:47,864 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:47,865 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,865 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:01:47,865 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:01:47,865 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:01:47,865 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:01:47,865 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,865 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:01:47,865 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:01:47,866 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:01:47,866 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:01:47,866 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,866 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:01:47,866 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:01:47,866 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:01:47,866 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:01:47,866 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,866 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:01:47,866 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:01:47,867 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:01:47,867 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:01:47,867 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,867 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:01:47,867 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:01:47,867 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:01:47,867 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:01:47,867 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,867 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:01:47,867 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:01:47,868 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:01:47,868 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:01:47,868 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:01:47,868 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:01:47,868 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:01:47,868 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:01:47,868 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:01:47,869 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0088s
+2025-03-23 14:01:49,080 - app.main - INFO - REQUEST: POST /scenarios/price? from 127.0.0.1
+2025-03-23 14:01:49,081 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:01:49,081 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:01:49,081 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:01:49,082 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:01:49,228 - app.main - INFO - RESPONSE: POST /scenarios/price - Status: 200 - Time: 0.1483s
+2025-03-23 14:02:11,468 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:02:11,472 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,472 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:11,472 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:11,473 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:11,473 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:11,473 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,473 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:11,473 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:11,474 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:11,474 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:11,474 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,475 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:11,475 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:11,475 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:11,476 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:11,476 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,476 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:11,476 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:11,476 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:11,476 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:11,476 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,476 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:02:11,476 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:02:11,477 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:02:11,477 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:02:11,477 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,477 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:11,477 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:11,478 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:11,478 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:11,478 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,478 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:11,478 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:11,478 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:11,478 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:11,478 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,478 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:02:11,478 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:02:11,479 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:02:11,479 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:02:11,479 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,479 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:02:11,479 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:02:11,479 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:02:11,479 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:02:11,480 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,480 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:11,480 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:11,480 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:11,480 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:11,482 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0130s
+2025-03-23 14:02:11,483 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:02:11,485 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,485 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:11,485 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:11,485 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:11,485 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:11,485 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,485 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:11,485 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:11,486 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:11,486 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:11,486 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,486 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:11,486 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:11,486 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:11,486 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:11,486 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,486 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:11,486 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:11,487 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:11,487 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:11,487 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,487 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:02:11,487 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:02:11,487 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:02:11,487 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:02:11,487 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,487 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:11,487 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:11,488 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:11,488 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:11,488 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,488 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:11,488 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:11,488 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:11,488 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:11,488 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,488 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:02:11,488 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:02:11,488 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:02:11,488 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:02:11,489 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,489 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:02:11,489 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:02:11,489 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:02:11,489 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:02:11,489 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:11,489 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:11,489 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:11,489 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:11,489 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:11,491 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0075s
+2025-03-23 14:02:13,627 - app.main - INFO - REQUEST: POST /scenarios/price? from 127.0.0.1
+2025-03-23 14:02:13,628 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:13,628 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:13,629 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:13,629 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:13,772 - app.main - INFO - RESPONSE: POST /scenarios/price - Status: 200 - Time: 0.1446s
+2025-03-23 14:02:16,792 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:02:16,795 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,796 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:16,796 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:16,796 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:16,797 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:16,797 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,797 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:16,797 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:16,798 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:16,798 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:16,799 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,799 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:16,799 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:16,800 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:16,800 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:16,800 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,800 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:16,800 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:16,800 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:16,800 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:16,801 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,801 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:02:16,801 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:02:16,801 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:02:16,801 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:02:16,802 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,802 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:16,802 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:16,803 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:16,803 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:16,803 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,803 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:16,803 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:16,804 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:16,804 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:16,804 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,804 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:02:16,804 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:02:16,805 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:02:16,805 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:02:16,805 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,805 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:02:16,805 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:02:16,806 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:02:16,806 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:02:16,806 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,806 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:16,806 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:16,806 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:16,806 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:16,808 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0159s
+2025-03-23 14:02:16,810 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:02:16,811 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,811 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:16,811 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:16,812 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:16,812 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:16,812 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,812 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:16,812 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:16,812 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:16,813 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:16,813 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,813 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:16,813 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:16,813 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:16,813 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:16,813 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,813 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:16,813 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:16,814 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:16,814 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:16,814 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,814 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:02:16,814 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:02:16,814 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:02:16,814 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:02:16,814 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,814 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:16,814 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:16,815 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:16,815 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:16,815 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,815 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:16,815 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:16,815 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:16,815 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:16,815 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,815 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:02:16,815 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:02:16,815 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:02:16,815 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:02:16,816 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,816 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:02:16,816 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:02:16,816 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:02:16,816 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:02:16,816 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:16,816 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:16,816 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:16,816 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:16,816 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:16,818 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0079s
+2025-03-23 14:02:23,443 - app.main - INFO - REQUEST: POST /scenarios/price? from 127.0.0.1
+2025-03-23 14:02:23,444 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:23,444 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:23,445 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:23,445 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:23,590 - app.main - INFO - RESPONSE: POST /scenarios/price - Status: 200 - Time: 0.1463s
+2025-03-23 14:02:36,762 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:02:36,765 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,765 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:36,765 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:36,766 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:36,766 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:36,767 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,767 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:36,767 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:36,768 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:36,768 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:36,769 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,769 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:36,769 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:36,770 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:36,770 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:36,770 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,770 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:36,770 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:36,771 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:36,771 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:36,771 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,771 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:02:36,771 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:02:36,772 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:02:36,772 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:02:36,772 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,772 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:36,772 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:36,772 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:36,772 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:36,772 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,772 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:36,772 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:36,772 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:36,773 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:36,773 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,773 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:02:36,773 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:02:36,773 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:02:36,773 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:02:36,773 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,773 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:02:36,773 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:02:36,774 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:02:36,774 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:02:36,774 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,774 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:36,774 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:36,774 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:36,774 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:36,776 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0133s
+2025-03-23 14:02:36,777 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:02:36,778 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,778 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:36,778 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:36,779 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:36,779 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:36,779 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,779 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:36,779 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:36,779 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:36,779 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:36,779 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,779 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:36,779 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:36,779 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:36,779 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:36,780 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,780 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:36,780 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:36,780 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:36,780 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:36,780 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,780 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:02:36,780 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:02:36,781 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:02:36,781 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:02:36,781 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,781 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:36,781 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:36,781 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:36,781 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:36,781 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,781 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:36,781 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:36,781 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:36,782 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:02:36,782 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:02:36,782 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:36,782 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:36,783 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:36,783 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0064s
+2025-03-23 14:02:43,118 - app.main - INFO - REQUEST: POST /scenarios/price? from 127.0.0.1
+2025-03-23 14:02:43,118 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:43,119 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:43,119 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:43,119 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:43,258 - app.main - INFO - RESPONSE: POST /scenarios/price - Status: 200 - Time: 0.1404s
+2025-03-23 14:02:47,549 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:02:47,551 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,551 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:47,552 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:47,552 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:47,552 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:47,553 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,553 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:47,553 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:47,554 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:47,554 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:47,554 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,554 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:47,554 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:47,555 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:47,555 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:47,555 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,555 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:47,555 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:47,556 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:47,556 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:47,556 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,557 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:02:47,557 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:02:47,557 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:02:47,557 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:02:47,557 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,557 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:47,557 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:47,558 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:47,558 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:47,558 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,558 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:47,558 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:47,558 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:47,558 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:47,558 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,558 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:02:47,558 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:02:47,558 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:02:47,558 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:02:47,559 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,559 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:02:47,559 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:02:47,559 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:02:47,559 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:02:47,559 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,559 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:47,559 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:47,559 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:47,559 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:47,561 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0118s
+2025-03-23 14:02:47,562 - app.main - INFO - REQUEST: GET /positions/? from 127.0.0.1
+2025-03-23 14:02:47,564 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,564 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:47,564 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:47,565 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:47,565 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:47,565 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,565 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:47,565 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:47,565 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:47,566 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:47,566 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,566 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:47,566 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:47,566 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:47,566 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:47,566 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,567 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:47,567 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:47,567 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:47,567 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:47,567 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,567 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: MA
+2025-03-23 14:02:47,567 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:MA
+2025-03-23 14:02:47,567 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:MA
+2025-03-23 14:02:47,567 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:MA, returning price: 535.6900024414062
+2025-03-23 14:02:47,568 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,568 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:47,568 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:47,568 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:47,568 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:47,568 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,568 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: AVGO
+2025-03-23 14:02:47,568 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:AVGO
+2025-03-23 14:02:47,568 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:AVGO
+2025-03-23 14:02:47,568 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:AVGO, returning price: 191.66000366210938
+2025-03-23 14:02:47,568 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,568 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: WMT
+2025-03-23 14:02:47,569 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:WMT
+2025-03-23 14:02:47,569 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:WMT
+2025-03-23 14:02:47,569 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:WMT, returning price: 85.9800033569336
+2025-03-23 14:02:47,569 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,569 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: ZM
+2025-03-23 14:02:47,569 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:ZM
+2025-03-23 14:02:47,569 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:ZM
+2025-03-23 14:02:47,569 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:ZM, returning price: 75.97000122070312
+2025-03-23 14:02:47,569 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2025-03-23 14:02:47,569 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: GS
+2025-03-23 14:02:47,569 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:GS
+2025-03-23 14:02:47,570 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:GS
+2025-03-23 14:02:47,570 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:GS, returning price: 565.1400146484375
+2025-03-23 14:02:47,571 - app.main - INFO - RESPONSE: GET /positions/ - Status: 200 - Time: 0.0085s
+2025-03-23 14:02:48,708 - app.main - INFO - REQUEST: POST /scenarios/price? from 127.0.0.1
+2025-03-23 14:02:48,709 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: get_stock_price called for ticker: IBM
+2025-03-23 14:02:48,709 - app.services.yfinance_provider - DEBUG - DEBUG_OPTION_CHAIN: Checking cache with key: yfinance:stock_price:IBM
+2025-03-23 14:02:48,709 - app.services.yfinance_provider - DEBUG - Database cache hit for yfinance:stock_price:IBM
+2025-03-23 14:02:48,710 - app.services.yfinance_provider - INFO - DEBUG_OPTION_CHAIN: Cache hit for yfinance:stock_price:IBM, returning price: 243.8699951171875
+2025-03-23 14:02:48,853 - app.main - INFO - RESPONSE: POST /scenarios/price - Status: 200 - Time: 0.1448s

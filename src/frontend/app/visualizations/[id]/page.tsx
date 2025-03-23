@@ -9,6 +9,81 @@ import { PayoffDiagram } from '../../../components/visualizations/charts';
 import { PayoffDiagramData } from '../../../types/visualization';
 import { transformToPricePayoffData } from '../../../components/visualizations/common/utils';
 
+// Helper function to generate sample payoff data when API is not available
+function generateSamplePayoffData(position: OptionPosition): PayoffDiagramData {
+  const basePrice = position.strike;
+  const priceRange = 0.4; // 40% price range
+  const steps = 50;
+  
+  // Generate price points from 60% to 140% of the strike price
+  const underlyingPrices: number[] = [];
+  for (let i = 0; i <= steps; i++) {
+    const price = basePrice * (1 - priceRange + (2 * priceRange * i) / steps);
+    underlyingPrices.push(price);
+  }
+  
+  // Calculate payoff based on option type and action
+  const payoffValues: number[] = underlyingPrices.map(price => {
+    let payoff = 0;
+    const premium = position.premium || (position.strike * 0.05); // Use 5% of strike as default premium if not provided
+    
+    if (position.type === 'call') {
+      if (position.action === 'buy') {
+        // Long call payoff: max(0, price - strike) - premium
+        payoff = Math.max(0, price - position.strike) - premium;
+      } else {
+        // Short call payoff: premium - max(0, price - strike)
+        payoff = premium - Math.max(0, price - position.strike);
+      }
+    } else {
+      // Put option
+      if (position.action === 'buy') {
+        // Long put payoff: max(0, strike - price) - premium
+        payoff = Math.max(0, position.strike - price) - premium;
+      } else {
+        // Short put payoff: premium - max(0, strike - price)
+        payoff = premium - Math.max(0, position.strike - price);
+      }
+    }
+    
+    // Multiply by quantity
+    return payoff * position.quantity;
+  });
+  
+  // Calculate break-even points
+  const breakEvenPoints: number[] = [];
+  for (let i = 1; i < payoffValues.length; i++) {
+    if ((payoffValues[i-1] <= 0 && payoffValues[i] >= 0) || 
+        (payoffValues[i-1] >= 0 && payoffValues[i] <= 0)) {
+      // Linear interpolation to find the exact break-even price
+      const x1 = underlyingPrices[i-1];
+      const x2 = underlyingPrices[i];
+      const y1 = payoffValues[i-1];
+      const y2 = payoffValues[i];
+      
+      if (y1 !== y2) {
+        const x = x1 + (0 - y1) * (x2 - x1) / (y2 - y1);
+        breakEvenPoints.push(parseFloat(x.toFixed(2)));
+      }
+    }
+  }
+  
+  // Find max profit and max loss
+  const maxProfit = Math.max(...payoffValues);
+  const maxLoss = Math.min(...payoffValues);
+  
+  // Return the payoff data
+  return {
+    underlyingPrices,
+    payoffValues,
+    breakEvenPoints,
+    maxProfit: maxProfit > 0 ? maxProfit : undefined,
+    maxLoss: maxLoss < 0 ? maxLoss : undefined,
+    currentPrice: basePrice,
+    positions: [position]
+  };
+}
+
 export default function PositionDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -34,6 +109,7 @@ export default function PositionDetailPage() {
   const [days, setDays] = useState<number>(30);
   const [calculating, setCalculating] = useState(false);
   const [payoffData, setPayoffData] = useState<PayoffDiagramData | null>(null);
+  const [usingFallbackData, setUsingFallbackData] = useState(false);
   
   useEffect(() => {
     const positionId = params.id as string;
@@ -94,6 +170,7 @@ export default function PositionDetailPage() {
       );
       
       setPayoffData(payoffData);
+      setUsingFallbackData(false);
     }
   }, [position, priceScenario]);
   
@@ -113,13 +190,22 @@ export default function PositionDetailPage() {
       
     } catch (err) {
       console.error('Failed to calculate visualization:', err);
-      let errorMessage = 'Failed to calculate visualization';
-      if (err instanceof ApiError) {
-        errorMessage = `API Error (${err.status}): ${err.message}`;
-      } else if (err instanceof Error) {
-        errorMessage = err.message;
+      
+      // If this is the payoff visualization type, use our fallback data generator
+      if (visualizationType === 'payoff' && position) {
+        console.log('Using client-side fallback for payoff calculation');
+        const fallbackData = generateSamplePayoffData(position);
+        setPayoffData(fallbackData);
+        setUsingFallbackData(true);
+      } else {
+        let errorMessage = 'Failed to calculate visualization';
+        if (err instanceof ApiError) {
+          errorMessage = `API Error (${err.status}): ${err.message}`;
+        } else if (err instanceof Error) {
+          errorMessage = err.message;
+        }
+        alert(errorMessage);
       }
-      alert(errorMessage);
     } finally {
       setCalculating(false);
     }
@@ -308,6 +394,11 @@ export default function PositionDetailPage() {
         
         {visualizationType === 'payoff' && payoffData ? (
           <div className="h-[500px]">
+            {usingFallbackData && (
+              <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 p-3 mb-3 rounded-md text-sm">
+                Note: Using client-side estimation as the backend API is not available. Actual results may vary.
+              </div>
+            )}
             <PayoffDiagram
               data={payoffData}
               config={{
@@ -318,8 +409,8 @@ export default function PositionDetailPage() {
                 showTooltips: true,
                 responsiveResize: true,
               }}
-              isLoading={calculating || scenarioLoading}
-              error={scenarioError || null}
+              isLoading={calculating || (scenarioLoading && !usingFallbackData)}
+              error={scenarioError && !usingFallbackData ? scenarioError : null}
             />
           </div>
         ) : visualizationType === 'payoff' ? (

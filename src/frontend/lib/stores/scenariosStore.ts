@@ -113,11 +113,27 @@ export const useScenariosStore = create<ScenariosStore>((set, get) => ({
     
     set({ loading: true, error: null });
     try {
+      // Calculate dynamic price range based on position strike prices
+      // This ensures we get a wide enough range for visualization regardless of strike price
+      let minPrice = 0;
+      let maxPrice = 0;
+      
+      if (positions.length > 0) {
+        const avgStrike = positions.reduce((sum, pos) => sum + pos.strike, 0) / positions.length;
+        // Create a range from 60% to 140% of average strike price
+        minPrice = avgStrike * 0.6;
+        maxPrice = avgStrike * 1.4;
+      } else {
+        // Default fallback
+        minPrice = settings.minPrice;
+        maxPrice = settings.maxPrice;
+      }
+      
       const priceScenario = await scenariosApi.analyzePriceScenario(
         positions,
         {
-          min_price: settings.minPrice,
-          max_price: settings.maxPrice,
+          min_price: minPrice,
+          max_price: maxPrice,
           steps: settings.priceSteps,
           base_volatility: settings.baseVolatility,
           risk_free_rate: settings.riskFreeRate,
