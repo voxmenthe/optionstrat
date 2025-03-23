@@ -1,7 +1,7 @@
 ---
-description: All meaningful changes and edits
-globs: *
-alwaysApply: false
+description: 
+globs: 
+alwaysApply: true
 ---
 <Prompt>
     <!--
