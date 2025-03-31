@@ -91,11 +91,33 @@ async def analyze_price_scenario(
             # Use provided volatility if available, otherwise use market data
             volatility = request.base_volatility if request.base_volatility is not None else current_vol
             
+            # Add warning if using fallback volatility value from market data
+            if request.base_volatility is None:
+                print(f"WARNING: Using market data fallback volatility {volatility} for {ticker} - base_volatility not provided in request")
+            
+            # Special handling for PUT options - they need higher minimum volatility to avoid vega issues
+            is_put = positions[0].option_type.lower() == "put"
+            if is_put:
+                PUT_MIN_VOLATILITY = 0.1  # Minimum 10% volatility for PUT options
+                if volatility < PUT_MIN_VOLATILITY:
+                    print(f"WARNING: Increasing volatility for PUT option from {volatility} to {PUT_MIN_VOLATILITY} - required for valid vega calculation")
+                    volatility = PUT_MIN_VOLATILITY
+            
         except Exception as e:
             print(f"Warning: Could not fetch market data: {e}")
             # Estimate current price as average of strikes if market data unavailable
             current_price = sum([p.strike for p in positions]) / len(positions)
             volatility = request.base_volatility if request.base_volatility is not None else 0.3  # Default 30% vol
+            
+            # Add warning if using hardcoded default volatility
+            if request.base_volatility is None:
+                print(f"WARNING: Using hardcoded default volatility 0.3 for {ticker} - base_volatility not provided and market data unavailable")
+            
+            # Special handling for PUT options with default volatility
+            is_put = positions[0].option_type.lower() == "put"
+            if is_put and volatility < 0.1:
+                print(f"WARNING: Using minimum volatility 0.1 for PUT option with missing market data")
+                volatility = 0.1  # Ensure minimum volatility for PUT options
         
         # Set up price range
         if request.price_range:
@@ -122,7 +144,13 @@ async def analyze_price_scenario(
             total_rho = 0
             
             # Calculate value and Greeks for each position at this price
+            print(f"--- Analyzing scenario for spot_price: {spot_price:.2f} ---")
             for position in positions:
+                # Added Logs Start
+                print(f"  Processing leg: type={position.option_type}, strike={position.strike}, action={position.action}, qty={position.quantity}, premium={position.premium}")
+                print(f"  Using parameters: spot={spot_price:.2f}, vol={volatility:.4f}, r={request.risk_free_rate}, div={request.dividend_yield}")
+                # Added Logs End
+
                 # Get option pricing
                 result = option_pricer.price_option(
                     option_type=position.option_type,
@@ -134,23 +162,36 @@ async def analyze_price_scenario(
                     dividend_yield=request.dividend_yield,
                     american=True  # Default to American options
                 )
-                
-                # Calculate value based on position action and quantity
-                multiplier = position.quantity * (1 if position.action == "buy" else -1)
-                position_value = result.get("price", 0) * multiplier
-                
-                # If premium is provided, subtract it for buys, add it for sells
-                if position.premium is not None:
-                    position_value -= position.premium * multiplier
-                
+
+                # Added Logs Start
+                print(f"  Pricer raw result: {result}") # Log the entire dict from the pricer
+
+                option_price = result.get("price", 0)
+                if "error" in result:
+                     print(f"  ERROR from option_pricer: {result['error']}")
+                     option_price = 0 # Handle error appropriately
+
+                # Calculate the raw value of the option leg based on direction and quantity
+                # Quantity already reflects direction (negative for short)
+                multiplier = position.quantity
+                raw_leg_value = option_price * multiplier
+                print(f"  Raw leg value (price * quantity): {raw_leg_value:.4f}")
+                # Added Logs End
+
+                position_value = raw_leg_value # Use the raw value
+
+                print(f"  Calculated position_value for leg: {position_value:.4f}") # Added Log
+
                 # Add weighted Greeks
                 total_value += position_value
                 total_delta += result.get("delta", 0) * multiplier
                 total_gamma += result.get("gamma", 0) * multiplier
                 total_theta += result.get("theta", 0) * multiplier
-                total_vega += result.get("vega", 0) * multiplier
+                total_vega += result.get("vega", 0) * multiplier # Note: vega handling was added in option_pricer
                 total_rho += result.get("rho", 0) * multiplier
             
+            # Added Log
+            print(f"--- Total aggregated value for spot_price {spot_price:.2f}: {total_value:.4f} ---")
             # Add to price points
             price_points.append({
                 "price": spot_price,

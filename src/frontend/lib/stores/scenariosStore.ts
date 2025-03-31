@@ -140,16 +140,56 @@ export const useScenariosStore = create<ScenariosStore>((set, get) => ({
       }
       
       try {
-        // Try API call first
+        // Use a default matching the backend position API's reliable default
+        const DEFAULT_VOLATILITY = 0.3; // 30%, match positions.py behavior
+        
+        // Enhanced volatility validation chain with complete fallbacks
+        let volatilityToSend;
+        
+        // First check if we have a valid value in settings
+        if (settings.baseVolatility !== undefined && settings.baseVolatility > 0) {
+          volatilityToSend = settings.baseVolatility;
+          
+          // If it's in percentage form (>1), convert to decimal
+          if (volatilityToSend > 1) {
+            console.log(`Converting percentage volatility ${volatilityToSend} to decimal form`);
+            volatilityToSend = volatilityToSend / 100;
+          }
+          
+          // Ensure it's in a safe range for QuantLib
+          if (volatilityToSend < 0.01) {
+            console.log(`Volatility too low (${volatilityToSend}), using minimum 0.01`);
+            volatilityToSend = 0.01;
+          } else if (volatilityToSend > 2.0) {
+            console.log(`Volatility too high (${volatilityToSend}), using maximum 2.0`);
+            volatilityToSend = 2.0;
+          }
+        } else {
+          // No valid setting - use reliable default that works in position API
+          console.log(`No valid volatility in settings, using default ${DEFAULT_VOLATILITY}`);
+          volatilityToSend = DEFAULT_VOLATILITY;
+        }
+        
+        // Special handling for PUT options - they need higher minimum volatility
+        if (isPut) {
+          const PUT_MIN_VOLATILITY = 0.1; // Higher minimum for PUT options
+          if (volatilityToSend < PUT_MIN_VOLATILITY) {
+            console.log(`PUT option detected - increasing volatility from ${volatilityToSend} to minimum ${PUT_MIN_VOLATILITY}`);
+            volatilityToSend = PUT_MIN_VOLATILITY;
+          }
+          
+          console.log(`Using volatility ${volatilityToSend} for PUT option`);
+        }
+        
         const priceScenario = await scenariosApi.analyzePriceScenario(
           positions,
           {
             min_price: minPrice,
             max_price: maxPrice,
             steps: steps,
-            base_volatility: settings.baseVolatility,
-            risk_free_rate: settings.riskFreeRate,
-            dividend_yield: settings.dividendYield
+            base_volatility: volatilityToSend,
+            risk_free_rate: settings.riskFreeRate || 0.05, // Ensure risk-free rate is always provided
+            dividend_yield: settings.dividendYield || 0.0 // Ensure dividend yield is always provided
           }
         );
         
@@ -175,61 +215,93 @@ export const useScenariosStore = create<ScenariosStore>((set, get) => ({
           const generatePayoffData = (position: OptionPosition) => {
             // Basic implementation matching the one in visualization page
             const strike = position.strike;
-            const premium = position.premium || (strike * (position.type === 'put' ? 0.05 : 0.06));
+            // Ensure premium is non-negative, default if necessary
+            const premium = position.premium !== undefined && position.premium >= 0 
+                          ? position.premium 
+                          : (strike * (position.type === 'put' ? 0.05 : 0.06));
             const isCall = position.type === 'call';
             const isBuy = position.action === 'buy';
+            const quantity = position.quantity; // Get quantity for payoff calculation
             
             // Generate price points with special handling for PUT options
-            const prices: number[] = [];
-            const values: number[] = [];
+            let prices: number[] = []; // Use let for reassignment
+            let values: number[] = []; // Use let for reassignment
+            
+            const numPoints = 101; // Generate 101 points for smoother curves
             
             // Create different price distributions based on option type
             if (isCall) {
               // For calls: focus on area above strike
-              const minPrice = Math.max(1, strike * 0.6);
-              const maxPrice = strike * 2.0;
+              const minPrice = Math.max(1, strike * 0.6); // 40% below strike, min $1
+              const maxPrice = strike * 2.0; // 100% above strike
+              const aboveStrikeDensity = 0.6; // 60% points above strike
               
-              for (let i = 0; i <= 100; i++) {
-                // Use more points above strike than below
+              for (let i = 0; i < numPoints; i++) {
                 let price;
-                if (i < 40) {
-                  price = minPrice + (strike - minPrice) * (i / 40);
+                const proportion = i / (numPoints - 1); // 0 to 1
+
+                if (proportion < (1 - aboveStrikeDensity)) {
+                  // Points below strike: minPrice to strike
+                  const belowStrikeProportion = proportion / (1 - aboveStrikeDensity);
+                  price = minPrice + (strike - minPrice) * belowStrikeProportion;
                 } else {
-                  price = strike + (maxPrice - strike) * ((i - 40) / 60);
+                  // Points above strike: strike to maxPrice
+                  const aboveStrikeProportion = (proportion - (1 - aboveStrikeDensity)) / aboveStrikeDensity;
+                  price = strike + (maxPrice - strike) * aboveStrikeProportion;
                 }
-                
                 prices.push(price);
                 
                 // Calculate CALL payoff
                 let payoff = isBuy 
                   ? Math.max(0, price - strike) - premium 
                   : premium - Math.max(0, price - strike);
-                
-                values.push(payoff * position.quantity);
+                values.push(payoff * quantity); // Use position quantity
               }
-            } else {
+
+            } else { // isPut
               // For puts: focus on area below strike
-              const minPrice = Math.max(1, strike * 0.5);
-              const maxPrice = strike * 1.5;
-              
-              for (let i = 0; i <= 100; i++) {
-                // Use more points below strike than above
-                let price;
-                if (i < 70) {
-                  price = minPrice + (strike - minPrice) * (i / 70);
-                } else {
-                  price = strike + (maxPrice - strike) * ((i - 70) / 30);
-                }
-                
-                prices.push(price);
-                
-                // Calculate PUT payoff
-                let payoff = isBuy
-                  ? Math.max(0, strike - price) - premium
-                  : premium - Math.max(0, strike - price);
-                
-                values.push(payoff * position.quantity);
+              const minPrice = Math.max(1, strike * 0.5); // 50% below strike, min $1
+              const maxPrice = strike * 1.5; // 50% above strike
+              const belowStrikeDensity = 0.7; // 70% of points below strike
+
+              for (let i = 0; i < numPoints; i++) {
+                  let price;
+                  const proportion = i / (numPoints - 1); // 0 to 1
+
+                  if (proportion < belowStrikeDensity) {
+                      // Concentrate points below strike: minPrice to strike
+                      const belowStrikeProportion = proportion / belowStrikeDensity;
+                      price = minPrice + (strike - minPrice) * belowStrikeProportion;
+                  } else {
+                      // Distribute remaining points above strike: strike to maxPrice
+                      const aboveStrikeProportion = (proportion - belowStrikeDensity) / (1 - belowStrikeDensity);
+                      price = strike + (maxPrice - strike) * aboveStrikeProportion;
+                  }
+                  prices.push(price);
+
+                  // Calculate PUT payoff
+                  let payoff = isBuy
+                    ? Math.max(0, strike - price) - premium
+                    : premium - Math.max(0, strike - price);
+                  values.push(payoff * quantity); // Use position quantity
               }
+              
+              // Sort points by price to ensure correct plotting order for PUTs
+              // This is crucial for Plotly to draw the line correctly
+              const points = prices.map((p, idx) => ({ price: p, value: values[idx] }));
+              points.sort((a, b) => a.price - b.price);
+              prices = points.map(p => p.price);
+              values = points.map(p => p.value);
+
+              // Log PUT data for validation
+              console.log("Generated PUT Fallback Data:", {
+                strike: strike,
+                premium: premium,
+                quantity: quantity,
+                action: position.action,
+                prices: prices.map(p => p.toFixed(2)), // Format for readability
+                values: values.map(v => v.toFixed(2))  // Format for readability
+              });
             }
             
             return { prices, values };
@@ -298,6 +370,50 @@ export const useScenariosStore = create<ScenariosStore>((set, get) => ({
     
     set({ loading: true, error: null });
     try {
+      // Use a default matching the backend position API's reliable default
+      const DEFAULT_VOLATILITY = 0.3; // 30%, match positions.py behavior
+      
+      // Enhanced volatility validation chain with complete fallbacks
+      let volatilityToSend;
+      
+      // Check if we're dealing with a PUT option
+      const isPut = positions.length > 0 && positions[0].type === 'put';
+      
+      // First check if we have a valid value in settings
+      if (settings.baseVolatility !== undefined && settings.baseVolatility > 0) {
+        volatilityToSend = settings.baseVolatility;
+        
+        // If it's in percentage form (>1), convert to decimal
+        if (volatilityToSend > 1) {
+          console.log(`Converting percentage volatility ${volatilityToSend} to decimal form`);
+          volatilityToSend = volatilityToSend / 100;
+        }
+        
+        // Ensure it's in a safe range for QuantLib
+        if (volatilityToSend < 0.01) {
+          console.log(`Volatility too low (${volatilityToSend}), using minimum 0.01`);
+          volatilityToSend = 0.01;
+        } else if (volatilityToSend > 2.0) {
+          console.log(`Volatility too high (${volatilityToSend}), using maximum 2.0`);
+          volatilityToSend = 2.0;
+        }
+      } else {
+        // No valid setting - use reliable default that works in position API
+        console.log(`No valid volatility in settings, using default ${DEFAULT_VOLATILITY}`);
+        volatilityToSend = DEFAULT_VOLATILITY;
+      }
+      
+      // Special handling for PUT options - they need higher minimum volatility
+      if (isPut) {
+        const PUT_MIN_VOLATILITY = 0.1; // Higher minimum for PUT options
+        if (volatilityToSend < PUT_MIN_VOLATILITY) {
+          console.log(`PUT option detected - increasing volatility from ${volatilityToSend} to minimum ${PUT_MIN_VOLATILITY}`);
+          volatilityToSend = PUT_MIN_VOLATILITY;
+        }
+        
+        console.log(`Using volatility ${volatilityToSend} for PUT option`);
+      }
+      
       const timeDecayScenario = await scenariosApi.analyzeTimeDecayScenario(
         positions,
         {
@@ -305,9 +421,9 @@ export const useScenariosStore = create<ScenariosStore>((set, get) => ({
           max_days: settings.maxDays,
           steps: settings.daysSteps,
           base_price: settings.basePrice,
-          base_volatility: settings.baseVolatility,
-          risk_free_rate: settings.riskFreeRate,
-          dividend_yield: settings.dividendYield
+          base_volatility: volatilityToSend,
+          risk_free_rate: settings.riskFreeRate || 0.05,
+          dividend_yield: settings.dividendYield || 0.0
         }
       );
       

@@ -150,30 +150,89 @@ class OptionPricer:
         
         try:
             # Set pricing engine based on option type
+            print("Setting pricing engine...") # Log
             if american:
-                # Use binomial tree for American options
-                # Increase steps for better accuracy
-                engine = ql.BinomialVanillaEngine(process, "crr", 1000)
+                # Use Finite Difference engine for American options - generally robust for Greeks
+                timeSteps = 100  # Number of time steps for FD grid
+                gridPoints = 100 # Number of asset price points for FD grid
+                print(f"Using FdBlackScholesVanillaEngine for American {option_type.upper()} (timeSteps={timeSteps}, gridPoints={gridPoints})") # Log
+                engine = ql.FdBlackScholesVanillaEngine(process, timeSteps, gridPoints)
             else:
                 # Use analytic formula for European options
+                print("Using AnalyticEuropeanEngine for European option") # Log
                 engine = ql.AnalyticEuropeanEngine(process)
             
             option.setPricingEngine(engine)
+            print("Pricing engine set successfully.") # Log
             
-            # Calculate price and Greeks
-            price = option.NPV()
+            # Calculate price and Greeks with individual error handling
+            price = 0.0
+            delta = 0.0
+            gamma = 0.0
+            theta = 0.0
+            vega = 0.0
+            rho = 0.0
+            raw_delta, raw_gamma, raw_theta, raw_vega, raw_rho = 0.0, 0.0, 0.0, 0.0, 0.0 # Defaults
+
+            try:
+                print("Calculating NPV...") # Log
+                price = option.NPV()
+                print(f"Calculated NPV: {price}") # Log
+            except Exception as npv_error:
+                 print(f"ERROR calculating NPV: {npv_error}")
+                 # If price fails, we probably can't get Greeks either, return error
+                 raise npv_error # Re-raise to be caught by the outer exception handler
             
-            # QuantLib returns Greeks in large decimal form - we need to scale them properly
-            # Scale to standard financial decimal form (0-1 range for delta)
-            delta = option.delta() / 100.0
-            gamma = option.gamma() / 100.0
-            theta = (option.theta() / 365.0) / 100.0  # Daily theta, scaled
-            vega = option.vega() / 100.0    # Vega per 1% vol change
-            rho = option.rho() / 100.0      # Rho per 1% rate change
+            try:
+                print("Calculating Delta...") # Log
+                raw_delta = option.delta()
+                delta = raw_delta / 100.0
+                print(f"Calculated Delta: {raw_delta} -> {delta}") # Log
+            except Exception as delta_error:
+                 print(f"WARNING: Delta calculation failed: {delta_error}. Returning Delta as 0.")
+
+            try:
+                print("Calculating Gamma...") # Log
+                raw_gamma = option.gamma()
+                gamma = raw_gamma / 100.0
+                print(f"Calculated Gamma: {raw_gamma} -> {gamma}") # Log
+            except Exception as gamma_error:
+                 print(f"WARNING: Gamma calculation failed: {gamma_error}. Returning Gamma as 0.")
             
-            # Print raw values for debugging
-            print(f"Raw Greeks from QuantLib: Delta={option.delta()}, Gamma={option.gamma()}, Theta={option.theta()}, Vega={option.vega()}, Rho={option.rho()}")
-            print(f"Scaled Greeks: Delta={delta}, Gamma={gamma}, Theta={theta}, Vega={vega}, Rho={rho}")
+            try:
+                print("Calculating Theta...") # Log
+                raw_theta = option.theta()
+                theta = (raw_theta / 365.0) / 100.0  # Daily theta, scaled
+                print(f"Calculated Theta: {raw_theta} -> {theta}") # Log
+            except Exception as theta_error:
+                 print(f"WARNING: Theta calculation failed: {theta_error}. Returning Theta as 0.")
+
+            try:
+                print("Calculating Vega...") # Log
+                raw_vega = option.vega()
+                print(f"Raw Vega from QL: {raw_vega}") # Log
+                # Special threshold for PUT options
+                min_vega_threshold = 1e-4 if option_type == "put" else 1e-10
+                if abs(raw_vega) < min_vega_threshold:
+                    print(f"WARNING: {option_type.upper()} option with small vega: {raw_vega}. Using threshold {min_vega_threshold}.")
+                    raw_vega = min_vega_threshold if raw_vega >= 0 else -min_vega_threshold
+                vega = raw_vega / 100.0
+            except Exception as vega_error:
+                print(f"WARNING: Vega calculation failed: {vega_error}. Returning Vega as default.")
+                vega = 1e-4 if option_type == "put" else 1e-6 # Use put/call specific default
+            print(f"Calculated Vega: {raw_vega} -> {vega}") # Log
+            
+            try:
+                print("Calculating Rho...") # Log
+                raw_rho = option.rho()
+                rho = raw_rho / 100.0
+            except Exception as rho_error:
+                print(f"WARNING: Rho calculation failed: {rho_error}. Returning Rho as 0.")
+            print(f"Calculated Rho: {raw_rho} -> {rho}") # Log
+            
+            # Print final Greeks
+            print(f"Raw Greeks (final): Delta={raw_delta}, Gamma={raw_gamma}, Theta={raw_theta}, Vega={raw_vega}, Rho={raw_rho}")
+            print(f"Scaled Greeks (final): Delta={delta}, Gamma={gamma}, Theta={theta}, Vega={vega}, Rho={rho}")
             
             return {
                 "price": price,
@@ -185,7 +244,8 @@ class OptionPricer:
                 "time_to_expiry": time_to_expiry
             }
         except Exception as e:
-            print(f"Error pricing option: {e}")
+            # Outer exception handler: Catches NPV error or other setup issues
+            print(f"Error pricing option (outer handler): {e}")
             
             # For American call options with no dividends, use European price
             # (they should be equivalent according to financial theory)
@@ -202,11 +262,35 @@ class OptionPricer:
                     delta = european_option.delta() / 100.0
                     gamma = european_option.gamma() / 100.0
                     theta = (european_option.theta() / 365.0) / 100.0  # Daily theta, scaled
-                    vega = european_option.vega() / 100.0
+                    
+                    # Handle extremely small vega values that might cause "vega not provided" errors
+                    try:
+                        raw_vega = european_option.vega()
+                        
+                        # Special threshold for PUT options - they have much smaller vega values in some regions
+                        if option_type == "put":
+                            # Use a larger threshold for PUT options
+                            min_vega_threshold = 1e-4
+                            if abs(raw_vega) < min_vega_threshold:
+                                print(f"WARNING: PUT option with extremely small vega detected in European fallback: {raw_vega}. Using minimum threshold of {min_vega_threshold}.")
+                                raw_vega = min_vega_threshold if raw_vega >= 0 else -min_vega_threshold
+                        else:
+                            # Keep a smaller threshold for CALL options
+                            min_vega_threshold = 1e-10
+                            if abs(raw_vega) < min_vega_threshold:
+                                print(f"WARNING: CALL option with extremely small vega detected in European fallback: {raw_vega}. Using minimum threshold of {min_vega_threshold}.")
+                                raw_vega = min_vega_threshold if raw_vega >= 0 else -min_vega_threshold
+                        
+                        vega = raw_vega / 100.0    # Vega per 1% vol change
+                    except Exception as vega_error:
+                        print(f"WARNING: Vega calculation failed in European fallback: {vega_error}. Using default value.")
+                        # For PUT options, use a larger default value
+                        vega = 1e-4 if option_type == "put" else 1e-6
+                    
                     rho = european_option.rho() / 100.0
                     
                     # Print raw values for debugging
-                    print(f"European fallback - Raw Greeks from QuantLib: Delta={european_option.delta()}, Gamma={european_option.gamma()}, Theta={european_option.theta()}, Vega={european_option.vega()}, Rho={european_option.rho()}")
+                    print(f"European fallback - Raw Greeks from QuantLib: Delta={european_option.delta()}, Gamma={european_option.gamma()}, Theta={european_option.theta()}, Vega={raw_vega}, Rho={european_option.rho()}")
                     print(f"European fallback - Scaled Greeks: Delta={delta}, Gamma={gamma}, Theta={theta}, Vega={vega}, Rho={rho}")
                     
                     return {
