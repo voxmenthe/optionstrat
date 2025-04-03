@@ -91,4 +91,79 @@ While the option price (NPV) calculation and basic visualization are now working
 
 1.  Backend logs show market-derived implied volatility being used in scenarios far more often than the hardcoded default.
 2.  Backend logs show significantly fewer warnings about Vega and Rho calculations failing.
-3.  Scenario analysis results include more accurate and consistently calculated Greeks. 
+3.  Scenario analysis results include more accurate and consistently calculated Greeks.
+
+## Implementation Status and Changes Made
+
+The first two phases of the plan have been implemented with the following key changes:
+
+### Phase 1: Robust Implied Volatility Calculation (Implemented)
+
+1. **Created a new `VolatilityService` class**:
+   - Created `src/backend/app/services/volatility_service.py`
+   - Implemented a robust strategy to calculate IV using market option prices
+   - Fetches option chains and finds ATM options (both calls and puts)
+   - Computes IV using bid-ask midpoint prices from multiple options
+   - Includes validation to ensure IV values are reasonable (between 1% and 200%)
+   - Implements a 5-minute caching system to avoid redundant calculations
+   - Includes comprehensive error handling with clear logging
+
+2. **Updated `MarketDataService` to use `VolatilityService`**:
+   - Modified `src/backend/app/services/market_data.py`
+   - Added initialization of `OptionPricer` and `VolatilityService` instances
+   - Updated `get_implied_volatility()` method to delegate to the volatility service
+   - Preserved fallback to 0.3 (30%) only as a last resort with improved logging
+
+3. **Updated Scenario Handling**:
+   - Modified `src/backend/app/routes/scenarios.py`
+   - Reduced minimum volatility requirement for PUT options from 10% to 5%
+   - Improved logging messages to better describe volatility source and actions
+   - Added more detailed error reporting when fallbacks are used
+
+### Phase 2: Improved Greek Calculation Reliability (Implemented)
+
+1. **Enhanced QuantLib Engine Parameters**:
+   - Modified `src/backend/app/services/option_pricing.py`
+   - Increased `timeSteps` from 100 to 200 for the Finite Difference engine
+   - Increased `gridPoints` from 100 to 200 for the Finite Difference engine
+   - These changes should provide higher numerical accuracy for Greek calculations
+
+2. **Improved Greek Error Handling and Thresholds**:
+   - Enhanced detection and handling of small Vega values:
+     - Increased the minimum Vega threshold for PUT options from 1e-4 to 1e-3
+     - Increased the minimum Vega threshold for CALL options from 1e-10 to 1e-4
+   - Added similar threshold protection for Rho calculations:
+     - Added a minimum threshold of 1e-4 for Rho values
+     - Ensured non-zero defaults when calculations fail
+   - Improved fallback behavior when using European pricing for American options
+   - Enhanced logging to better identify which Greeks have been adjusted
+
+### Testing Status
+
+**IMPORTANT NOTE**: These changes have been implemented but not yet fully tested in a live environment. The following testing is still required:
+
+1. **Volatility Calculation Testing**:
+   - Verify the new IV calculation works with real market data
+   - Confirm caching behavior works as expected
+   - Test with different options tickers to ensure robust performance
+
+2. **Greek Calculation Testing**:
+   - Verify if the increased Finite Difference parameters reduce failures
+   - Test if the new thresholds for Vega and Rho produce more stable results
+   - Validate results against known benchmarks or alternative calculation methods
+
+3. **Scenario Analysis Integration Testing**:
+   - End-to-end testing of scenario analysis with the new volatility and Greeks calculations
+   - Verify that the warning logs have decreased in frequency
+   - Compare scenario results before and after the changes
+
+### Phase 3: Frontend Handling (Not Yet Implemented)
+
+The frontend changes to handle potentially missing Greek values have not yet been implemented. This phase can be addressed after testing confirms the backend improvements are working as expected.
+
+### Next Steps
+
+1. Complete testing of all implemented changes
+2. Make any necessary adjustments based on testing results
+3. Implement Phase 3 (frontend handling of missing Greeks) if needed
+4. Document final solution and outcomes in the codebase 

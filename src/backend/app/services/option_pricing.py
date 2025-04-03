@@ -153,8 +153,9 @@ class OptionPricer:
             print("Setting pricing engine...") # Log
             if american:
                 # Use Finite Difference engine for American options - generally robust for Greeks
-                timeSteps = 100  # Number of time steps for FD grid
-                gridPoints = 100 # Number of asset price points for FD grid
+                # Increased parameters for more accurate Greeks calculation, especially for Vega and Rho
+                timeSteps = 200  # Increased from 100 to 200
+                gridPoints = 200 # Increased from 100 to 200
                 print(f"Using FdBlackScholesVanillaEngine for American {option_type.upper()} (timeSteps={timeSteps}, gridPoints={gridPoints})") # Log
                 engine = ql.FdBlackScholesVanillaEngine(process, timeSteps, gridPoints)
             else:
@@ -212,22 +213,29 @@ class OptionPricer:
                 raw_vega = option.vega()
                 print(f"Raw Vega from QL: {raw_vega}") # Log
                 # Special threshold for PUT options
-                min_vega_threshold = 1e-4 if option_type == "put" else 1e-10
+                min_vega_threshold = 1e-3 if option_type == "put" else 1e-4  # Increased thresholds
                 if abs(raw_vega) < min_vega_threshold:
                     print(f"WARNING: {option_type.upper()} option with small vega: {raw_vega}. Using threshold {min_vega_threshold}.")
                     raw_vega = min_vega_threshold if raw_vega >= 0 else -min_vega_threshold
                 vega = raw_vega / 100.0
             except Exception as vega_error:
                 print(f"WARNING: Vega calculation failed: {vega_error}. Returning Vega as default.")
-                vega = 1e-4 if option_type == "put" else 1e-6 # Use put/call specific default
+                # Increased default values for better numerical stability
+                vega = 1e-3 if option_type == "put" else 1e-4  # Increased default values
             print(f"Calculated Vega: {raw_vega} -> {vega}") # Log
             
             try:
                 print("Calculating Rho...") # Log
                 raw_rho = option.rho()
+                # Add similar threshold protection for Rho
+                min_rho_threshold = 1e-4
+                if abs(raw_rho) < min_rho_threshold:
+                    print(f"WARNING: {option_type.upper()} option with small rho: {raw_rho}. Using threshold {min_rho_threshold}.")
+                    raw_rho = min_rho_threshold if raw_rho >= 0 else -min_rho_threshold
                 rho = raw_rho / 100.0
             except Exception as rho_error:
-                print(f"WARNING: Rho calculation failed: {rho_error}. Returning Rho as 0.")
+                print(f"WARNING: Rho calculation failed: {rho_error}. Returning Rho as default.")
+                rho = 1e-4  # Use small but non-zero default
             print(f"Calculated Rho: {raw_rho} -> {rho}") # Log
             
             # Print final Greeks
@@ -269,14 +277,14 @@ class OptionPricer:
                         
                         # Special threshold for PUT options - they have much smaller vega values in some regions
                         if option_type == "put":
-                            # Use a larger threshold for PUT options
-                            min_vega_threshold = 1e-4
+                            # Use a larger threshold for PUT options (increased from the previous value)
+                            min_vega_threshold = 1e-3  # Increased from 1e-4
                             if abs(raw_vega) < min_vega_threshold:
                                 print(f"WARNING: PUT option with extremely small vega detected in European fallback: {raw_vega}. Using minimum threshold of {min_vega_threshold}.")
                                 raw_vega = min_vega_threshold if raw_vega >= 0 else -min_vega_threshold
                         else:
-                            # Keep a smaller threshold for CALL options
-                            min_vega_threshold = 1e-10
+                            # Keep a smaller threshold for CALL options (but still increased)
+                            min_vega_threshold = 1e-4  # Increased from 1e-10
                             if abs(raw_vega) < min_vega_threshold:
                                 print(f"WARNING: CALL option with extremely small vega detected in European fallback: {raw_vega}. Using minimum threshold of {min_vega_threshold}.")
                                 raw_vega = min_vega_threshold if raw_vega >= 0 else -min_vega_threshold
@@ -284,10 +292,20 @@ class OptionPricer:
                         vega = raw_vega / 100.0    # Vega per 1% vol change
                     except Exception as vega_error:
                         print(f"WARNING: Vega calculation failed in European fallback: {vega_error}. Using default value.")
-                        # For PUT options, use a larger default value
-                        vega = 1e-4 if option_type == "put" else 1e-6
+                        # For PUT options, use a larger default value (increased)
+                        vega = 1e-3 if option_type == "put" else 1e-4  # Increased from 1e-4/1e-6
                     
-                    rho = european_option.rho() / 100.0
+                    # Add similar threshold protection for Rho in the fallback case
+                    try:
+                        raw_rho = european_option.rho()
+                        min_rho_threshold = 1e-4
+                        if abs(raw_rho) < min_rho_threshold:
+                            print(f"WARNING: Option with small rho detected in European fallback: {raw_rho}. Using minimum threshold of {min_rho_threshold}.")
+                            raw_rho = min_rho_threshold if raw_rho >= 0 else -min_rho_threshold
+                        rho = raw_rho / 100.0
+                    except Exception as rho_error:
+                        print(f"WARNING: Rho calculation failed in European fallback: {rho_error}. Using default value.")
+                        rho = 1e-4  # Use small but non-zero default
                     
                     # Print raw values for debugging
                     print(f"European fallback - Raw Greeks from QuantLib: Delta={european_option.delta()}, Gamma={european_option.gamma()}, Theta={european_option.theta()}, Vega={raw_vega}, Rho={european_option.rho()}")

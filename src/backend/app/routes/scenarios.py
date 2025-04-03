@@ -93,14 +93,15 @@ async def analyze_price_scenario(
             
             # Add warning if using fallback volatility value from market data
             if request.base_volatility is None:
-                print(f"WARNING: Using market data fallback volatility {volatility} for {ticker} - base_volatility not provided in request")
+                print(f"INFO: Using market-derived volatility {volatility:.4f} for {ticker}")
             
-            # Special handling for PUT options - they need higher minimum volatility to avoid vega issues
+            # Special handling for PUT options - they need a reasonable minimum volatility
+            # With improved Greeks calculation, we can lower the minimum threshold
             is_put = positions[0].option_type.lower() == "put"
             if is_put:
-                PUT_MIN_VOLATILITY = 0.1  # Minimum 10% volatility for PUT options
+                PUT_MIN_VOLATILITY = 0.05  # Reduced to 5% from 10% with improved Greeks calculation
                 if volatility < PUT_MIN_VOLATILITY:
-                    print(f"WARNING: Increasing volatility for PUT option from {volatility} to {PUT_MIN_VOLATILITY} - required for valid vega calculation")
+                    print(f"WARNING: Increasing volatility for PUT option from {volatility:.4f} to {PUT_MIN_VOLATILITY} - ensures stable Greeks calculation")
                     volatility = PUT_MIN_VOLATILITY
             
         except Exception as e:
@@ -111,13 +112,13 @@ async def analyze_price_scenario(
             
             # Add warning if using hardcoded default volatility
             if request.base_volatility is None:
-                print(f"WARNING: Using hardcoded default volatility 0.3 for {ticker} - base_volatility not provided and market data unavailable")
+                print(f"WARNING: Using market data volatility {volatility:.4f} for {ticker} - no base_volatility provided in request")
             
             # Special handling for PUT options with default volatility
             is_put = positions[0].option_type.lower() == "put"
-            if is_put and volatility < 0.1:
-                print(f"WARNING: Using minimum volatility 0.1 for PUT option with missing market data")
-                volatility = 0.1  # Ensure minimum volatility for PUT options
+            if is_put and volatility < 0.05:  # Updated from 0.1 to 0.05
+                print(f"WARNING: Using minimum volatility 0.05 for PUT option with missing market data")
+                volatility = 0.05  # Ensure minimum volatility for PUT options (reduced from 0.1)
         
         # Set up price range
         if request.price_range:

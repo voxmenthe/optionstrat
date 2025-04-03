@@ -14,6 +14,8 @@ from datetime import datetime
 from app.services.market_data_provider import MarketDataProvider
 from app.services.polygon_provider import PolygonProvider
 from app.services.yfinance_provider import YFinanceProvider
+from app.services.volatility_service import VolatilityService
+from app.services.option_pricing import OptionPricer
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,8 @@ class MarketDataService:
         environment variable. If not specified, defaults to YFinance.
         """
         self.provider = self._get_provider()
+        self.option_pricer = OptionPricer()
+        self.volatility_service = VolatilityService(self.provider, self.option_pricer)
         logger.info(f"Using market data provider: {self.provider.__class__.__name__}")
     
     def _get_provider(self) -> MarketDataProvider:
@@ -266,8 +270,8 @@ class MarketDataService:
         """
         Get the implied volatility for a ticker.
         
-        This is a placeholder implementation. In a real implementation, 
-        you would calculate this from option prices.
+        This method calculates implied volatility using market option prices
+        by finding ATM options and averaging their IVs.
         
         Args:
             ticker: Ticker symbol
@@ -275,6 +279,9 @@ class MarketDataService:
         Returns:
             Implied volatility as a float
         """
-        # This is a placeholder - in a real implementation, you would calculate IV
-        # from ATM options or use a volatility index
-        return 0.3  # 30% as a default
+        try:
+            return self.volatility_service.get_implied_volatility(ticker)
+        except Exception as e:
+            logger.error(f"Error getting implied volatility for {ticker}: {e}")
+            logger.warning(f"Using fallback volatility (0.3) for {ticker}")
+            return 0.3  # Fallback to 30% if calculation fails
