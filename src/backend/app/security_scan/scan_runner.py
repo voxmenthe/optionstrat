@@ -164,7 +164,7 @@ def run_security_scan(
 ) -> dict[str, Any]:
     resolved_start, resolved_end = _resolve_date_range(config, start_date, end_date)
     start_dt = datetime.combine(resolved_start, time_module.min)
-    end_dt = datetime.combine(resolved_end, time_module.min)
+    end_dt = datetime.combine(resolved_end + timedelta(days=1), time_module.min)
 
     run_id = uuid.uuid4().hex
     run_timestamp = datetime.now(timezone.utc).isoformat()
