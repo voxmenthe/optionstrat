@@ -4,7 +4,7 @@ import argparse
 import json
 import logging
 import sys
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -130,6 +130,11 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as exc:
         print(f"Error loading config: {exc}", file=sys.stderr)
         return 1
+
+    if args.end_date is None:
+        args.end_date = date.today()
+    if args.start_date is None:
+        args.start_date = args.end_date - timedelta(days=config.lookback_days)
 
     if args.start_date and args.end_date and args.start_date > args.end_date:
         print("Error: start-date must be on or before end-date", file=sys.stderr)

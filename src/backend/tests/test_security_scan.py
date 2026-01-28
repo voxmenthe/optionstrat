@@ -150,5 +150,6 @@ def test_markdown_report_contains_sections() -> None:
     report = render_markdown_report(payload)
     assert "Security Scan Report" in report
     assert "Summary (Breadth)" in report
+    assert "Indicator Overview" in report
     assert "Indicator Signals" in report
     assert "AAPL" in report
