@@ -27,36 +27,61 @@ class MarketDataService:
     and delegates method calls to the currently selected provider.
     """
     
-    def __init__(self):
+    def __init__(
+        self,
+        provider: Optional[MarketDataProvider] = None,
+        provider_name: Optional[str] = None,
+        use_cache: Optional[bool] = None,
+    ):
         """
         Initialize the market data service.
         
         The provider is selected based on the MARKET_DATA_PROVIDER
         environment variable. If not specified, defaults to YFinance.
+
+        Args:
+            provider: Optional provider instance to use directly.
+            provider_name: Optional provider name override (yfinance or polygon).
+            use_cache: Optional cache toggle for providers that support it.
         """
-        self.provider = self._get_provider()
+        self.provider = provider or self._get_provider(
+            provider_name=provider_name,
+            use_cache=use_cache,
+        )
         self.option_pricer = OptionPricer()
         self.volatility_service = VolatilityService(self.provider, self.option_pricer)
         logger.info(f"Using market data provider: {self.provider.__class__.__name__}")
     
-    def _get_provider(self) -> MarketDataProvider:
+    def _get_provider(
+        self,
+        provider_name: Optional[str] = None,
+        use_cache: Optional[bool] = None,
+    ) -> MarketDataProvider:
         """
         Factory method to get the appropriate market data provider.
         
         Returns:
             A concrete implementation of MarketDataProvider
         """
-        provider_name = os.getenv("MARKET_DATA_PROVIDER", "yfinance").lower()
-        
-        if provider_name == "polygon":
-            return PolygonProvider()
-        elif provider_name == "yfinance":
+        resolved_provider = (
+            provider_name or os.getenv("MARKET_DATA_PROVIDER", "yfinance")
+        ).lower()
+
+        if resolved_provider == "polygon":
+            if use_cache is None:
+                return PolygonProvider()
+            return PolygonProvider(use_cache=use_cache)
+        if resolved_provider == "yfinance":
+            if use_cache is None:
+                return YFinanceProvider()
+            return YFinanceProvider(use_cache=use_cache)
+
+        logger.warning(
+            f"Unknown provider '{resolved_provider}', defaulting to YFinance"
+        )
+        if use_cache is None:
             return YFinanceProvider()
-        else:
-            logger.warning(
-                f"Unknown provider '{provider_name}', defaulting to YFinance"
-            )
-            return YFinanceProvider()
+        return YFinanceProvider(use_cache=use_cache)
     
     def get_ticker_details(self, ticker: str) -> Dict:
         """

@@ -1,18 +1,15 @@
-FROM python:3.11-slim
+FROM python:3.13.11-slim
 
 WORKDIR /app
 
-# Install Poetry
-RUN pip install poetry==1.7.1
+# Install uv
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Copy poetry configuration files
-COPY pyproject.toml poetry.lock* ./
-
-# Configure poetry to not use a virtual environment
-RUN poetry config virtualenvs.create false
-
-# Install dependencies
-RUN poetry install --no-dev --no-interaction --no-ansi
+# Create a project virtual environment and install dependencies
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+COPY pyproject.toml uv.lock ./
+RUN uv sync --locked --no-dev
 
 # Copy application code
 COPY . .

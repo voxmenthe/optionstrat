@@ -45,24 +45,17 @@ echo -e "${BLUE}║${NC}  ${YELLOW}OptionsStrat Backend Test Runner${NC}        
 echo -e "${BLUE}╚════════════════════════════════════════════╝${NC}"
 echo
 
-# Check if pytest is installed
-if ! command -v pytest &> /dev/null; then
-    echo -e "${RED}Error: pytest is not installed. Please install it with:${NC}"
-    echo "pip install pytest pytest-cov"
-    exit 1
-fi
-
-# Check if coverage is installed
-if ! python -c "import coverage" &> /dev/null; then
-    echo -e "${RED}Error: coverage is not installed. Please install it with:${NC}"
-    echo "pip install coverage pytest-cov"
+# Check if uv is installed
+if ! command -v uv &> /dev/null; then
+    echo -e "${RED}Error: uv is not installed. Please install it with:${NC}"
+    echo "curl -LsSf https://astral.sh/uv/install.sh | sh"
     exit 1
 fi
 
 # Check if redis is installed if running integration tests
-if [ "$RUN_INTEGRATION" = true ] && ! python -c "import redis" &> /dev/null; then
+if [ "$RUN_INTEGRATION" = true ] && ! uv run python -c "import redis" &> /dev/null; then
     echo -e "${YELLOW}Warning: redis package is not installed. Some integration tests may be skipped.${NC}"
-    echo "Consider installing with: pip install redis"
+    echo "Consider installing with: uv sync"
 fi
 
 # Set up mock API key if needed
@@ -88,10 +81,10 @@ fi
 # Build the pytest command
 if [ "$VERBOSE" = true ]; then
     echo -e "${YELLOW}Using verbose output mode${NC}"
-    PYTEST_CMD="pytest --cov=app ${TEST_PATH} -v"
+    PYTEST_CMD="uv run pytest --cov=app ${TEST_PATH} -v"
 else
     echo -e "${YELLOW}Using concise output mode (use --verbose for more details)${NC}"
-    PYTEST_CMD="pytest --cov=app ${TEST_PATH} -v --tb=short"
+    PYTEST_CMD="uv run pytest --cov=app ${TEST_PATH} -v --tb=short"
 fi
 
 # Run the tests with coverage
@@ -105,7 +98,7 @@ TEST_EXIT_CODE=$?
 if [ "$GENERATE_HTML" = true ]; then
     echo
     echo -e "${YELLOW}Generating HTML coverage report...${NC}"
-    pytest --cov=app --cov-report=html "$TEST_PATH" > /dev/null 2>&1
+    uv run pytest --cov=app --cov-report=html "$TEST_PATH" > /dev/null 2>&1
     echo -e "${GREEN}Coverage report generated in htmlcov/ directory${NC}"
     echo -e "${YELLOW}Open htmlcov/index.html in your browser to view the report${NC}"
 fi
@@ -113,7 +106,7 @@ fi
 # Show coverage summary
 echo
 echo -e "${YELLOW}Coverage summary:${NC}"
-coverage_report=$(coverage report)
+coverage_report=$(uv run coverage report)
 echo "$coverage_report" | grep "TOTAL"
 
 # Show top modules by coverage

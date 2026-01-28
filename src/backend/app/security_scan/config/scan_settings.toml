@@ -1,0 +1,4 @@
+[indicators]
+instances = [
+  { id = "roc", roc_lookback = 12, criteria = [{ type = "crossover", series = "roc", level = 0, direction = "both" }] }
+]

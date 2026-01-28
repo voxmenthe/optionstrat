@@ -1,0 +1,6 @@
+[tickers]
+list = ["AAPL", "MSFT", "AMZN", "TSLA", "GOOG", "META", "NVDA", "T", "JPM", "BAC", "WFC", "C", "GS", "MS"]
+
+[scan_defaults]
+lookback_days = 365
+interval = "day"

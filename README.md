@@ -17,62 +17,91 @@ A comprehensive tool for options traders to analyze and visualize option strateg
 
 ## Requirements
 
-- Python 3.11+
+- Python 3.13.11+ (see `.python-version`)
 - Node.js 18+
-- Poetry (for Python dependency management)
-- Docker and Docker Compose (optional, for containerized setup)
-- Redis (for caching)
+- uv (for Python dependency management)
+- Redis (optional, for caching)
 
-## Getting Started
+Install uv (if needed):
+```
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
-### Using Docker Compose (Recommended)
+## Quick Start (Local)
 
-1. Clone the repository
-2. Create a `.env` file in the root directory with your Polygon.io API key:
+1. Create backend env file:
    ```
-   POLYGON_API_KEY=your_polygon_api_key_here
+   cp src/backend/.env.example src/backend/.env
    ```
-3. Start the application using Docker Compose:
+   Then edit `src/backend/.env` and set `POLYGON_API_KEY`.
+2. Install frontend dependencies once:
    ```
-   docker-compose up -d
+   (cd src/frontend && npm install)
    ```
-4. Access the frontend at http://localhost:3000 and the backend API at http://localhost:8000
+3. Run both servers:
+   ```
+   ./run_app.sh
+   ```
 
-### Manual Setup
+By default this starts:
+- Backend: http://localhost:8003
+- Frontend: http://localhost:3003
 
-#### Backend
+## Manual Setup
 
-1. Navigate to the backend directory:
+### Backend
+
+1. Install dependencies:
    ```
    cd src/backend
+   uv sync
    ```
-2. Install dependencies using Poetry:
-   ```
-   poetry install
-   ```
-3. Copy `.env.example` to `.env` and update with your API keys:
+2. Create `.env` (required for API keys and ports):
    ```
    cp .env.example .env
    ```
-4. Start the FastAPI server:
+3. Start the API server (uses `PORT` from `.env`, default 8003):
    ```
-   poetry run uvicorn app.main:app --reload
+   uv run python -m app.main
+   ```
+   If you prefer uvicorn directly, pass the port explicitly:
+   ```
+   uv run uvicorn app.main:app --reload --port 8003
    ```
 
-#### Frontend
+### Frontend
 
-1. Navigate to the frontend directory:
+1. Install dependencies:
    ```
    cd src/frontend
-   ```
-2. Install dependencies:
-   ```
    npm install
    ```
-3. Start the Next.js development server:
+2. (Optional) Set backend URL (defaults to `http://localhost:8003`):
+   ```
+   export NEXT_PUBLIC_API_URL=http://localhost:8003
+   ```
+   Or create `src/frontend/.env.local`:
+   ```
+   NEXT_PUBLIC_API_URL=http://localhost:8003
+   ```
+3. Start the Next.js dev server (runs on port 3003):
    ```
    npm run dev
    ```
+
+## Docker Compose (Backend + Redis)
+
+Docker Compose is wired for the backend + Redis and exposes port 8000. If you want a containerized frontend, add a `src/frontend/Dockerfile` first (the current repo does not include one).
+
+1. Create a root `.env` with your Polygon.io API key:
+   ```
+   POLYGON_API_KEY=your_polygon_api_key_here
+   ```
+2. Start services:
+   ```
+   docker compose up -d backend redis
+   ```
+3. Backend API is available at http://localhost:8000
 
 ## Development
 
@@ -92,30 +121,4 @@ MIT
 
 ## Running the Application
 
-You can run both the frontend and backend servers with a single command:
-
-```bash
-./run_app.sh
-```
-
-This script will:
-1. Check for required dependencies and install them if needed
-2. Start the backend server on port 8003
-3. Start the frontend server on port 3000
-4. Provide URLs to access both servers
-
-Alternatively, you can start the servers manually:
-
-### Backend
-
-```bash
-cd src/backend
-python -m app.main
-```
-
-### Frontend
-
-```bash
-cd src/frontend
-npm run dev
-```
+Use `./run_app.sh` for local development. It starts the backend on port 8003 and the frontend on port 3003. It will also attempt to start Redis if available.

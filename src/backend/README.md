@@ -12,8 +12,8 @@ This is the backend API for the Options Scenario Analysis & Exploration App. It 
 
 ## Requirements
 
-- Python 3.11+
-- Poetry (for dependency management)
+- Python 3.13.11+
+- uv (for dependency management)
 - QuantLib 1.32
 - FastAPI 0.109+
 - SQLAlchemy 2.0+
@@ -22,14 +22,14 @@ This is the backend API for the Options Scenario Analysis & Exploration App. It 
 ## Installation
 
 1. Clone the repository
-2. Install Poetry if you don't have it already:
+2. Install uv if you don't have it already:
    ```
-   curl -sSL https://install.python-poetry.org | python3 -
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
-3. Install dependencies using Poetry:
+3. Install dependencies using uv:
    ```
    cd src/backend
-   poetry install
+   uv sync
    ```
 4. Copy `.env.example` to `.env` and update with your API keys:
    ```
@@ -38,17 +38,16 @@ This is the backend API for the Options Scenario Analysis & Exploration App. It 
 
 ## Running the API
 
-Start the FastAPI server using Poetry:
+Start the FastAPI server using uv:
 
 ```
-poetry run uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 ```
 
-Or activate the Poetry shell first and then run:
+Or run the module directly:
 
 ```
-poetry shell
-uvicorn app.main:app --reload
+uv run python -m app.main
 ```
 
 The API will be available at http://localhost:8000.
@@ -65,12 +64,12 @@ This project uses Black, isort, and flake8 for code formatting and linting:
 
 ```
 # Format code
-poetry run black .
-poetry run isort .
+uv run black .
+uv run isort .
 
 # Lint code
-poetry run flake8 .
-poetry run mypy .
+uv run flake8 .
+uv run mypy .
 ```
 
 ### Testing
@@ -78,7 +77,7 @@ poetry run mypy .
 Run tests using pytest:
 
 ```
-poetry run pytest
+uv run pytest
 ```
 
 ## API Endpoints

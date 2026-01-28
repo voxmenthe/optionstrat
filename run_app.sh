@@ -12,6 +12,13 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== OptionsStrat App Startup ===${NC}"
 
+# Check if uv is installed
+if ! command -v uv &> /dev/null; then
+  echo -e "${RED}Error: uv is not installed. Please install it with:${NC}"
+  echo "curl -LsSf https://astral.sh/uv/install.sh | sh"
+  exit 1
+fi
+
 # Check for and kill existing processes using the required ports
 echo -e "${YELLOW}Checking for existing processes on ports 8003 and 3003...${NC}"
 
@@ -96,13 +103,6 @@ else
   fi
 fi
 
-# Check if python-dotenv is installed
-echo -e "${YELLOW}Checking dependencies...${NC}"
-if ! pip list | grep -q python-dotenv; then
-  echo -e "${YELLOW}Installing python-dotenv...${NC}"
-  pip install python-dotenv
-fi
-
 # If Redis is running, set environment variable
 if [ "$REDIS_RUNNING" = true ]; then
   export REDIS_ENABLED=true
@@ -115,7 +115,8 @@ fi
 # Start the backend server
 echo -e "${YELLOW}Starting backend server on port 8003...${NC}"
 cd src/backend
-python -m app.main &
+uv sync
+uv run python -m app.main &
 BACKEND_PID=$!
 
 # Wait for backend to start

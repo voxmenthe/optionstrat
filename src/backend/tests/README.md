@@ -19,14 +19,7 @@ Make sure you have all the required dependencies installed:
 
 ```bash
 cd src/backend
-pip install -e ".[dev]"  # Install the package in development mode with test dependencies
-```
-
-Or using Poetry:
-
-```bash
-cd src/backend
-poetry install --with dev
+uv sync  # Install dependencies (dev group included by default)
 ```
 
 ### Using Test Scripts
@@ -68,7 +61,7 @@ To run all tests with pytest:
 
 ```bash
 cd src/backend
-pytest
+uv run pytest
 ```
 
 ### Running Specific Test Files
@@ -76,7 +69,7 @@ pytest
 To run tests from a specific file:
 
 ```bash
-pytest tests/test_option_pricing.py
+uv run pytest tests/test_option_pricing.py
 ```
 
 ### Running Specific Test Classes or Methods
@@ -84,13 +77,13 @@ pytest tests/test_option_pricing.py
 To run a specific test class:
 
 ```bash
-pytest tests/test_market_data.py::TestMarketDataService
+uv run pytest tests/test_market_data.py::TestMarketDataService
 ```
 
 To run a specific test method:
 
 ```bash
-pytest tests/test_market_data.py::TestMarketDataService::test_get_option_chain
+uv run pytest tests/test_market_data.py::TestMarketDataService::test_get_option_chain
 ```
 
 ## Test Coverage
@@ -98,13 +91,13 @@ pytest tests/test_market_data.py::TestMarketDataService::test_get_option_chain
 To generate a test coverage report:
 
 ```bash
-pytest --cov=app tests/
+uv run pytest --cov=app tests/
 ```
 
 For a detailed HTML coverage report:
 
 ```bash
-pytest --cov=app --cov-report=html tests/
+uv run pytest --cov=app --cov-report=html tests/
 ```
 
 The HTML report will be generated in the `htmlcov` directory.

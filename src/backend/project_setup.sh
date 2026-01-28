@@ -2,27 +2,25 @@
 set -e  # Exit immediately if a command exits with a non-zero status
 
 
-# Upgrade pip and install poetry
-pip install --upgrade pip
-pip install poetry
+if ! command -v uv &> /dev/null; then
+  echo "Error: uv is not installed."
+  echo "Install with: curl -LsSf https://astral.sh/uv/install.sh | sh"
+  exit 1
+fi
 
-# Install dependencies without the project itself
-poetry install --no-root
-
-# Update the lock file if necessary
-poetry lock
-
-# Install dependencies and the project
-poetry install
+# Install dependencies (dev group included by default)
+uv sync
 
 # Create and install the IPython kernel for the project
 # list all kernels: jupyter kernelspec list
 # delete a kernel: jupyter kernelspec uninstall CRv3
-# poetry run python -m python -m ipykernel install --user --name=crv3 --display-name "Clever Routing v3"
-# poetry run python -m ipykernel install --sys-prefix --name=CRv3 --display-name "CRv3"
-python -m ipykernel install --user --name=OptionsStrat --display-name "OptionsStrat" # install globally outside of poetry
-
-echo "Jupyter kernel 'OptionsStrat' has been installed."
-
+# uv run python -m python -m ipykernel install --user --name=crv3 --display-name "Clever Routing v3"
+# uv run python -m ipykernel install --sys-prefix --name=CRv3 --display-name "CRv3"
+if uv run python -c "import ipykernel" &> /dev/null; then
+  uv run python -m ipykernel install --user --name=OptionsStrat --display-name "OptionsStrat"
+  echo "Jupyter kernel 'OptionsStrat' has been installed."
+else
+  echo "ipykernel is not installed. Add it with: uv add --dev ipykernel"
+fi
 
 echo "Project setup complete!"

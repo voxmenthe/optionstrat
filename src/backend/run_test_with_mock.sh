@@ -16,6 +16,13 @@ NC='\033[0m' # No Color
 
 echo -e "${YELLOW}Running tests with mocked Polygon API key...${NC}"
 
+# Check if uv is installed
+if ! command -v uv &> /dev/null; then
+    echo -e "${RED}Error: uv is not installed. Please install it with:${NC}"
+    echo "curl -LsSf https://astral.sh/uv/install.sh | sh"
+    exit 1
+fi
+
 # Set a mock Polygon API key for testing
 export POLYGON_API_KEY="test_api_key_for_mocking"
 
@@ -42,10 +49,10 @@ fi
 # Build the pytest command
 if [ "$VERBOSE" = true ]; then
     echo -e "${YELLOW}Using verbose output mode${NC}"
-    PYTEST_CMD="python -m pytest ${TEST_PATH} -v --cov=app"
+    PYTEST_CMD="uv run python -m pytest ${TEST_PATH} -v --cov=app"
 else
     echo -e "${YELLOW}Using concise output mode (use -v for more details)${NC}"
-    PYTEST_CMD="python -m pytest ${TEST_PATH} -v --tb=short --cov=app"
+    PYTEST_CMD="uv run python -m pytest ${TEST_PATH} -v --tb=short --cov=app"
 fi
 
 # Run the tests
@@ -62,7 +69,7 @@ if [ $TEST_EXIT_CODE -eq 0 ]; then
     # Show coverage summary
     echo
     echo -e "${YELLOW}Coverage summary:${NC}"
-    coverage report | grep "TOTAL"
+    uv run coverage report | grep "TOTAL"
     
     echo
     echo -e "${YELLOW}For detailed coverage report, run:${NC}"
