@@ -4,6 +4,10 @@ CLI utilities for scanning a configurable ticker list using the existing
 `MarketDataService`. This module is intended for local, on-demand runs and
 produces a JSON summary per scan.
 
+Key points:
+- Scan metrics/aggregates are stored in `security_scan.db` under `src/backend/`.
+- Run the CLI from `src/backend/` to keep output paths and DB locations consistent.
+
 ## Quickstart
 
 From the repo root:
@@ -51,7 +55,8 @@ interval = "day"
 ```toml
 [indicators]
 instances = [
-  { id = "roc", roc_lookback = 12, criteria = [{ type = "crossover", series = "roc", level = 0, direction = "both" }] }
+  { id = "roc", roc_lookback = 12, criteria = [{ type = "crossover", series = "roc", level = 0, direction = "both" }] },
+  { id = "roc_aggregate", roc_lookbacks = [5, 10, 20], roc_change_lookbacks = [1, 3, 5], ma_short = 5, ma_long = 20 }
 ]
 ```
 
@@ -63,6 +68,14 @@ from `securities.toml`.
 By default, output is written to `task-logs/` at the repo root with filenames
 like `security_scan_<run_id>.json` and `security_scan_<run_id>.md`, and JSON
 is also printed to stdout. Use `--output` to specify a file path or a directory.
+
+Top-level JSON fields include:
+- `run_metadata`
+- `ticker_summaries`
+- `signals`
+- `aggregates`
+- `issues`
+- `storage_usage` (bytes for `scan_db`, `options_db`, `task_logs`, `total`)
 
 ## Providers and Cache
 

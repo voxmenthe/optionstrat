@@ -27,6 +27,21 @@ def _format_percent(value: Any, decimals: int = 2) -> str:
         return str(value)
 
 
+def _format_bytes(value: Any) -> str:
+    if value is None:
+        return "-"
+    try:
+        size = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    units = ["B", "KB", "MB", "GB", "TB"]
+    index = 0
+    while size >= 1024 and index < len(units) - 1:
+        size /= 1024
+        index += 1
+    return f"{size:.1f}{units[index]}"
+
+
 def _settings_summary(settings: dict[str, Any]) -> str:
     if not settings:
         return ""
@@ -200,6 +215,16 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
         lines.append(f"- JSON Output: {output_path}")
     if markdown_path:
         lines.append(f"- Markdown Output: {markdown_path}")
+    storage_usage = payload.get("storage_usage")
+    if isinstance(storage_usage, dict):
+        scan_db = _format_bytes(storage_usage.get("scan_db_bytes"))
+        options_db = _format_bytes(storage_usage.get("options_db_bytes"))
+        task_logs = _format_bytes(storage_usage.get("task_logs_bytes"))
+        total = _format_bytes(storage_usage.get("total_bytes"))
+        lines.append(
+            f"- Storage Usage: scan_db={scan_db} | options_db={options_db}"
+            f" | task_logs={task_logs} | total={total}"
+        )
     lines.append("")
 
     lines.append("## Summary (Breadth)")
@@ -215,6 +240,40 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     lines.append(
         f"| Advance % | {_format_percent(aggregates.get('advance_pct'))} |"
     )
+    lines.append("")
+
+    lines.append("## Summary (MA Breadth)")
+    lines.append("| Metric | Above % | Below % | Equal % | Valid |")
+    lines.append("| --- | --- | --- | --- | --- |")
+    ma_rows = [
+        ("SMA 13", "ma_13"),
+        ("SMA 28", "ma_28"),
+        ("SMA 46", "ma_46"),
+        ("SMA 8 (shift 5)", "ma_8_shift_5"),
+    ]
+    for label, prefix in ma_rows:
+        lines.append(
+            f"| {label} | {_format_percent(aggregates.get(f'{prefix}_above_pct'))}"
+            f" | {_format_percent(aggregates.get(f'{prefix}_below_pct'))}"
+            f" | {_format_percent(aggregates.get(f'{prefix}_equal_pct'))}"
+            f" | {aggregates.get(f'{prefix}_valid_count', 0)} |"
+        )
+    lines.append("")
+
+    lines.append("## Summary (ROC Breadth)")
+    lines.append("| Metric | > % | < % | = % | Valid |")
+    lines.append("| --- | --- | --- | --- | --- |")
+    roc_rows = [
+        ("ROC 17 vs 5d", "roc_17_vs_5"),
+        ("ROC 27 vs 4d", "roc_27_vs_4"),
+    ]
+    for label, prefix in roc_rows:
+        lines.append(
+            f"| {label} | {_format_percent(aggregates.get(f'{prefix}_gt_pct'))}"
+            f" | {_format_percent(aggregates.get(f'{prefix}_lt_pct'))}"
+            f" | {_format_percent(aggregates.get(f'{prefix}_eq_pct'))}"
+            f" | {aggregates.get(f'{prefix}_valid_count', 0)} |"
+        )
     lines.append("")
 
     lines.append("## Indicator Overview")

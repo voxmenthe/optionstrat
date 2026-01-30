@@ -9,6 +9,20 @@ Some of the functionality will include the following:
 Please create a detailed plan for this module and put it in a new document in the PLANS folder.
 
 
+-------
+
+We're going to build out the indicator suite in src/backend/app/security_scan - currently we just have roc I think? Let's add a new indicator that
+works as follows: 1) first calculate multiple ROCs (different lookbacks) 2) For each ROC calculated, determine if it increased/flat/decreased vs a set
+of lookbacks, giving each the appropriate +1/0/-1 score 3) The indicator is the aggregated score 4) We also calculate two moving averages on the
+indicator, one short, one longer
+The scan will be the indicator crossing above/below both MAs (also ofc already above 1 and then cross above other - and vice-versa for down - is ok)
+Create a plan to implement this in the PLANS folder
+
+-------
+
+We'd like the ability to "sanity check" the indicators by looking at a dual pane plot of the price and the indicator, for any of the indicators we've calculated. Create a python script that does this. The script should be runnable as a jupyter notebook with cell boundaries delimited by `# %%`. Create a plan to implement this in the PLANS folder.
+
+
 .venv/bin/python -m app.security_scan.cli \
   --start-date 2025-10-01 \
   --end-date 2025-12-31

@@ -111,6 +111,8 @@ class PositionPnLResult(Base):
     updated_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.UTC), onupdate=lambda: datetime.datetime.now(datetime.UTC))
 
 
+
+
 # Create tables
 # Only remove the database file if it doesn't exist yet, otherwise we'd lose existing data
 if not os.path.exists("./options.db"):

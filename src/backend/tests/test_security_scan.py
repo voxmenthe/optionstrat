@@ -4,6 +4,7 @@ from pathlib import Path
 
 from app.security_scan.aggregates import compute_breadth
 from app.security_scan.config_loader import load_security_scan_config
+from app.security_scan.indicators.roc_aggregate import evaluate as evaluate_roc_aggregate
 from app.security_scan.indicators.roc import evaluate as evaluate_roc
 from app.security_scan.reporting.markdown_report import render_markdown_report
 
@@ -51,6 +52,59 @@ def test_compute_breadth_counts() -> None:
     assert aggregates["missing_ticker_count"] == 1
 
 
+def test_compute_breadth_ma_roc_metrics() -> None:
+    summaries = [
+        {
+            "last_close": 110,
+            "prior_close": 100,
+            "metric_values": {
+                "sma:13": 100,
+                "sma:28": 110,
+                "sma:46": 120,
+                "sma:8:shift=5": 105,
+                "roc:17": 0.1,
+                "roc:17:shift=5": 0.05,
+                "roc:27": 0.02,
+                "roc:27:shift=4": 0.02,
+            },
+        },
+        {
+            "last_close": 90,
+            "prior_close": 100,
+            "metric_values": {
+                "sma:13": 100,
+                "sma:28": None,
+                "sma:46": 80,
+                "sma:8:shift=5": 90,
+                "roc:17": -0.1,
+                "roc:17:shift=5": -0.2,
+                "roc:27": None,
+                "roc:27:shift=4": None,
+            },
+        },
+    ]
+    aggregates = compute_breadth(summaries)
+
+    assert aggregates["ma_13_above_count"] == 1
+    assert aggregates["ma_13_below_count"] == 1
+    assert aggregates["ma_13_valid_count"] == 2
+    assert aggregates["ma_28_equal_count"] == 1
+    assert aggregates["ma_28_missing_count"] == 1
+    assert aggregates["ma_46_above_count"] == 1
+    assert aggregates["ma_46_below_count"] == 1
+    assert aggregates["ma_8_shift_5_equal_count"] == 1
+    assert aggregates["ma_8_shift_5_above_count"] == 1
+
+    assert aggregates["roc_17_vs_5_gt_count"] == 2
+    assert aggregates["roc_17_vs_5_valid_count"] == 2
+    assert aggregates["roc_27_vs_4_eq_count"] == 1
+    assert aggregates["roc_27_vs_4_missing_count"] == 1
+
+    assert aggregates["ma_13_above_pct"] == 0.5
+    assert aggregates["roc_17_vs_5_gt_pct"] == 1.0
+    assert aggregates["roc_27_vs_4_eq_pct"] == 1.0
+
+
 def test_roc_crossover_up_signal() -> None:
     prices = [
         {"date": "2025-01-01", "close": 100},
@@ -96,6 +150,47 @@ def test_roc_crossover_multiple_hits() -> None:
     ]
 
 
+def test_roc_aggregate_cross_above_below() -> None:
+    prices = [
+        {"date": "2025-01-01", "close": 100},
+        {"date": "2025-01-02", "close": 110},
+        {"date": "2025-01-03", "close": 125},
+        {"date": "2025-01-04", "close": 130},
+        {"date": "2025-01-05", "close": 140},
+        {"date": "2025-01-06", "close": 141},
+    ]
+    settings = {
+        "roc_lookbacks": [1],
+        "roc_change_lookbacks": [1],
+        "ma_short": 2,
+        "ma_long": 2,
+    }
+    signals = evaluate_roc_aggregate(prices, settings)
+    assert [signal.signal_type for signal in signals] == [
+        "cross_above_both",
+        "cross_below_both",
+    ]
+    assert [signal.signal_date for signal in signals] == [
+        "2025-01-05",
+        "2025-01-06",
+    ]
+
+
+def test_roc_aggregate_insufficient_data() -> None:
+    prices = [
+        {"date": "2025-01-01", "close": 100},
+        {"date": "2025-01-02", "close": 110},
+        {"date": "2025-01-03", "close": 105},
+    ]
+    settings = {
+        "roc_lookbacks": [2],
+        "roc_change_lookbacks": [2],
+        "ma_short": 3,
+        "ma_long": 3,
+    }
+    assert evaluate_roc_aggregate(prices, settings) == []
+
+
 def test_markdown_report_contains_sections() -> None:
     payload = {
         "run_metadata": {
@@ -116,6 +211,12 @@ def test_markdown_report_contains_sections() -> None:
                 }
             ],
         },
+        "storage_usage": {
+            "scan_db_bytes": 1024,
+            "options_db_bytes": 2048,
+            "task_logs_bytes": 512,
+            "total_bytes": 3584,
+        },
         "aggregates": {
             "advances": 1,
             "declines": 0,
@@ -123,6 +224,14 @@ def test_markdown_report_contains_sections() -> None:
             "net_advances": 1,
             "advance_decline_ratio": None,
             "advance_pct": 1.0,
+            "ma_13_above_pct": 1.0,
+            "ma_13_below_pct": 0.0,
+            "ma_13_equal_pct": 0.0,
+            "ma_13_valid_count": 1,
+            "roc_17_vs_5_gt_pct": 1.0,
+            "roc_17_vs_5_lt_pct": 0.0,
+            "roc_17_vs_5_eq_pct": 0.0,
+            "roc_17_vs_5_valid_count": 1,
         },
         "signals": [
             {
@@ -150,6 +259,9 @@ def test_markdown_report_contains_sections() -> None:
     report = render_markdown_report(payload)
     assert "Security Scan Report" in report
     assert "Summary (Breadth)" in report
+    assert "Summary (MA Breadth)" in report
+    assert "Summary (ROC Breadth)" in report
+    assert "Storage Usage" in report
     assert "Indicator Overview" in report
     assert "Indicator Signals" in report
     assert "AAPL" in report

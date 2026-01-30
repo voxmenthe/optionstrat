@@ -36,6 +36,20 @@ This is the backend API for the Options Scenario Analysis & Exploration App. It 
    cp .env.example .env
    ```
 
+### Optional: Redis (non-docker) setup
+
+If you want Redis caching without Docker, run the helper script:
+
+```
+./scripts/redis_local_setup.sh
+```
+
+This script installs Redis with your system package manager (Homebrew on macOS, apt/dnf/yum/pacman/zypper on Linux) and starts the service. You can verify it with:
+
+```
+redis-cli ping
+```
+
 ## Running the API
 
 Start the FastAPI server using uv:

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import time
-import uuid
 from dataclasses import asdict
 from datetime import date, datetime, time as time_module, timedelta, timezone
 from typing import Any
@@ -11,10 +10,37 @@ from app.security_scan.aggregates import compute_breadth
 from app.security_scan.config_loader import IndicatorInstanceConfig, SecurityScanConfig
 from app.security_scan.data_fetcher import MarketDataFetcher
 from app.security_scan.indicators import load_indicator_registry
+from app.security_scan.series_math import compute_roc, compute_sma
 from app.security_scan.signals import IndicatorSignal, Signal
+from app.security_scan.storage import (
+    get_or_create_security_set,
+    fetch_security_metric_values,
+    upsert_security_aggregate_values,
+    upsert_security_metric_values,
+)
 from app.services.market_data import MarketDataService
 
 logger = logging.getLogger(__name__)
+
+METRIC_DEFINITIONS: list[tuple[str, str, int, int]] = [
+    ("sma:13", "sma", 13, 0),
+    ("sma:28", "sma", 28, 0),
+    ("sma:46", "sma", 46, 0),
+    ("sma:8:shift=5", "sma", 8, 5),
+    ("roc:17", "roc", 17, 0),
+    ("roc:17:shift=5", "roc", 17, 5),
+    ("roc:27", "roc", 27, 0),
+    ("roc:27:shift=4", "roc", 27, 4),
+]
+METRIC_KEYS = [definition[0] for definition in METRIC_DEFINITIONS]
+AGGREGATE_GROUP_PREFIXES = [
+    "ma_13",
+    "ma_28",
+    "ma_46",
+    "ma_8_shift_5",
+    "roc_17_vs_5",
+    "roc_27_vs_4",
+]
 
 
 def _resolve_date_range(
@@ -52,8 +78,17 @@ def _extract_close_series(
 def _summarize_prices(
     ticker: str, prices: list[dict[str, Any]]
 ) -> tuple[dict[str, Any], list[str]]:
-    issues: list[str] = []
     ordered = _ordered_prices(prices)
+    close_series = _extract_close_series(ordered)
+    return _summarize_prices_from_series(ticker, ordered, close_series)
+
+
+def _summarize_prices_from_series(
+    ticker: str,
+    ordered: list[dict[str, Any]],
+    close_series: list[tuple[str, float]],
+) -> tuple[dict[str, Any], list[str]]:
+    issues: list[str] = []
     if not ordered:
         return (
             {
@@ -72,7 +107,6 @@ def _summarize_prices(
 
     first = ordered[0]
     last = ordered[-1]
-    close_series = _extract_close_series(ordered)
     last_close = close_series[-1][1] if close_series else None
     prior_close = close_series[-2][1] if len(close_series) >= 2 else None
     close_change = None
@@ -156,6 +190,50 @@ def _ensure_indicator_signals(
     return signals
 
 
+def _compute_metric_values(
+    closes: list[float],
+    cached_values: dict[str, float | None] | None = None,
+) -> dict[str, float | None]:
+    values: dict[str, float | None] = {}
+    cached_values = cached_values or {}
+    for metric_key, metric_type, period, shift in METRIC_DEFINITIONS:
+        if metric_key in cached_values:
+            values[metric_key] = cached_values[metric_key]
+            continue
+        if metric_type == "sma":
+            values[metric_key] = compute_sma(closes, period, shift)
+        else:
+            values[metric_key] = compute_roc(closes, period, shift)
+    return values
+
+
+def _build_aggregate_records(
+    aggregates: dict[str, Any],
+    set_hash: str,
+    as_of_date: str,
+    interval: str,
+) -> list[dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    for key, value in aggregates.items():
+        record: dict[str, Any] = {
+            "set_hash": set_hash,
+            "as_of_date": as_of_date,
+            "interval": interval,
+            "metric_key": key,
+            "value": value,
+        }
+        if key in {"advance_pct"}:
+            record["valid_count"] = aggregates.get("valid_ticker_count")
+            record["missing_count"] = aggregates.get("missing_ticker_count")
+        for prefix in AGGREGATE_GROUP_PREFIXES:
+            if key.startswith(f"{prefix}_") and key.endswith("_pct"):
+                record["valid_count"] = aggregates.get(f"{prefix}_valid_count")
+                record["missing_count"] = aggregates.get(f"{prefix}_missing_count")
+                break
+        records.append(record)
+    return records
+
+
 def run_security_scan(
     config: SecurityScanConfig,
     start_date: date | None = None,
@@ -166,8 +244,9 @@ def run_security_scan(
     start_dt = datetime.combine(resolved_start, time_module.min)
     end_dt = datetime.combine(resolved_end + timedelta(days=1), time_module.min)
 
-    run_id = uuid.uuid4().hex
-    run_timestamp = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc)
+    run_id = now.strftime("%Y%m%d-%H%M")
+    run_timestamp = now.isoformat()
 
     logger.info(
         "security_scan.run.start",
@@ -212,10 +291,53 @@ def run_security_scan(
             end_date=end_dt,
             interval=config.interval,
         )
-        summary, summary_issues = _summarize_prices(ticker, prices)
+        ordered_prices = _ordered_prices(prices)
+        close_series = _extract_close_series(ordered_prices)
+        summary, summary_issues = _summarize_prices_from_series(
+            ticker, ordered_prices, close_series
+        )
         if summary_issues:
             for issue in summary_issues:
                 issues.append({"ticker": ticker, "issue": issue})
+        metric_values: dict[str, float | None] = {}
+        if close_series:
+            last_date = summary.get("last_date")
+            cached_values: dict[str, float | None] = {}
+            if last_date:
+                cached_values = fetch_security_metric_values(
+                    ticker=ticker,
+                    as_of_date=str(last_date),
+                    metric_keys=METRIC_KEYS,
+                    interval=config.interval,
+                )
+            closes = [value for _, value in close_series]
+            metric_values = _compute_metric_values(closes, cached_values)
+            summary["metric_values"] = metric_values
+            if last_date:
+                values_to_upsert = []
+                for metric_key, value in metric_values.items():
+                    if metric_key in cached_values:
+                        continue
+                    values_to_upsert.append(
+                        {
+                            "ticker": ticker,
+                            "as_of_date": str(last_date),
+                            "interval": config.interval,
+                            "metric_key": metric_key,
+                            "value": value,
+                        }
+                    )
+                if values_to_upsert:
+                    try:
+                        upsert_security_metric_values(values_to_upsert)
+                    except Exception as exc:
+                        issues.append(
+                            {
+                                "ticker": ticker,
+                                "issue": "metric_storage_error",
+                                "detail": str(exc),
+                            }
+                        )
         ticker_summaries.append(summary)
 
         for resolved in resolved_indicators:
@@ -269,10 +391,24 @@ def run_security_scan(
         "indicator_count": len(indicator_instances_metadata),
     }
 
+    aggregates = compute_breadth(ticker_summaries)
+    try:
+        set_hash = get_or_create_security_set(config.tickers)
+        aggregate_records = _build_aggregate_records(
+            aggregates=aggregates,
+            set_hash=set_hash,
+            as_of_date=resolved_end.isoformat(),
+            interval=config.interval,
+        )
+        if aggregate_records:
+            upsert_security_aggregate_values(aggregate_records)
+    except Exception as exc:
+        issues.append({"issue": "aggregate_storage_error", "detail": str(exc)})
+
     return {
         "run_metadata": run_metadata,
         "ticker_summaries": ticker_summaries,
         "signals": [asdict(signal) for signal in signals],
-        "aggregates": compute_breadth(ticker_summaries),
+        "aggregates": aggregates,
         "issues": issues,
     }
