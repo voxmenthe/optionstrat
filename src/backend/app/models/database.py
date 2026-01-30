@@ -2,11 +2,13 @@ from sqlalchemy import Column, Integer, String, Float, DateTime, create_engine, 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 import datetime
+from pathlib import Path
 import uuid
-import os
 
-# SQLite database URL
-SQLALCHEMY_DATABASE_URL = "sqlite:///./options.db"
+# SQLite database URL (anchored to backend root)
+BASE_DIR = Path(__file__).resolve().parents[2]
+OPTIONS_DB_PATH = BASE_DIR / "options.db"
+SQLALCHEMY_DATABASE_URL = f"sqlite:///{OPTIONS_DB_PATH}"
 
 # Create engine with check_same_thread=False for SQLite
 # Set pool_size to 20 and max_overflow to 30 to handle more concurrent connections
@@ -115,7 +117,7 @@ class PositionPnLResult(Base):
 
 # Create tables
 # Only remove the database file if it doesn't exist yet, otherwise we'd lose existing data
-if not os.path.exists("./options.db"):
+if not OPTIONS_DB_PATH.exists():
     # Create all tables
     Base.metadata.create_all(bind=engine)
 else:

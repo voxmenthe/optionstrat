@@ -1,13 +1,15 @@
 import os
 import uvicorn
 import logging
+from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 import time
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from backend .env file
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+load_dotenv(BACKEND_ROOT / ".env")
 
 # Set up logging
 log_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'logs')

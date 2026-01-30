@@ -12,6 +12,10 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}=== OptionsStrat App Startup ===${NC}"
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$SCRIPT_DIR"
+cd "$REPO_ROOT"
+
 # Check if uv is installed
 if ! command -v uv &> /dev/null; then
   echo -e "${RED}Error: uv is not installed. Please install it with:${NC}"
@@ -114,7 +118,6 @@ fi
 
 # Start the backend server
 echo -e "${YELLOW}Starting backend server on port 8003...${NC}"
-cd src/backend
 uv sync
 uv run python -m app.main &
 BACKEND_PID=$!
@@ -133,7 +136,7 @@ fi
 
 # Start the frontend server
 echo -e "${YELLOW}Starting frontend server on port 3003...${NC}"
-cd ../frontend
+cd src/frontend
 npm run dev &
 FRONTEND_PID=$!
 

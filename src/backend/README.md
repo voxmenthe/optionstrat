@@ -26,14 +26,13 @@ This is the backend API for the Options Scenario Analysis & Exploration App. It 
    ```
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
-3. Install dependencies using uv:
+3. Install dependencies using uv (from repo root):
    ```
-   cd src/backend
    uv sync
    ```
 4. Copy `.env.example` to `.env` and update with your API keys:
    ```
-   cp .env.example .env
+   cp src/backend/.env.example src/backend/.env
    ```
 
 ### Optional: Redis (non-docker) setup
@@ -52,7 +51,7 @@ redis-cli ping
 
 ## Running the API
 
-Start the FastAPI server using uv:
+Start the FastAPI server using uv (from repo root):
 
 ```
 uv run uvicorn app.main:app --reload

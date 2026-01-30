@@ -29,18 +29,24 @@ BACKEND_ROOT = NOTEBOOK_DIR.parent
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-# Prefer the backend project's managed virtualenv so notebook runs without `uv run`
-BACKEND_VENV = BACKEND_ROOT / ".venv"
-if BACKEND_VENV.exists():
-    python_dir = f"python{sys.version_info.major}.{sys.version_info.minor}"
+# Prefer the repo-root managed virtualenv so notebook runs without `uv run`
+REPO_ROOT = BACKEND_ROOT.parent.parent
+VENV_CANDIDATES = [REPO_ROOT / ".venv", BACKEND_ROOT / ".venv"]
+python_dir = f"python{sys.version_info.major}.{sys.version_info.minor}"
+for venv_root in VENV_CANDIDATES:
+    if not venv_root.exists():
+        continue
     candidates = [
-        BACKEND_VENV / "lib" / python_dir / "site-packages",
-        BACKEND_VENV / "Lib" / "site-packages",
+        venv_root / "lib" / python_dir / "site-packages",
+        venv_root / "Lib" / "site-packages",
     ]
     for candidate in candidates:
         if candidate.exists():
             site.addsitedir(candidate)
             break
+    else:
+        continue
+    break
 
 os.environ.setdefault("REDIS_ENABLED", "false")
 

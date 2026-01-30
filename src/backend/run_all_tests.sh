@@ -2,14 +2,16 @@
 
 # Comprehensive test runner for OptionsStrat backend
 # Usage: ./run_all_tests.sh [test_path] [--no-mock] [--html] [--verbose] [--with-integration]
-#   test_path: Optional path to specific test file or module
+#   test_path: Optional path relative to repo root (e.g., src/backend/tests/test_api_endpoints.py)
 #   --no-mock: Don't use mock API key
 #   --html: Generate HTML coverage report
 #   --verbose: Show verbose output with full tracebacks
 #   --with-integration: Also run integration tests (requires more dependencies)
 
-# Set the working directory to the script's directory
-cd "$(dirname "$0")"
+# Set the working directory to the repo root (uv project root)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$REPO_ROOT"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -22,7 +24,8 @@ NC='\033[0m' # No Color
 USE_MOCK=true
 GENERATE_HTML=false
 VERBOSE=false
-TEST_PATH="tests/"
+DEFAULT_TEST_PATH="src/backend/tests/"
+TEST_PATH="$DEFAULT_TEST_PATH"
 RUN_INTEGRATION=false
 
 # Parse arguments
@@ -67,10 +70,10 @@ else
 fi
 
 # Show what we're testing
-if [ "$TEST_PATH" = "tests/" ]; then
+if [ "$TEST_PATH" = "$DEFAULT_TEST_PATH" ]; then
     if [ "$RUN_INTEGRATION" = true ]; then
         echo -e "${YELLOW}Running all tests including integration tests...${NC}"
-        TEST_PATH="tests/ tests/integration_tests/"
+        TEST_PATH="src/backend/tests/ src/backend/tests/integration_tests/"
     else
         echo -e "${YELLOW}Running all unit tests (use --with-integration to include integration tests)...${NC}"
     fi

@@ -18,7 +18,6 @@ This directory contains comprehensive test scripts for the OptionsStrat backend 
 Make sure you have all the required dependencies installed:
 
 ```bash
-cd src/backend
 uv sync  # Install dependencies (dev group included by default)
 ```
 
@@ -32,36 +31,35 @@ The `run_all_tests.sh` script provides a flexible way to run tests with various 
 
 ```bash
 # Run all tests with mock API key
-./run_all_tests.sh
+./src/backend/run_all_tests.sh
 
 # Run a specific test file
-./run_all_tests.sh tests/test_api_endpoints.py
+./src/backend/run_all_tests.sh src/backend/tests/test_api_endpoints.py
 
 # Run a specific test class or method
-./run_all_tests.sh tests/test_api_endpoints.py::TestAPIEndpoints::test_health_check
+./src/backend/run_all_tests.sh src/backend/tests/test_api_endpoints.py::TestAPIEndpoints::test_health_check
 
 # Generate HTML coverage report
-./run_all_tests.sh --html
+./src/backend/run_all_tests.sh --html
 
 # Use real API keys instead of mocks
-./run_all_tests.sh --no-mock
+./src/backend/run_all_tests.sh --no-mock
 
 # Combine options
-./run_all_tests.sh tests/test_database.py --html
+./src/backend/run_all_tests.sh src/backend/tests/test_database.py --html
 ```
 
 #### Other Test Scripts
 
-- `run_tests.sh`: Runs tests with coverage and generates an HTML report
-- `run_test_with_mock.sh`: Runs tests with a mocked Polygon API key
+- `src/backend/run_tests.sh`: Runs tests with coverage and generates an HTML report
+- `src/backend/run_test_with_mock.sh`: Runs tests with a mocked Polygon API key
 
 ### Running Tests Manually
 
 To run all tests with pytest:
 
 ```bash
-cd src/backend
-uv run pytest
+uv run pytest src/backend/tests/
 ```
 
 ### Running Specific Test Files
@@ -69,7 +67,7 @@ uv run pytest
 To run tests from a specific file:
 
 ```bash
-uv run pytest tests/test_option_pricing.py
+uv run pytest src/backend/tests/test_option_pricing.py
 ```
 
 ### Running Specific Test Classes or Methods
@@ -77,13 +75,13 @@ uv run pytest tests/test_option_pricing.py
 To run a specific test class:
 
 ```bash
-uv run pytest tests/test_market_data.py::TestMarketDataService
+uv run pytest src/backend/tests/test_market_data.py::TestMarketDataService
 ```
 
 To run a specific test method:
 
 ```bash
-uv run pytest tests/test_market_data.py::TestMarketDataService::test_get_option_chain
+uv run pytest src/backend/tests/test_market_data.py::TestMarketDataService::test_get_option_chain
 ```
 
 ## Test Coverage
@@ -91,13 +89,13 @@ uv run pytest tests/test_market_data.py::TestMarketDataService::test_get_option_
 To generate a test coverage report:
 
 ```bash
-uv run pytest --cov=app tests/
+uv run pytest --cov=app src/backend/tests/
 ```
 
 For a detailed HTML coverage report:
 
 ```bash
-uv run pytest --cov=app --cov-report=html tests/
+uv run pytest --cov=app --cov-report=html src/backend/tests/
 ```
 
 The HTML report will be generated in the `htmlcov` directory.

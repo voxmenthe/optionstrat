@@ -53,7 +53,6 @@ By default this starts:
 
 1. Install dependencies:
    ```
-   cd src/backend
    uv sync
    ```
 2. Create `.env` (required for API keys and ports):

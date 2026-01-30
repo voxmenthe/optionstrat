@@ -2,11 +2,13 @@
 
 # Run tests and generate coverage report for the OptionsStrat backend
 # Usage: ./run_tests.sh [test_path] [-v|--verbose]
-#   test_path: Optional path to specific test file or module
+#   test_path: Optional path relative to repo root (e.g., src/backend/tests/test_api_endpoints.py)
 #   -v, --verbose: Show verbose output with full tracebacks
 
-# Set the working directory to the script's directory
-cd "$(dirname "$0")"
+# Set the working directory to the repo root (uv project root)
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
+cd "$REPO_ROOT"
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -30,7 +32,7 @@ echo -e "${YELLOW}Using mock Polygon API key for tests${NC}"
 
 # Default values
 VERBOSE=false
-TEST_PATH="tests/"
+TEST_PATH="src/backend/tests/"
 
 # Parse arguments
 for arg in "$@"; do
@@ -42,7 +44,7 @@ for arg in "$@"; do
 done
 
 # Show what we're testing
-if [ "$TEST_PATH" = "tests/" ]; then
+if [ "$TEST_PATH" = "src/backend/tests/" ]; then
     echo -e "${YELLOW}Running all tests...${NC}"
 else
     echo -e "${YELLOW}Running specified test: $TEST_PATH${NC}"

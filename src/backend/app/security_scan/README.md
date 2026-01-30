@@ -6,21 +6,26 @@ produces a JSON summary per scan.
 
 Key points:
 - Scan metrics/aggregates are stored in `security_scan.db` under `src/backend/`.
-- Run the CLI from `src/backend/` to keep output paths and DB locations consistent.
+- Run the CLI from the repo root; DB and output paths are anchored to `src/backend/`.
 
 ## Quickstart
 
 From the repo root:
 
 ```bash
-cd src/backend
-.venv/bin/python -m app.security_scan.cli
+uv run python -m app.security_scan.cli
+```
+
+Or, using the installed script:
+
+```bash
+uv run security-scan
 ```
 
 ## Usage
 
 ```bash
-.venv/bin/python -m app.security_scan.cli \
+uv run python -m app.security_scan.cli \
   --config-dir /path/to/config \
   --start-date 2025-10-01 \
   --end-date 2025-12-31 \

@@ -14,6 +14,8 @@ from app.security_scan.reporting import render_markdown_report
 from app.security_scan.scan_runner import run_security_scan
 from app.services.market_data import MarketDataService
 
+BACKEND_ROOT = Path(__file__).resolve().parents[2]
+
 
 def _configure_logging() -> None:
     logging.basicConfig(
@@ -143,7 +145,7 @@ def _file_size(path: Path) -> int:
 
 
 def _collect_storage_usage(task_logs_dir: Path) -> dict[str, int]:
-    options_db_path = Path.cwd() / "options.db"
+    options_db_path = BACKEND_ROOT / "options.db"
     scan_db_bytes = _file_size(SECURITY_SCAN_DB_PATH)
     options_db_bytes = _file_size(options_db_path)
     task_logs_bytes = _directory_size(task_logs_dir)

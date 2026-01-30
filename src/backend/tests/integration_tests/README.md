@@ -92,27 +92,26 @@ Before running integration tests, ensure you have:
 ### Running All Integration Tests
 
 ```bash
-cd src/backend
-pytest tests/integration_tests/ -v
+uv run pytest src/backend/tests/integration_tests/ -v
 ```
 
 Alternatively, use the provided script with the integration flag:
 
 ```bash
-./run_all_tests.sh --with-integration
+./src/backend/run_all_tests.sh --with-integration
 ```
 
 ### Running Specific Integration Tests
 
 ```bash
 # Run a specific test file
-pytest tests/integration_tests/test_strategy_pipeline.py -v
+uv run pytest src/backend/tests/integration_tests/test_strategy_pipeline.py -v
 
 # Run a specific test class
-pytest tests/integration_tests/test_strategy_pipeline.py::TestOptionsStrategyPipeline -v
+uv run pytest src/backend/tests/integration_tests/test_strategy_pipeline.py::TestOptionsStrategyPipeline -v
 
 # Run a specific test method
-pytest tests/integration_tests/test_strategy_pipeline.py::TestOptionsStrategyPipeline::test_full_strategy_pipeline -v
+uv run pytest src/backend/tests/integration_tests/test_strategy_pipeline.py::TestOptionsStrategyPipeline::test_full_strategy_pipeline -v
 ```
 
 ### Using Real vs. Mock Data
@@ -124,8 +123,7 @@ By default, integration tests use mock data for external APIs. To run tests with
 export POLYGON_API_KEY="your_polygon_api_key"
 
 # Run tests with real API
-cd src/backend
-pytest tests/integration_tests/ -v --use-real-api
+uv run pytest src/backend/tests/integration_tests/ -v --use-real-api
 ```
 
 ### Test Configuration

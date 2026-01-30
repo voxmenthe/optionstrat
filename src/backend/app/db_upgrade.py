@@ -1,7 +1,6 @@
 """
 Database upgrade script to add new columns for volatility calculations.
 """
-import os
 import sys
 import sqlite3
 from pathlib import Path
@@ -11,15 +10,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 def upgrade_database():
     """Add new columns to the position_pnl_results table if they don't exist."""
-    db_path = 'options.db'
+    backend_root = Path(__file__).resolve().parents[1]
+    db_path = backend_root / "options.db"
     
     # Ensure the database file exists
-    if not os.path.exists(db_path):
+    if not db_path.exists():
         print(f"Database file {db_path} not found.")
         return
     
     # Connect to the database
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
     
     # Check if the columns exist

@@ -9,10 +9,13 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 COPY pyproject.toml uv.lock ./
-RUN uv sync --locked --no-dev
+RUN uv sync --locked --no-dev --no-install-project
 
 # Copy application code
-COPY . .
+COPY src/backend ./src/backend
+
+# Install the project (editable by default) after source is available
+RUN uv sync --locked --no-dev
 
 # Expose port
 EXPOSE 8000
