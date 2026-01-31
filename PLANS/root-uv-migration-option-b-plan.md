@@ -30,7 +30,7 @@ Make it easy to run the security scan and backend without `cd src/backend` by mo
 - Configure:
   - `module-root = "src/backend"`
   - `module-name = "app"`
-- Ensure `src/backend/app/__init__.py` exists (it does). If not, add it.
+- Ensure `src/backend/app/__init__.py` exists (added).
 
 ### Database Paths (Preserve Current Behavior)
 - **Keep DBs in `src/backend/`** and make paths robust to working directory:

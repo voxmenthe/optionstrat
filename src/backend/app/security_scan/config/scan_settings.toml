@@ -1,5 +1,44 @@
-[indicators]
-instances = [
-  { id = "roc", roc_lookback = 12, criteria = [{ type = "crossover", series = "roc", level = 0, direction = "both" }] },
-  { id = "roc_aggregate", roc_lookbacks = [5, 10, 20], roc_change_lookbacks = [1, 3, 5], ma_short = 5, ma_long = 20 }
-]
+# =============================================================================
+# Indicator Instance Configuration
+# =============================================================================
+# Each [[indicators.instances]] block defines one indicator scan configuration.
+# - id: The indicator type (e.g., "roc", "roc_aggregate")
+# - instance_id: Optional unique name for this specific instance
+# - Additional keys are passed as settings to the indicator
+
+# -----------------------------------------------------------------------------
+# ROC (Rate of Change) Indicator
+# -----------------------------------------------------------------------------
+[[indicators.instances]]
+id = "roc"
+roc_lookback = 12
+
+[[indicators.instances.criteria]]
+type = "crossover"
+series = "roc"
+level = 0
+direction = "both"
+
+# -----------------------------------------------------------------------------
+# ROC Aggregate Indicator
+# -----------------------------------------------------------------------------
+[[indicators.instances]]
+id = "roc_aggregate"
+roc_lookbacks = [5, 10, 20]
+roc_change_lookbacks = [1, 3, 5]
+ma_short = 5
+ma_long = 20
+
+# -----------------------------------------------------------------------------
+# Aggregate Configuration
+# -----------------------------------------------------------------------------
+[aggregates]
+advance_decline_lookbacks = [1, 5, 10]
+
+# -----------------------------------------------------------------------------
+# Report Configuration
+# -----------------------------------------------------------------------------
+[report]
+html = true
+# plot_lookbacks = [1, 5, 10]
+# max_points = 120

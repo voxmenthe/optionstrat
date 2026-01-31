@@ -4,9 +4,16 @@ from pathlib import Path
 
 from app.security_scan.aggregates import compute_breadth
 from app.security_scan.config_loader import load_security_scan_config
+from app.security_scan.db import SecurityAggregateValue
 from app.security_scan.indicators.roc_aggregate import evaluate as evaluate_roc_aggregate
 from app.security_scan.indicators.roc import evaluate as evaluate_roc
+from app.security_scan.reporting.aggregate_charts import render_aggregate_charts_html
+from app.security_scan.reporting.aggregate_series import (
+    assemble_aggregate_series,
+    build_aggregate_series_definitions,
+)
 from app.security_scan.reporting.markdown_report import render_markdown_report
+from app.security_scan.reporting.html_report import render_html_report
 
 
 def test_load_security_scan_config_instances(tmp_path: Path) -> None:
@@ -26,6 +33,14 @@ interval = "day"
 instances = [
   { id = "roc", roc_lookback = 12, criteria = [{ type = "crossover", series = "roc", level = 0, direction = "both" }] }
 ]
+
+[aggregates]
+advance_decline_lookbacks = [1, 5, 10]
+
+[report]
+html = true
+plot_lookbacks = [1, 5]
+max_points = 120
 """.strip()
     )
 
@@ -36,6 +51,10 @@ instances = [
     assert instance.id == "roc"
     assert instance.settings["roc_lookback"] == 12
     assert isinstance(instance.settings["criteria"], list)
+    assert config.advance_decline_lookbacks == [1, 5, 10]
+    assert config.report_html is True
+    assert config.report_plot_lookbacks == [1, 5]
+    assert config.report_max_points == 120
 
 
 def test_compute_breadth_counts() -> None:
@@ -103,6 +122,84 @@ def test_compute_breadth_ma_roc_metrics() -> None:
     assert aggregates["ma_13_above_pct"] == 0.5
     assert aggregates["roc_17_vs_5_gt_pct"] == 1.0
     assert aggregates["roc_27_vs_4_eq_pct"] == 1.0
+
+
+def test_compute_breadth_multiple_lookbacks() -> None:
+    summaries = [
+        {
+            "last_close": 110,
+            "prior_close": 100,
+            "close_by_offset": {5: 90},
+        },
+        {
+            "last_close": 90,
+            "prior_close": 100,
+            "close_by_offset": {5: 95},
+        },
+        {
+            "last_close": 100,
+            "prior_close": None,
+            "close_by_offset": {5: None},
+        },
+    ]
+    aggregates = compute_breadth(summaries, advance_decline_lookbacks=[1, 5])
+
+    assert aggregates["ad_5_advances"] == 1
+    assert aggregates["ad_5_declines"] == 1
+    assert aggregates["ad_5_unchanged"] == 0
+    assert aggregates["ad_5_missing_count"] == 1
+    assert aggregates["ad_5_valid_count"] == 2
+    assert aggregates["ad_5_net_advances"] == 0
+    assert aggregates["ad_5_advance_decline_ratio"] == 1.0
+    assert aggregates["ad_5_advance_pct"] == 0.5
+
+
+def test_build_aggregate_series_definitions_includes_lookbacks() -> None:
+    definitions = build_aggregate_series_definitions([1, 5, 10])
+    metric_keys = [definition["metric_key"] for definition in definitions]
+    assert "advance_pct" in metric_keys
+    assert "ad_5_advance_pct" in metric_keys
+    assert "ad_10_advance_pct" in metric_keys
+
+
+def test_assemble_aggregate_series_orders_points() -> None:
+    rows = [
+        SecurityAggregateValue(
+            set_hash="abc",
+            as_of_date="2025-01-02",
+            interval="day",
+            metric_key="advance_pct",
+            value=0.6,
+        ),
+        SecurityAggregateValue(
+            set_hash="abc",
+            as_of_date="2025-01-01",
+            interval="day",
+            metric_key="advance_pct",
+            value=0.4,
+        ),
+    ]
+    definitions = build_aggregate_series_definitions([1])
+    series_payloads = assemble_aggregate_series(rows, definitions)
+    advance_series = next(
+        series for series in series_payloads if series["metric_key"] == "advance_pct"
+    )
+    assert [point["date"] for point in advance_series["points"]] == [
+        "2025-01-01",
+        "2025-01-02",
+    ]
+
+
+def test_render_aggregate_charts_html_embeds_plotly() -> None:
+    series_payloads = [
+        {
+            "metric_key": "advance_pct",
+            "label": "Advance %",
+            "points": [{"date": "2025-01-01", "value": 0.5}],
+        }
+    ]
+    html = render_aggregate_charts_html(series_payloads)
+    assert "Plotly.newPlot" in html
 
 
 def test_roc_crossover_up_signal() -> None:
@@ -203,6 +300,8 @@ def test_markdown_report_contains_sections() -> None:
             "duration_seconds": 1.23,
             "output_path": "/tmp/output.json",
             "markdown_path": "/tmp/output.md",
+            "html_path": "/tmp/output.html",
+            "advance_decline_lookbacks": [1, 5],
             "indicator_instances": [
                 {
                     "id": "roc",
@@ -210,6 +309,26 @@ def test_markdown_report_contains_sections() -> None:
                     "settings": {"roc_lookback": 12},
                 }
             ],
+        },
+        "market_stats": {
+            "SPY": {
+                "as_of_date": "2025-01-01",
+                "last_close": 480.0,
+                "change_1d_pct": 0.01,
+                "change_5d_pct": 0.02,
+            },
+            "QQQ": {
+                "as_of_date": "2025-01-01",
+                "last_close": 410.0,
+                "change_1d_pct": -0.005,
+                "change_5d_pct": 0.015,
+            },
+            "IWM": {
+                "as_of_date": "2025-01-01",
+                "last_close": 200.0,
+                "change_1d_pct": 0.0,
+                "change_5d_pct": -0.01,
+            },
         },
         "storage_usage": {
             "scan_db_bytes": 1024,
@@ -224,6 +343,13 @@ def test_markdown_report_contains_sections() -> None:
             "net_advances": 1,
             "advance_decline_ratio": None,
             "advance_pct": 1.0,
+            "ad_5_advances": 1,
+            "ad_5_declines": 0,
+            "ad_5_unchanged": 0,
+            "ad_5_net_advances": 1,
+            "ad_5_advance_decline_ratio": None,
+            "ad_5_advance_pct": 1.0,
+            "ad_5_valid_count": 1,
             "ma_13_above_pct": 1.0,
             "ma_13_below_pct": 0.0,
             "ma_13_equal_pct": 0.0,
@@ -258,10 +384,34 @@ def test_markdown_report_contains_sections() -> None:
 
     report = render_markdown_report(payload)
     assert "Security Scan Report" in report
-    assert "Summary (Breadth)" in report
-    assert "Summary (MA Breadth)" in report
-    assert "Summary (ROC Breadth)" in report
-    assert "Storage Usage" in report
-    assert "Indicator Overview" in report
-    assert "Indicator Signals" in report
-    assert "AAPL" in report
+    assert "Market Snapshot" in report
+    assert "HTML Output" in report
+
+
+def test_render_html_report_contains_title() -> None:
+    payload = {
+        "run_metadata": {"run_id": "test", "tickers": ["AAPL"]},
+        "market_stats": {},
+        "ticker_summaries": [],
+        "signals": [],
+        "aggregates": {},
+        "issues": [],
+    }
+    html_report = render_html_report(payload)
+    assert "<html" in html_report
+    assert "Security Scan Report" in html_report
+
+
+def test_render_html_report_includes_charts_section() -> None:
+    payload = {
+        "run_metadata": {"run_id": "test", "tickers": ["AAPL"]},
+        "market_stats": {},
+        "ticker_summaries": [],
+        "signals": [],
+        "aggregates": {},
+        "issues": [],
+    }
+    charts_html = "<div>chart</div>"
+    html_report = render_html_report(payload, charts_html=charts_html)
+    assert "Aggregate Timeseries" in html_report
+    assert charts_html in html_report

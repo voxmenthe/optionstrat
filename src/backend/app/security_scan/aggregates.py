@@ -16,11 +16,33 @@ ROC_BREADTH_DEFINITIONS = [
 ]
 
 
-def compute_breadth(ticker_summaries: list[dict[str, Any]]) -> dict[str, Any]:
+def compute_breadth(
+    ticker_summaries: list[dict[str, Any]],
+    advance_decline_lookbacks: list[int] | None = None,
+) -> dict[str, Any]:
+    if not advance_decline_lookbacks:
+        advance_decline_lookbacks = [1]
+    else:
+        seen: set[int] = set()
+        normalized: list[int] = []
+        for value in advance_decline_lookbacks:
+            lookback = int(value)
+            if lookback in seen:
+                continue
+            seen.add(lookback)
+            normalized.append(lookback)
+        advance_decline_lookbacks = normalized
+    extra_lookbacks = [value for value in advance_decline_lookbacks if value != 1]
+
     advances = 0
     declines = 0
     unchanged = 0
     missing = 0
+
+    ad_counts = {
+        lookback: {"advances": 0, "declines": 0, "unchanged": 0, "missing": 0}
+        for lookback in extra_lookbacks
+    }
 
     ma_counts = {
         prefix: {"above": 0, "below": 0, "equal": 0, "missing": 0}
@@ -43,6 +65,19 @@ def compute_breadth(ticker_summaries: list[dict[str, Any]]) -> dict[str, Any]:
                 declines += 1
             else:
                 unchanged += 1
+
+        close_by_offset = summary.get("close_by_offset") or {}
+        for lookback in extra_lookbacks:
+            prior_value = close_by_offset.get(lookback)
+            if last_close is None or prior_value is None:
+                ad_counts[lookback]["missing"] += 1
+            else:
+                if last_close > prior_value:
+                    ad_counts[lookback]["advances"] += 1
+                elif last_close < prior_value:
+                    ad_counts[lookback]["declines"] += 1
+                else:
+                    ad_counts[lookback]["unchanged"] += 1
 
         metric_values = summary.get("metric_values") or {}
         for prefix, metric_key in MA_BREADTH_DEFINITIONS:
@@ -84,6 +119,24 @@ def compute_breadth(ticker_summaries: list[dict[str, Any]]) -> dict[str, Any]:
         "net_advances": advances - declines,
         "advance_pct": advance_pct,
     }
+
+    for lookback, counts in ad_counts.items():
+        ad_advances = counts["advances"]
+        ad_declines = counts["declines"]
+        ad_unchanged = counts["unchanged"]
+        ad_missing = counts["missing"]
+        ad_valid = ad_advances + ad_declines + ad_unchanged
+        ad_ratio = None if ad_declines == 0 else round(ad_advances / ad_declines, 4)
+        ad_advance_pct = None if ad_valid == 0 else round(ad_advances / ad_valid, 4)
+        prefix = f"ad_{lookback}"
+        aggregates[f"{prefix}_advances"] = ad_advances
+        aggregates[f"{prefix}_declines"] = ad_declines
+        aggregates[f"{prefix}_unchanged"] = ad_unchanged
+        aggregates[f"{prefix}_valid_count"] = ad_valid
+        aggregates[f"{prefix}_missing_count"] = ad_missing
+        aggregates[f"{prefix}_advance_decline_ratio"] = ad_ratio
+        aggregates[f"{prefix}_net_advances"] = ad_advances - ad_declines
+        aggregates[f"{prefix}_advance_pct"] = ad_advance_pct
 
     for prefix, counts in ma_counts.items():
         above = counts["above"]

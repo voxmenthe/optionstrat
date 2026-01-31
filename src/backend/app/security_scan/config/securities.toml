@@ -1,5 +1,5 @@
 [tickers]
-list = ["AAPL", "MSFT", "AMZN", "TSLA", "GOOG", "META", "NVDA", "T", "JPM", "BAC", "WFC", "C", "GS", "MS"]
+list = ["A", "AAPL", "AMZN", "ARKK", "ASML", "AVGO", "BAC", "C", "COIN", "COST", "CRM", "CSCO", "GE", "GOOG", "GS", "IBKR", "INTC", "IWM", "JPM", "MA", "MDB", "MMM", "MS", "META", "MSFT", "MSTR", "NVDA", "ORCL", "PEP", "PFE", "PLTR", "QCOM", "QQQ", "T", "SBUX", "SCHW", "SHOP", "SMCI", "SNAP", "SNOW", "SPY","TEAM", "TMO", "TOL", "TSLA", "TSM", "VRT", "WFC", "XLB", "XLC","XLF", "XLI", "XLK", "XLP", "XLRE","XLU", "XLV", "XLY"]
 
 [scan_defaults]
 lookback_days = 365

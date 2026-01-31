@@ -74,7 +74,7 @@ def get_expirations(
 def get_options_for_expiration(
     ticker: str,
     expiration_date: str,
-    option_type: Optional[str] = Query(None, regex="^(call|put)$"),
+    option_type: Optional[str] = Query(None, pattern="^(call|put)$"),
     min_strike: Optional[float] = None,
     max_strike: Optional[float] = None,
     option_chain_service: OptionChainService = Depends(get_option_chain_service)

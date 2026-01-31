@@ -41,6 +41,7 @@ uv run python -m app.security_scan.cli \
 - `--use-cache`: Enable provider caching (Redis/DB).
 - `--no-cache`: Disable provider caching (default).
 - `--output`: Output file path or directory for JSON results.
+- `--no-html`: Disable HTML report output.
 
 ## Configuration
 
@@ -63,6 +64,14 @@ instances = [
   { id = "roc", roc_lookback = 12, criteria = [{ type = "crossover", series = "roc", level = 0, direction = "both" }] },
   { id = "roc_aggregate", roc_lookbacks = [5, 10, 20], roc_change_lookbacks = [1, 3, 5], ma_short = 5, ma_long = 20 }
 ]
+
+[aggregates]
+advance_decline_lookbacks = [1, 5, 10]
+
+[report]
+html = true
+# plot_lookbacks = [1, 5, 10]
+# max_points = 120
 ```
 
 If `--start-date`/`--end-date` are not supplied, the CLI uses `lookback_days`
@@ -71,11 +80,13 @@ from `securities.toml`.
 ## Output
 
 By default, output is written to `task-logs/` at the repo root with filenames
-like `security_scan_<run_id>.json` and `security_scan_<run_id>.md`, and JSON
-is also printed to stdout. Use `--output` to specify a file path or a directory.
+like `security_scan_<run_id>.json`, `security_scan_<run_id>.md`, and
+`security_scan_<run_id>.html`, and JSON is also printed to stdout. Use `--output`
+to specify a file path or a directory.
 
 Top-level JSON fields include:
 - `run_metadata`
+- `market_stats` (SPY/QQQ/IWM 1D/5D % change snapshot)
 - `ticker_summaries`
 - `signals`
 - `aggregates`

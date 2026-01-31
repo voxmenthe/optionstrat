@@ -19,6 +19,10 @@ class SecurityScanConfig:
     lookback_days: int
     interval: str
     indicator_instances: list[IndicatorInstanceConfig]
+    advance_decline_lookbacks: list[int]
+    report_html: bool
+    report_plot_lookbacks: list[int]
+    report_max_points: int | None
     config_dir: Path
 
 
@@ -71,6 +75,43 @@ def _require_list_of_mappings(value: Any, label: str) -> list[dict[str, Any]]:
     return mappings
 
 
+def _require_list_of_positive_ints(value: Any, label: str) -> list[int]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or not value:
+        raise ValueError(f"Expected {label} to be a non-empty list of integers.")
+    results: list[int] = []
+    for index, item in enumerate(value):
+        try:
+            number = int(item)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"Expected {label}[{index}] to be an integer."
+            ) from exc
+        if number <= 0:
+            raise ValueError(f"Expected {label}[{index}] to be > 0.")
+        results.append(number)
+    return results
+
+
+def _require_bool(value: Any, label: str) -> bool:
+    if isinstance(value, bool):
+        return value
+    raise ValueError(f"Expected {label} to be a boolean.")
+
+
+def _require_optional_positive_int(value: Any, label: str) -> int | None:
+    if value is None:
+        return None
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Expected {label} to be an integer.") from exc
+    if number <= 0:
+        raise ValueError(f"Expected {label} to be > 0.")
+    return number
+
+
 def _normalize_criteria(value: Any, label: str) -> list[dict[str, Any]]:
     if value is None:
         return []
@@ -114,6 +155,8 @@ def load_security_scan_config(
     interval = interval_raw.strip()
 
     indicators_section = _require_mapping(scan_settings.get("indicators"), "[indicators]")
+    aggregates_section = _require_mapping(scan_settings.get("aggregates"), "[aggregates]")
+    report_section = _require_mapping(scan_settings.get("report"), "[report]")
     instances_raw = _require_list_of_mappings(
         indicators_section.get("instances", []), "indicators.instances"
     )
@@ -146,10 +189,40 @@ def load_security_scan_config(
             )
         )
 
+    lookbacks_raw = _require_list_of_positive_ints(
+        aggregates_section.get("advance_decline_lookbacks"),
+        "aggregates.advance_decline_lookbacks",
+    )
+    if not lookbacks_raw:
+        advance_decline_lookbacks = [1]
+    else:
+        seen: set[int] = set()
+        advance_decline_lookbacks = []
+        for lookback in lookbacks_raw:
+            if lookback in seen:
+                continue
+            seen.add(lookback)
+            advance_decline_lookbacks.append(lookback)
+
+    html_raw = report_section.get("html", True)
+    report_html = _require_bool(html_raw, "report.html")
+    report_plot_lookbacks = _require_list_of_positive_ints(
+        report_section.get("plot_lookbacks"),
+        "report.plot_lookbacks",
+    )
+    report_max_points = _require_optional_positive_int(
+        report_section.get("max_points"),
+        "report.max_points",
+    )
+
     return SecurityScanConfig(
         tickers=tickers,
         lookback_days=lookback_days,
         interval=interval,
         indicator_instances=indicator_instances,
+        advance_decline_lookbacks=advance_decline_lookbacks,
+        report_html=report_html,
+        report_plot_lookbacks=report_plot_lookbacks,
+        report_max_points=report_max_points,
         config_dir=resolved_dir,
     )

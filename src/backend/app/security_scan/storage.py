@@ -198,3 +198,39 @@ def upsert_security_aggregate_values(
     finally:
         if owns_session:
             session.close()
+
+
+def fetch_security_aggregate_series(
+    set_hash: str,
+    metric_keys: Iterable[str] | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    interval: str = "day",
+    db: Session | None = None,
+) -> list[SecurityAggregateValue]:
+    session, owns_session = _get_session(db)
+    try:
+        query = (
+            session.query(SecurityAggregateValue)
+            .filter(
+                SecurityAggregateValue.set_hash == set_hash,
+                SecurityAggregateValue.interval == interval,
+            )
+            .order_by(
+                SecurityAggregateValue.as_of_date.asc(),
+                SecurityAggregateValue.metric_key.asc(),
+            )
+        )
+        if metric_keys is not None:
+            keys = [key for key in metric_keys if key]
+            if not keys:
+                return []
+            query = query.filter(SecurityAggregateValue.metric_key.in_(keys))
+        if start_date:
+            query = query.filter(SecurityAggregateValue.as_of_date >= start_date)
+        if end_date:
+            query = query.filter(SecurityAggregateValue.as_of_date <= end_date)
+        return query.all()
+    finally:
+        if owns_session:
+            session.close()

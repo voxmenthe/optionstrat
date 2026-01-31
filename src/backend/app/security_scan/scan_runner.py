@@ -41,6 +41,46 @@ AGGREGATE_GROUP_PREFIXES = [
     "roc_17_vs_5",
     "roc_27_vs_4",
 ]
+MARKET_SNAPSHOT_TICKERS = ["SPY", "QQQ", "IWM"]
+
+
+def _compute_percent_change(
+    close_series: list[tuple[str, float]], lookback: int
+) -> float | None:
+    if len(close_series) <= lookback:
+        return None
+    last_close = close_series[-1][1]
+    prior_close = close_series[-1 - lookback][1]
+    if prior_close == 0:
+        return None
+    return (last_close - prior_close) / prior_close
+
+
+def _compute_market_stats(
+    fetcher: MarketDataFetcher,
+    start_dt: datetime,
+    end_dt: datetime,
+    interval: str,
+) -> dict[str, Any]:
+    stats: dict[str, Any] = {}
+    for ticker in MARKET_SNAPSHOT_TICKERS:
+        prices = fetcher.fetch_historical_prices(
+            ticker=ticker,
+            start_date=start_dt,
+            end_date=end_dt,
+            interval=interval,
+        )
+        ordered_prices = _ordered_prices(prices)
+        close_series = _extract_close_series(ordered_prices)
+        last_date = close_series[-1][0] if close_series else None
+        last_close = close_series[-1][1] if close_series else None
+        stats[ticker] = {
+            "as_of_date": last_date,
+            "last_close": last_close,
+            "change_1d_pct": _compute_percent_change(close_series, 1),
+            "change_5d_pct": _compute_percent_change(close_series, 5),
+        }
+    return stats
 
 
 def _resolve_date_range(
@@ -76,17 +116,25 @@ def _extract_close_series(
 
 
 def _summarize_prices(
-    ticker: str, prices: list[dict[str, Any]]
+    ticker: str,
+    prices: list[dict[str, Any]],
+    advance_decline_lookbacks: list[int] | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     ordered = _ordered_prices(prices)
     close_series = _extract_close_series(ordered)
-    return _summarize_prices_from_series(ticker, ordered, close_series)
+    return _summarize_prices_from_series(
+        ticker,
+        ordered,
+        close_series,
+        advance_decline_lookbacks=advance_decline_lookbacks,
+    )
 
 
 def _summarize_prices_from_series(
     ticker: str,
     ordered: list[dict[str, Any]],
     close_series: list[tuple[str, float]],
+    advance_decline_lookbacks: list[int] | None = None,
 ) -> tuple[dict[str, Any], list[str]]:
     issues: list[str] = []
     if not ordered:
@@ -122,6 +170,16 @@ def _summarize_prices_from_series(
         else:
             close_change_pct = close_change / prior_close
 
+    close_by_offset: dict[int, float | None] = {}
+    if advance_decline_lookbacks and close_series:
+        last_index = len(close_series) - 1
+        for lookback in advance_decline_lookbacks:
+            index = last_index - lookback
+            if index < 0:
+                close_by_offset[lookback] = None
+            else:
+                close_by_offset[lookback] = close_series[index][1]
+
     return (
         {
             "ticker": ticker,
@@ -132,6 +190,7 @@ def _summarize_prices_from_series(
             "prior_close": prior_close,
             "close_change": close_change,
             "close_change_pct": close_change_pct,
+            "close_by_offset": close_by_offset,
             "issues": issues,
         },
         issues,
@@ -212,6 +271,7 @@ def _build_aggregate_records(
     set_hash: str,
     as_of_date: str,
     interval: str,
+    aggregate_group_prefixes: list[str],
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for key, value in aggregates.items():
@@ -225,7 +285,7 @@ def _build_aggregate_records(
         if key in {"advance_pct"}:
             record["valid_count"] = aggregates.get("valid_ticker_count")
             record["missing_count"] = aggregates.get("missing_ticker_count")
-        for prefix in AGGREGATE_GROUP_PREFIXES:
+        for prefix in aggregate_group_prefixes:
             if key.startswith(f"{prefix}_") and key.endswith("_pct"):
                 record["valid_count"] = aggregates.get(f"{prefix}_valid_count")
                 record["missing_count"] = aggregates.get(f"{prefix}_missing_count")
@@ -294,7 +354,10 @@ def run_security_scan(
         ordered_prices = _ordered_prices(prices)
         close_series = _extract_close_series(ordered_prices)
         summary, summary_issues = _summarize_prices_from_series(
-            ticker, ordered_prices, close_series
+            ticker,
+            ordered_prices,
+            close_series,
+            advance_decline_lookbacks=config.advance_decline_lookbacks,
         )
         if summary_issues:
             for issue in summary_issues:
@@ -383,6 +446,7 @@ def run_security_scan(
         "tickers": config.tickers,
         "lookback_days": config.lookback_days,
         "interval": config.interval,
+        "advance_decline_lookbacks": config.advance_decline_lookbacks,
         "start_date": resolved_start.isoformat(),
         "end_date": resolved_end.isoformat(),
         "config_dir": str(config.config_dir),
@@ -391,14 +455,35 @@ def run_security_scan(
         "indicator_count": len(indicator_instances_metadata),
     }
 
-    aggregates = compute_breadth(ticker_summaries)
+    market_stats: dict[str, Any] = {}
+    try:
+        market_stats = _compute_market_stats(
+            fetcher=fetcher,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            interval=config.interval,
+        )
+    except Exception as exc:
+        issues.append({"issue": "market_stats_error", "detail": str(exc)})
+
+    aggregates = compute_breadth(
+        ticker_summaries,
+        advance_decline_lookbacks=config.advance_decline_lookbacks,
+    )
     try:
         set_hash = get_or_create_security_set(config.tickers)
+        run_metadata["set_hash"] = set_hash
+        aggregate_group_prefixes = AGGREGATE_GROUP_PREFIXES + [
+            f"ad_{lookback}"
+            for lookback in config.advance_decline_lookbacks
+            if lookback != 1
+        ]
         aggregate_records = _build_aggregate_records(
             aggregates=aggregates,
             set_hash=set_hash,
             as_of_date=resolved_end.isoformat(),
             interval=config.interval,
+            aggregate_group_prefixes=aggregate_group_prefixes,
         )
         if aggregate_records:
             upsert_security_aggregate_values(aggregate_records)
@@ -407,6 +492,7 @@ def run_security_scan(
 
     return {
         "run_metadata": run_metadata,
+        "market_stats": market_stats,
         "ticker_summaries": ticker_summaries,
         "signals": [asdict(signal) for signal in signals],
         "aggregates": aggregates,

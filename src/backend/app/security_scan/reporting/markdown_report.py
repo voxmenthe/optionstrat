@@ -190,6 +190,42 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
 
     lines: list[str] = ["# Security Scan Report", ""]
 
+    lines.append("## Market Snapshot")
+    market_stats = payload.get("market_stats")
+    if isinstance(market_stats, dict) and market_stats:
+        lines.append("| Ticker | As Of | Last Close | 1D % | 5D % |")
+        lines.append("| --- | --- | --- | --- | --- |")
+        snapshot_order = ["SPY", "QQQ", "IWM"]
+        seen = set()
+        for ticker in snapshot_order:
+            entry = market_stats.get(ticker)
+            if not isinstance(entry, dict):
+                continue
+            seen.add(ticker)
+            lines.append(
+                f"| {ticker}"
+                f" | {entry.get('as_of_date') or '-'}"
+                f" | {_format_number(entry.get('last_close'))}"
+                f" | {_format_percent(entry.get('change_1d_pct'))}"
+                f" | {_format_percent(entry.get('change_5d_pct'))} |"
+            )
+        for ticker in sorted(market_stats.keys()):
+            if ticker in seen:
+                continue
+            entry = market_stats.get(ticker)
+            if not isinstance(entry, dict):
+                continue
+            lines.append(
+                f"| {ticker}"
+                f" | {entry.get('as_of_date') or '-'}"
+                f" | {_format_number(entry.get('last_close'))}"
+                f" | {_format_percent(entry.get('change_1d_pct'))}"
+                f" | {_format_percent(entry.get('change_5d_pct'))} |"
+            )
+    else:
+        lines.append("No market stats available.")
+    lines.append("")
+
     lines.append("## Run Metadata")
     lines.append(
         f"- Run ID: {run_metadata.get('run_id', '-')}"
@@ -211,10 +247,13 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     )
     output_path = run_metadata.get("output_path")
     markdown_path = run_metadata.get("markdown_path")
+    html_path = run_metadata.get("html_path")
     if output_path:
         lines.append(f"- JSON Output: {output_path}")
     if markdown_path:
         lines.append(f"- Markdown Output: {markdown_path}")
+    if html_path:
+        lines.append(f"- HTML Output: {html_path}")
     storage_usage = payload.get("storage_usage")
     if isinstance(storage_usage, dict):
         scan_db = _format_bytes(storage_usage.get("scan_db_bytes"))
@@ -240,6 +279,32 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     lines.append(
         f"| Advance % | {_format_percent(aggregates.get('advance_pct'))} |"
     )
+    lines.append("")
+
+    advance_decline_lookbacks = run_metadata.get("advance_decline_lookbacks") or [1]
+    lines.append("## Summary (Advance/Decline Lookbacks)")
+    lines.append("| Lookback | Advances | Declines | Net | Ratio | Advance % | Valid |")
+    lines.append("| --- | --- | --- | --- | --- | --- | --- |")
+    for lookback in advance_decline_lookbacks:
+        if lookback == 1:
+            lines.append(
+                f"| t-{lookback} | {aggregates.get('advances', 0)}"
+                f" | {aggregates.get('declines', 0)}"
+                f" | {aggregates.get('net_advances', 0)}"
+                f" | {_format_number(aggregates.get('advance_decline_ratio'))}"
+                f" | {_format_percent(aggregates.get('advance_pct'))}"
+                f" | {aggregates.get('valid_ticker_count', 0)} |"
+            )
+            continue
+        prefix = f"ad_{lookback}"
+        lines.append(
+            f"| t-{lookback} | {aggregates.get(f'{prefix}_advances', 0)}"
+            f" | {aggregates.get(f'{prefix}_declines', 0)}"
+            f" | {aggregates.get(f'{prefix}_net_advances', 0)}"
+            f" | {_format_number(aggregates.get(f'{prefix}_advance_decline_ratio'))}"
+            f" | {_format_percent(aggregates.get(f'{prefix}_advance_pct'))}"
+            f" | {aggregates.get(f'{prefix}_valid_count', 0)} |"
+        )
     lines.append("")
 
     lines.append("## Summary (MA Breadth)")
