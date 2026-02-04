@@ -85,6 +85,24 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable HTML report output.",
     )
+    parser.add_argument(
+        "--backfill-aggregates",
+        dest="backfill_aggregates",
+        action="store_true",
+        help="Backfill aggregate series across a date range.",
+    )
+    parser.add_argument(
+        "--backfill-start-date",
+        type=_parse_date,
+        default=None,
+        help="Override backfill start date (YYYY-MM-DD). Defaults to --start-date.",
+    )
+    parser.add_argument(
+        "--backfill-end-date",
+        type=_parse_date,
+        default=None,
+        help="Override backfill end date (YYYY-MM-DD). Defaults to --end-date.",
+    )
     return parser
 
 
@@ -216,6 +234,36 @@ def main(argv: list[str] | None = None) -> int:
     task_logs_dir = _find_task_logs_dir(Path.cwd())
     payload["storage_usage"] = _collect_storage_usage(task_logs_dir)
 
+    if args.backfill_aggregates:
+        backfill_start = args.backfill_start_date or args.start_date
+        backfill_end = args.backfill_end_date or args.end_date
+        if backfill_start is None or backfill_end is None:
+            print(
+                "Error: backfill requires start and end dates",
+                file=sys.stderr,
+            )
+            return 1
+        if backfill_start > backfill_end:
+            print(
+                "Error: backfill start-date must be on or before end-date",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            from app.security_scan.scan_runner import backfill_security_aggregates
+
+            payload["run_metadata"]["aggregate_backfill"] = (
+                backfill_security_aggregates(
+                    config,
+                    start_date=backfill_start,
+                    end_date=backfill_end,
+                    market_data_service=market_data_service,
+                )
+            )
+        except Exception as exc:
+            issues = payload.setdefault("issues", [])
+            issues.append({"issue": "aggregate_backfill_error", "detail": str(exc)})
+
     charts_html = ""
     if html_enabled:
         run_metadata = payload.get("run_metadata", {})
@@ -226,6 +274,15 @@ def main(argv: list[str] | None = None) -> int:
                 or run_metadata.get("advance_decline_lookbacks")
                 or [1]
             )
+            chart_start_date = run_metadata.get("start_date")
+            chart_end_date = run_metadata.get("end_date")
+            if config.report_aggregate_lookback_days:
+                chart_end = args.end_date or date.today()
+                chart_start = chart_end - timedelta(
+                    days=config.report_aggregate_lookback_days
+                )
+                chart_start_date = chart_start.isoformat()
+                chart_end_date = chart_end.isoformat()
             try:
                 from app.security_scan.reporting.aggregate_charts import (
                     build_aggregate_charts_html,
@@ -234,13 +291,20 @@ def main(argv: list[str] | None = None) -> int:
                 charts_html = build_aggregate_charts_html(
                     set_hash=set_hash,
                     interval=run_metadata.get("interval", config.interval),
-                    start_date=run_metadata.get("start_date"),
-                    end_date=run_metadata.get("end_date"),
+                    start_date=chart_start_date,
+                    end_date=chart_end_date,
                     advance_decline_lookbacks=run_metadata.get(
                         "advance_decline_lookbacks"
                     ),
                     plot_lookbacks=plot_lookbacks,
                     max_points=config.report_max_points,
+                    net_advances_ma_days=config.report_net_advances_ma_days,
+                    advance_pct_avg_smoothing_days=(
+                        config.report_advance_pct_avg_smoothing_days
+                    ),
+                    roc_breadth_avg_smoothing_days=(
+                        config.report_roc_breadth_avg_smoothing_days
+                    ),
                 )
             except Exception as exc:
                 issues = payload.setdefault("issues", [])

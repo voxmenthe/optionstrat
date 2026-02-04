@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from typing import Iterable, TypedDict
+from typing import Iterable, NotRequired, TypedDict
 
 from app.security_scan.db import SecurityAggregateValue
 
@@ -15,6 +15,13 @@ class AggregateSeries(TypedDict):
     metric_key: str
     label: str
     points: list[AggregateSeriesPoint]
+    style: NotRequired["AggregateSeriesStyle"]
+
+
+class AggregateSeriesStyle(TypedDict, total=False):
+    color: str
+    width: float
+    dash: str
 
 
 class AggregateSeriesDefinition(TypedDict):
@@ -71,6 +78,10 @@ def build_aggregate_series_definitions(
             {"metric_key": "roc_17_vs_5_gt_pct", "label": "ROC 17 vs 5 % Greater"},
             {"metric_key": "roc_27_vs_4_gt_pct", "label": "ROC 27 vs 4 % Greater"},
         ]
+    )
+
+    definitions.append(
+        {"metric_key": "scl_5bar_net", "label": "SCL 5-Bar High - Low"}
     )
 
     return definitions

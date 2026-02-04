@@ -22,7 +22,11 @@ class SecurityScanConfig:
     advance_decline_lookbacks: list[int]
     report_html: bool
     report_plot_lookbacks: list[int]
+    report_aggregate_lookback_days: int | None
     report_max_points: int | None
+    report_net_advances_ma_days: int
+    report_advance_pct_avg_smoothing_days: int
+    report_roc_breadth_avg_smoothing_days: int
     config_dir: Path
 
 
@@ -210,9 +214,34 @@ def load_security_scan_config(
         report_section.get("plot_lookbacks"),
         "report.plot_lookbacks",
     )
+    report_aggregate_lookback_days = _require_optional_positive_int(
+        report_section.get("aggregate_lookback_days"),
+        "report.aggregate_lookback_days",
+    )
     report_max_points = _require_optional_positive_int(
         report_section.get("max_points"),
         "report.max_points",
+    )
+    report_net_advances_ma_days = (
+        _require_optional_positive_int(
+            report_section.get("net_advances_ma_days"),
+            "report.net_advances_ma_days",
+        )
+        or 18
+    )
+    report_advance_pct_avg_smoothing_days = (
+        _require_optional_positive_int(
+            report_section.get("advance_pct_avg_smoothing_days"),
+            "report.advance_pct_avg_smoothing_days",
+        )
+        or 3
+    )
+    report_roc_breadth_avg_smoothing_days = (
+        _require_optional_positive_int(
+            report_section.get("roc_breadth_avg_smoothing_days"),
+            "report.roc_breadth_avg_smoothing_days",
+        )
+        or 3
     )
 
     return SecurityScanConfig(
@@ -223,6 +252,10 @@ def load_security_scan_config(
         advance_decline_lookbacks=advance_decline_lookbacks,
         report_html=report_html,
         report_plot_lookbacks=report_plot_lookbacks,
+        report_aggregate_lookback_days=report_aggregate_lookback_days,
         report_max_points=report_max_points,
+        report_net_advances_ma_days=report_net_advances_ma_days,
+        report_advance_pct_avg_smoothing_days=report_advance_pct_avg_smoothing_days,
+        report_roc_breadth_avg_smoothing_days=report_roc_breadth_avg_smoothing_days,
         config_dir=resolved_dir,
     )

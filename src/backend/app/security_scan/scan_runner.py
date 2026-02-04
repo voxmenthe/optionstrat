@@ -10,6 +10,10 @@ from app.security_scan.aggregates import compute_breadth
 from app.security_scan.config_loader import IndicatorInstanceConfig, SecurityScanConfig
 from app.security_scan.data_fetcher import MarketDataFetcher
 from app.security_scan.indicators import load_indicator_registry
+from app.security_scan.indicators.scl_v4_x5 import (
+    compute_countdown_series as compute_scl_countdown_series,
+    compute_prior_window_flags as compute_scl_prior_window_flags,
+)
 from app.security_scan.series_math import compute_roc, compute_sma
 from app.security_scan.signals import IndicatorSignal, Signal
 from app.security_scan.storage import (
@@ -61,15 +65,20 @@ def _compute_market_stats(
     start_dt: datetime,
     end_dt: datetime,
     interval: str,
+    market_prices_by_ticker: dict[str, list[dict[str, Any]]] | None = None,
 ) -> dict[str, Any]:
     stats: dict[str, Any] = {}
     for ticker in MARKET_SNAPSHOT_TICKERS:
-        prices = fetcher.fetch_historical_prices(
-            ticker=ticker,
-            start_date=start_dt,
-            end_date=end_dt,
-            interval=interval,
-        )
+        prices = None
+        if market_prices_by_ticker is not None:
+            prices = market_prices_by_ticker.get(ticker)
+        if prices is None:
+            prices = fetcher.fetch_historical_prices(
+                ticker=ticker,
+                start_date=start_dt,
+                end_date=end_dt,
+                interval=interval,
+            )
         ordered_prices = _ordered_prices(prices)
         close_series = _extract_close_series(ordered_prices)
         last_date = close_series[-1][0] if close_series else None
@@ -294,6 +303,197 @@ def _build_aggregate_records(
     return records
 
 
+def _normalize_lookbacks(advance_decline_lookbacks: list[int] | None) -> list[int]:
+    if not advance_decline_lookbacks:
+        return [1]
+    seen: set[int] = set()
+    normalized: list[int] = []
+    for value in advance_decline_lookbacks:
+        lookback = int(value)
+        if lookback <= 0 or lookback in seen:
+            continue
+        seen.add(lookback)
+        normalized.append(lookback)
+    return normalized or [1]
+
+
+def _build_daily_ticker_summaries(
+    ticker: str,
+    ordered_prices: list[dict[str, Any]],
+    close_series: list[tuple[str, float]],
+    advance_decline_lookbacks: list[int] | None = None,
+) -> dict[str, dict[str, Any]]:
+    lookbacks = _normalize_lookbacks(advance_decline_lookbacks)
+    summaries: dict[str, dict[str, Any]] = {}
+    if not close_series:
+        return summaries
+    closes = [value for _, value in close_series]
+    scl_flags_by_date: dict[str, dict[str, float | bool | None]] = {}
+    scl_series = compute_scl_countdown_series(ordered_prices)
+    if scl_series:
+        scl_flags_by_date = compute_scl_prior_window_flags(scl_series, lookback=5)
+    for index, (date_value, last_close) in enumerate(close_series):
+        prior_close = closes[index - 1] if index > 0 else None
+        close_by_offset = {}
+        for lookback in lookbacks:
+            offset_index = index - lookback
+            close_by_offset[lookback] = (
+                closes[offset_index] if offset_index >= 0 else None
+            )
+        metric_values = _compute_metric_values(closes[: index + 1])
+        scl_flags = scl_flags_by_date.get(date_value) or {}
+        summaries[date_value] = {
+            "ticker": ticker,
+            "last_date": date_value,
+            "last_close": last_close,
+            "prior_close": prior_close,
+            "close_by_offset": close_by_offset,
+            "metric_values": metric_values,
+            "scl_5bar_high": scl_flags.get("high"),
+            "scl_5bar_low": scl_flags.get("low"),
+        }
+    return summaries
+
+
+def _empty_ticker_summary(
+    ticker: str,
+    advance_decline_lookbacks: list[int] | None = None,
+) -> dict[str, Any]:
+    lookbacks = _normalize_lookbacks(advance_decline_lookbacks)
+    return {
+        "ticker": ticker,
+        "last_date": None,
+        "last_close": None,
+        "prior_close": None,
+        "close_by_offset": {lookback: None for lookback in lookbacks},
+        "metric_values": {},
+        "scl_5bar_high": None,
+        "scl_5bar_low": None,
+    }
+
+
+def build_backfill_aggregate_records(
+    *,
+    tickers: list[str],
+    price_series_by_ticker: dict[str, list[dict[str, Any]]],
+    advance_decline_lookbacks: list[int] | None,
+    set_hash: str,
+    interval: str,
+) -> list[dict[str, Any]]:
+    summaries_by_ticker: dict[str, dict[str, dict[str, Any]]] = {}
+    all_dates: set[str] = set()
+    for ticker in tickers:
+        ordered = _ordered_prices(price_series_by_ticker.get(ticker, []))
+        close_series = _extract_close_series(ordered)
+        summaries = _build_daily_ticker_summaries(
+            ticker,
+            ordered,
+            close_series,
+            advance_decline_lookbacks=advance_decline_lookbacks,
+        )
+        summaries_by_ticker[ticker] = summaries
+        all_dates.update(summaries.keys())
+
+    if not all_dates:
+        return []
+
+    lookbacks = _normalize_lookbacks(advance_decline_lookbacks)
+    aggregate_group_prefixes = AGGREGATE_GROUP_PREFIXES + [
+        f"ad_{lookback}" for lookback in lookbacks if lookback != 1
+    ]
+    records: list[dict[str, Any]] = []
+    for as_of_date in sorted(all_dates):
+        ticker_summaries = []
+        for ticker in tickers:
+            summary = summaries_by_ticker.get(ticker, {}).get(as_of_date)
+            if summary is None:
+                summary = _empty_ticker_summary(
+                    ticker,
+                    advance_decline_lookbacks=lookbacks,
+                )
+            ticker_summaries.append(summary)
+        aggregates = compute_breadth(
+            ticker_summaries,
+            advance_decline_lookbacks=lookbacks,
+        )
+        records.extend(
+            _build_aggregate_records(
+                aggregates=aggregates,
+                set_hash=set_hash,
+                as_of_date=as_of_date,
+                interval=interval,
+                aggregate_group_prefixes=aggregate_group_prefixes,
+            )
+        )
+    return records
+
+
+def backfill_security_aggregates(
+    config: SecurityScanConfig,
+    *,
+    start_date: date,
+    end_date: date,
+    market_data_service: MarketDataService | None = None,
+) -> dict[str, Any]:
+    resolved_start, resolved_end = _resolve_date_range(
+        config, start_date=start_date, end_date=end_date
+    )
+    logger.info(
+        "security_scan.aggregate_backfill.start",
+        extra={
+            "start_date": resolved_start.isoformat(),
+            "end_date": resolved_end.isoformat(),
+            "ticker_count": len(config.tickers),
+        },
+    )
+    start_dt = datetime.combine(resolved_start, time_module.min)
+    end_dt = datetime.combine(resolved_end + timedelta(days=1), time_module.min)
+
+    fetcher = MarketDataFetcher(market_data_service=market_data_service)
+    price_series_by_ticker: dict[str, list[dict[str, Any]]] = {}
+    issues: list[dict[str, str]] = []
+    for ticker in config.tickers:
+        prices = fetcher.fetch_historical_prices(
+            ticker=ticker,
+            start_date=start_dt,
+            end_date=end_dt,
+            interval=config.interval,
+        )
+        if not prices:
+            issues.append({"ticker": ticker, "issue": "empty_prices"})
+        price_series_by_ticker[ticker] = prices
+
+    set_hash = get_or_create_security_set(config.tickers)
+    records = build_backfill_aggregate_records(
+        tickers=config.tickers,
+        price_series_by_ticker=price_series_by_ticker,
+        advance_decline_lookbacks=config.advance_decline_lookbacks,
+        set_hash=set_hash,
+        interval=config.interval,
+    )
+    if records:
+        upsert_security_aggregate_values(records)
+
+    date_count = len({record["as_of_date"] for record in records})
+    logger.info(
+        "security_scan.aggregate_backfill.finish",
+        extra={
+            "start_date": resolved_start.isoformat(),
+            "end_date": resolved_end.isoformat(),
+            "dates": date_count,
+            "records_written": len(records),
+        },
+    )
+    return {
+        "set_hash": set_hash,
+        "start_date": resolved_start.isoformat(),
+        "end_date": resolved_end.isoformat(),
+        "date_count": date_count,
+        "records_written": len(records),
+        "issues": issues,
+    }
+
+
 def run_security_scan(
     config: SecurityScanConfig,
     start_date: date | None = None,
@@ -321,6 +521,19 @@ def run_security_scan(
 
     started_at = time.monotonic()
     fetcher = MarketDataFetcher(market_data_service=market_data_service)
+    market_prices_by_ticker = {
+        ticker: fetcher.fetch_historical_prices(
+            ticker=ticker,
+            start_date=start_dt,
+            end_date=end_dt,
+            interval=config.interval,
+        )
+        for ticker in MARKET_SNAPSHOT_TICKERS
+    }
+    indicator_context = {
+        "benchmark_prices_by_ticker": market_prices_by_ticker,
+        "benchmark_tickers": MARKET_SNAPSHOT_TICKERS,
+    }
     ticker_summaries: list[dict[str, Any]] = []
     issues: list[dict[str, str]] = []
     signals: list[Signal] = []
@@ -359,6 +572,20 @@ def run_security_scan(
             close_series,
             advance_decline_lookbacks=config.advance_decline_lookbacks,
         )
+        scl_flags_by_date: dict[str, dict[str, float | bool | None]] = {}
+        scl_series = compute_scl_countdown_series(ordered_prices)
+        if scl_series:
+            scl_flags_by_date = compute_scl_prior_window_flags(
+                scl_series, lookback=5
+            )
+        last_date = summary.get("last_date")
+        if last_date:
+            scl_flags = scl_flags_by_date.get(str(last_date)) or {}
+            summary["scl_5bar_high"] = scl_flags.get("high")
+            summary["scl_5bar_low"] = scl_flags.get("low")
+        else:
+            summary["scl_5bar_high"] = None
+            summary["scl_5bar_low"] = None
         if summary_issues:
             for issue in summary_issues:
                 issues.append({"ticker": ticker, "issue": issue})
@@ -408,7 +635,11 @@ def run_security_scan(
             if evaluator is None:
                 continue
             try:
-                raw_signals = evaluator(prices, resolved["settings"])
+                settings = resolved.get("settings") or {}
+                if not isinstance(settings, dict):
+                    settings = {}
+                settings_for_eval = {**settings, "_context": indicator_context}
+                raw_signals = evaluator(prices, settings_for_eval)
             except Exception as exc:
                 issues.append(
                     {
@@ -462,6 +693,7 @@ def run_security_scan(
             start_dt=start_dt,
             end_dt=end_dt,
             interval=config.interval,
+            market_prices_by_ticker=market_prices_by_ticker,
         )
     except Exception as exc:
         issues.append({"issue": "market_stats_error", "detail": str(exc)})

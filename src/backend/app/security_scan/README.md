@@ -34,6 +34,15 @@ uv run python -m app.security_scan.cli \
   --output /path/to/task-logs
 ```
 
+Backfill aggregate history (so charts have more than the latest run):
+
+```bash
+uv run python -m app.security_scan.cli \
+  --start-date 2025-01-01 \
+  --end-date 2025-12-31 \
+  --backfill-aggregates
+```
+
 ### Options
 - `--config-dir`: Override config directory (defaults to `app/security_scan/config`).
 - `--start-date`, `--end-date`: Optional date overrides (YYYY-MM-DD).
@@ -42,6 +51,9 @@ uv run python -m app.security_scan.cli \
 - `--no-cache`: Disable provider caching (default).
 - `--output`: Output file path or directory for JSON results.
 - `--no-html`: Disable HTML report output.
+- `--backfill-aggregates`: Compute and store daily aggregates for the date range.
+- `--backfill-start-date`, `--backfill-end-date`: Override the backfill date range
+  (defaults to `--start-date`/`--end-date`).
 
 ## Configuration
 
@@ -70,12 +82,20 @@ advance_decline_lookbacks = [1, 5, 10]
 
 [report]
 html = true
+# aggregate_lookback_days = 120
 # plot_lookbacks = [1, 5, 10]
 # max_points = 120
+# net_advances_ma_days = 18
+# advance_pct_avg_smoothing_days = 3
+# roc_breadth_avg_smoothing_days = 3
 ```
 
 If `--start-date`/`--end-date` are not supplied, the CLI uses `lookback_days`
 from `securities.toml`.
+
+For charts, set `report.aggregate_lookback_days` to control how many days of
+stored aggregates are included in the HTML report (independent of the scan
+window).
 
 ## Output
 

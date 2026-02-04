@@ -7,13 +7,38 @@ from markdown_it import MarkdownIt
 from app.security_scan.reporting.markdown_report import render_markdown_report
 
 
+def _wrap_indicator_appendix(body_html: str) -> str:
+    marker = "<h2>Indicator Signals (Appendix)</h2>"
+    marker_index = body_html.find(marker)
+    if marker_index == -1:
+        return body_html
+
+    before = body_html[:marker_index]
+    after = body_html[marker_index + len(marker) :]
+    next_section_index = after.find("<h2>")
+    if next_section_index == -1:
+        appendix_body = after
+        remainder = ""
+    else:
+        appendix_body = after[:next_section_index]
+        remainder = after[next_section_index:]
+
+    details_block = (
+        "<details class=\"appendix\">\n"
+        "<summary>Indicator Signals (Appendix)</summary>\n"
+        f"{appendix_body}\n"
+        "</details>\n"
+    )
+    return before + details_block + remainder
+
+
 def render_html_report(
     payload: dict[str, Any],
     charts_html: str | None = None,
 ) -> str:
     markdown_report = render_markdown_report(payload)
     renderer = MarkdownIt("commonmark").enable("table")
-    body_html = renderer.render(markdown_report)
+    body_html = _wrap_indicator_appendix(renderer.render(markdown_report))
 
     if charts_html:
         body_html += "\n<section class=\"charts\">\n<h2>Aggregate Timeseries</h2>\n"
@@ -78,6 +103,13 @@ def render_html_report(
         "    }\n"
         "    .chart-block h3 {\n"
         "      margin: 0 0 0.75rem;\n"
+        "    }\n"
+        "    details.appendix {\n"
+        "      margin-top: 1.4rem;\n"
+        "    }\n"
+        "    details.appendix summary {\n"
+        "      cursor: pointer;\n"
+        "      font-weight: 600;\n"
         "    }\n"
         "  </style>\n"
         "</head>\n"

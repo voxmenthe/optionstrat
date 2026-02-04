@@ -14,6 +14,7 @@ from app.security_scan.reporting.aggregate_series import (
 )
 from app.security_scan.reporting.markdown_report import render_markdown_report
 from app.security_scan.reporting.html_report import render_html_report
+from app.security_scan.scan_runner import build_backfill_aggregate_records
 
 
 def test_load_security_scan_config_instances(tmp_path: Path) -> None:
@@ -39,6 +40,7 @@ advance_decline_lookbacks = [1, 5, 10]
 
 [report]
 html = true
+aggregate_lookback_days = 90
 plot_lookbacks = [1, 5]
 max_points = 120
 """.strip()
@@ -54,7 +56,11 @@ max_points = 120
     assert config.advance_decline_lookbacks == [1, 5, 10]
     assert config.report_html is True
     assert config.report_plot_lookbacks == [1, 5]
+    assert config.report_aggregate_lookback_days == 90
     assert config.report_max_points == 120
+    assert config.report_net_advances_ma_days == 18
+    assert config.report_advance_pct_avg_smoothing_days == 3
+    assert config.report_roc_breadth_avg_smoothing_days == 3
 
 
 def test_compute_breadth_counts() -> None:
@@ -200,6 +206,82 @@ def test_render_aggregate_charts_html_embeds_plotly() -> None:
     ]
     html = render_aggregate_charts_html(series_payloads)
     assert "Plotly.newPlot" in html
+
+
+def test_render_aggregate_charts_html_includes_average_series() -> None:
+    series_payloads = [
+        {
+            "metric_key": "net_advances",
+            "label": "Net Advances (t-1)",
+            "points": [
+                {"date": "2025-01-01", "value": 10},
+                {"date": "2025-01-02", "value": -5},
+            ],
+        },
+        {
+            "metric_key": "advance_pct",
+            "label": "Advance % (t-1)",
+            "points": [
+                {"date": "2025-01-01", "value": 0.55},
+                {"date": "2025-01-02", "value": 0.45},
+            ],
+        },
+        {
+            "metric_key": "ad_5_advance_pct",
+            "label": "Advance % (t-5)",
+            "points": [
+                {"date": "2025-01-01", "value": 0.6},
+                {"date": "2025-01-02", "value": 0.5},
+            ],
+        },
+        {
+            "metric_key": "roc_17_vs_5_gt_pct",
+            "label": "ROC 17 vs 5 % Greater",
+            "points": [
+                {"date": "2025-01-01", "value": 0.4},
+                {"date": "2025-01-02", "value": 0.6},
+            ],
+        },
+        {
+            "metric_key": "roc_27_vs_4_gt_pct",
+            "label": "ROC 27 vs 4 % Greater",
+            "points": [
+                {"date": "2025-01-01", "value": 0.5},
+                {"date": "2025-01-02", "value": 0.7},
+            ],
+        },
+    ]
+    html = render_aggregate_charts_html(series_payloads)
+    assert "Net Advances MA 18" in html
+    assert "Advance % Avg (MA 3)" in html
+    assert "ROC Breadth Avg (MA 3)" in html
+
+
+def test_build_backfill_aggregate_records_daily_advances() -> None:
+    price_series_by_ticker = {
+        "AAA": [
+            {"date": "2025-01-01", "close": 10},
+            {"date": "2025-01-02", "close": 11},
+        ],
+        "BBB": [
+            {"date": "2025-01-01", "close": 8},
+            {"date": "2025-01-02", "close": 7},
+        ],
+    }
+    records = build_backfill_aggregate_records(
+        tickers=["AAA", "BBB"],
+        price_series_by_ticker=price_series_by_ticker,
+        advance_decline_lookbacks=[1],
+        set_hash="test",
+        interval="day",
+    )
+    target = next(
+        record
+        for record in records
+        if record["as_of_date"] == "2025-01-02"
+        and record["metric_key"] == "advance_pct"
+    )
+    assert target["value"] == 0.5
 
 
 def test_roc_crossover_up_signal() -> None:

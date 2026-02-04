@@ -52,6 +52,9 @@ def compute_breadth(
         prefix: {"gt": 0, "lt": 0, "eq": 0, "missing": 0}
         for prefix, _, _ in ROC_BREADTH_DEFINITIONS
     }
+    scl_high = 0
+    scl_low = 0
+    scl_missing = 0
 
     for summary in ticker_summaries:
         last_close = summary.get("last_close")
@@ -105,6 +108,16 @@ def compute_breadth(
             else:
                 roc_counts[prefix]["eq"] += 1
 
+        scl_high_flag = summary.get("scl_5bar_high")
+        scl_low_flag = summary.get("scl_5bar_low")
+        if scl_high_flag is None and scl_low_flag is None:
+            scl_missing += 1
+        else:
+            if scl_high_flag:
+                scl_high += 1
+            if scl_low_flag:
+                scl_low += 1
+
     valid = advances + declines + unchanged
     ratio = None if declines == 0 else round(advances / declines, 4)
     advance_pct = None if valid == 0 else round(advances / valid, 4)
@@ -118,6 +131,11 @@ def compute_breadth(
         "advance_decline_ratio": ratio,
         "net_advances": advances - declines,
         "advance_pct": advance_pct,
+        "scl_5bar_high_count": scl_high,
+        "scl_5bar_low_count": scl_low,
+        "scl_5bar_net": scl_high - scl_low,
+        "scl_5bar_valid_count": len(ticker_summaries) - scl_missing,
+        "scl_5bar_missing_count": scl_missing,
     }
 
     for lookback, counts in ad_counts.items():

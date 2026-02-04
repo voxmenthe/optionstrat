@@ -26,3 +26,10 @@ We'd like the ability to "sanity check" the indicators by looking at a dual pane
 .venv/bin/python -m app.security_scan.cli \
   --start-date 2025-10-01 \
   --end-date 2025-12-31
+
+uv run python -m app.security_scan.cli --backfill-aggregates
+
+Artifacts written:
+/Volumes/cdrive/repos/optionstrat/task-logs/security_scan_20260204-0649.json
+/Volumes/cdrive/repos/optionstrat/task-logs/security_scan_20260204-0649.md
+/Volumes/cdrive/repos/optionstrat/task-logs/security_scan_20260204-0649.html
