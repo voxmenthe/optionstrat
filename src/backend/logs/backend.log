@@ -1,4 +1,4 @@
-2026-01-31 21:17:25,570 - app.main - INFO - Backend logging initialized. Log file: /Volumes/cdrive/repos/optionstrat/src/backend/logs/backend.log
-2026-01-31 21:17:26,127 - app.services.yfinance_provider - WARNING - Redis connection failed: Error 61 connecting to localhost:6379. Connection refused.. Falling back to database.
-2026-01-31 21:17:26,128 - app.services.volatility_service - INFO - VolatilityService initialized
-2026-01-31 21:17:26,128 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2026-02-05 01:24:17,427 - app.main - INFO - Backend logging initialized. Log file: /Volumes/cdrive/repos/optionstrat/src/backend/logs/backend.log
+2026-02-05 01:24:19,666 - app.services.yfinance_provider - WARNING - Redis connection failed: Error 61 connecting to localhost:6379. Connection refused.. Falling back to database.
+2026-02-05 01:24:19,666 - app.services.volatility_service - INFO - VolatilityService initialized
+2026-02-05 01:24:19,666 - app.services.market_data - INFO - Using market data provider: YFinanceProvider

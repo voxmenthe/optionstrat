@@ -7,7 +7,6 @@ from typing import Any, Iterable
 
 RECENT_DATE_WINDOW = 5
 TICKER_LIST_LIMIT = 10
-DATE_DENSITY_LIMIT = 10
 
 
 def _format_number(value: Any, decimals: int = 4) -> str:
@@ -132,16 +131,6 @@ def _group_by_label(signals: list[dict[str, Any]]) -> list[tuple[str, list[str]]
     return rows
 
 
-def _signal_density(signals: list[dict[str, Any]]) -> list[tuple[str, int]]:
-    counts: dict[str, int] = defaultdict(int)
-    for signal in signals:
-        date = signal.get("signal_date")
-        if date:
-            counts[date] += 1
-    rows = sorted(counts.items(), key=lambda row: row[0], reverse=True)
-    return rows[:DATE_DENSITY_LIMIT]
-
-
 def _direction_streaks(signals: list[dict[str, Any]], min_streak: int = 3) -> list[tuple[str, str, int, str]]:
     by_ticker: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for signal in signals:
@@ -176,11 +165,67 @@ def _direction_streaks(signals: list[dict[str, Any]], min_streak: int = 3) -> li
     return streaks
 
 
+def _compute_history_stats(
+    aggregates_history: list[dict[str, Any]] | None,
+    *,
+    metric_keys: Iterable[str],
+    end_date: str | None = None,
+) -> dict[str, dict[str, Any]]:
+    if not aggregates_history:
+        return {}
+
+    by_date: dict[str, dict[str, Any]] = defaultdict(dict)
+    for entry in aggregates_history:
+        if not isinstance(entry, dict):
+            continue
+        as_of_date = entry.get("as_of_date")
+        metric_key = entry.get("metric_key")
+        if not as_of_date or not metric_key:
+            continue
+        by_date[str(as_of_date)][str(metric_key)] = entry.get("value")
+
+    if not by_date:
+        return {}
+
+    ordered_dates = sorted(by_date.keys(), reverse=True)
+    if end_date and end_date in by_date:
+        ordered_dates = [end_date] + [d for d in ordered_dates if d != end_date]
+
+    stats: dict[str, dict[str, Any]] = {}
+    for key in metric_keys:
+        t_minus_1 = None
+        if len(ordered_dates) > 1:
+            t_minus_1 = by_date[ordered_dates[1]].get(key)
+
+        t_minus_2 = None
+        if len(ordered_dates) > 2:
+            t_minus_2 = by_date[ordered_dates[2]].get(key)
+
+        values: list[float] = []
+        for date_value in ordered_dates[:10]:
+            value = by_date[date_value].get(key)
+            if value is None:
+                continue
+            try:
+                values.append(float(value))
+            except (TypeError, ValueError):
+                continue
+        avg_10d = None if not values else (sum(values) / len(values))
+
+        stats[key] = {
+            "t_minus_1": t_minus_1,
+            "t_minus_2": t_minus_2,
+            "avg_10d": avg_10d,
+        }
+
+    return stats
+
+
 def render_markdown_report(payload: dict[str, Any]) -> str:
     run_metadata = payload.get("run_metadata", {})
     aggregates = payload.get("aggregates", {})
+    aggregates_history = payload.get("aggregates_history", [])
     signals = payload.get("signals", [])
-    ticker_summaries = payload.get("ticker_summaries", [])
     issues = payload.get("issues", [])
 
     indicator_instances = run_metadata.get("indicator_instances", [])
@@ -226,85 +271,54 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
         lines.append("No market stats available.")
     lines.append("")
 
-    lines.append("## Run Metadata")
-    lines.append(
-        f"- Run ID: {run_metadata.get('run_id', '-')}"
+    breadth_metric_keys = [
+        "advances",
+        "declines",
+        "unchanged",
+        "net_advances",
+        "advance_decline_ratio",
+        "advance_pct",
+    ]
+    breadth_stats = _compute_history_stats(
+        aggregates_history,
+        metric_keys=breadth_metric_keys,
+        end_date=run_metadata.get("end_date"),
     )
-    lines.append(
-        f"- Timestamp: {run_metadata.get('run_timestamp', '-')}"
-    )
-    lines.append(
-        f"- Date Range: {run_metadata.get('start_date', '-')} → {run_metadata.get('end_date', '-')}"
-    )
-    lines.append(
-        f"- Interval: {run_metadata.get('interval', '-')}"
-    )
-    lines.append(
-        f"- Tickers: {len(run_metadata.get('tickers', []))}"
-    )
-    lines.append(
-        f"- Duration (s): {_format_number(run_metadata.get('duration_seconds'), 3)}"
-    )
-    output_path = run_metadata.get("output_path")
-    markdown_path = run_metadata.get("markdown_path")
-    html_path = run_metadata.get("html_path")
-    if output_path:
-        lines.append(f"- JSON Output: {output_path}")
-    if markdown_path:
-        lines.append(f"- Markdown Output: {markdown_path}")
-    if html_path:
-        lines.append(f"- HTML Output: {html_path}")
-    storage_usage = payload.get("storage_usage")
-    if isinstance(storage_usage, dict):
-        scan_db = _format_bytes(storage_usage.get("scan_db_bytes"))
-        options_db = _format_bytes(storage_usage.get("options_db_bytes"))
-        task_logs = _format_bytes(storage_usage.get("task_logs_bytes"))
-        total = _format_bytes(storage_usage.get("total_bytes"))
+
+    def _format_count(value: Any) -> str:
+        if value is None:
+            return "-"
+        try:
+            numeric = float(value)
+        except (TypeError, ValueError):
+            return str(value)
+        if numeric.is_integer():
+            return str(int(numeric))
+        return _format_number(numeric, 4)
+
+    def _add_breadth_row(label: str, key: str, formatter) -> None:
+        stats = breadth_stats.get(key, {})
         lines.append(
-            f"- Storage Usage: scan_db={scan_db} | options_db={options_db}"
-            f" | task_logs={task_logs} | total={total}"
+            f"| {label}"
+            f" | {formatter(aggregates.get(key))}"
+            f" | {formatter(stats.get('t_minus_1'))}"
+            f" | {formatter(stats.get('t_minus_2'))}"
+            f" | {formatter(stats.get('avg_10d'))} |"
         )
-    lines.append("")
 
     lines.append("## Summary (Breadth)")
-    lines.append("| Metric | Value |")
-    lines.append("| --- | --- |")
-    lines.append(f"| Advances | {aggregates.get('advances', 0)} |")
-    lines.append(f"| Declines | {aggregates.get('declines', 0)} |")
-    lines.append(f"| Unchanged | {aggregates.get('unchanged', 0)} |")
-    lines.append(f"| Net Advances | {aggregates.get('net_advances', 0)} |")
-    lines.append(
-        f"| Advance/Decline Ratio | {_format_number(aggregates.get('advance_decline_ratio'))} |"
+    lines.append("| Metric | Value | t-1 | t-2 | 10d Avg |")
+    lines.append("| --- | --- | --- | --- | --- |")
+    _add_breadth_row("Advances", "advances", _format_count)
+    _add_breadth_row("Declines", "declines", _format_count)
+    _add_breadth_row("Unchanged", "unchanged", _format_count)
+    _add_breadth_row("Net Advances", "net_advances", _format_count)
+    _add_breadth_row(
+        "Advance/Decline Ratio",
+        "advance_decline_ratio",
+        lambda value: _format_number(value, 4),
     )
-    lines.append(
-        f"| Advance % | {_format_percent(aggregates.get('advance_pct'))} |"
-    )
-    lines.append("")
-
-    advance_decline_lookbacks = run_metadata.get("advance_decline_lookbacks") or [1]
-    lines.append("## Summary (Advance/Decline Lookbacks)")
-    lines.append("| Lookback | Advances | Declines | Net | Ratio | Advance % | Valid |")
-    lines.append("| --- | --- | --- | --- | --- | --- | --- |")
-    for lookback in advance_decline_lookbacks:
-        if lookback == 1:
-            lines.append(
-                f"| t-{lookback} | {aggregates.get('advances', 0)}"
-                f" | {aggregates.get('declines', 0)}"
-                f" | {aggregates.get('net_advances', 0)}"
-                f" | {_format_number(aggregates.get('advance_decline_ratio'))}"
-                f" | {_format_percent(aggregates.get('advance_pct'))}"
-                f" | {aggregates.get('valid_ticker_count', 0)} |"
-            )
-            continue
-        prefix = f"ad_{lookback}"
-        lines.append(
-            f"| t-{lookback} | {aggregates.get(f'{prefix}_advances', 0)}"
-            f" | {aggregates.get(f'{prefix}_declines', 0)}"
-            f" | {aggregates.get(f'{prefix}_net_advances', 0)}"
-            f" | {_format_number(aggregates.get(f'{prefix}_advance_decline_ratio'))}"
-            f" | {_format_percent(aggregates.get(f'{prefix}_advance_pct'))}"
-            f" | {aggregates.get(f'{prefix}_valid_count', 0)} |"
-        )
+    _add_breadth_row("Advance %", "advance_pct", _format_percent)
     lines.append("")
 
     lines.append("## Summary (MA Breadth)")
@@ -341,33 +355,6 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
         )
     lines.append("")
 
-    lines.append("## Indicator Overview")
-    if not indicator_instances:
-        lines.append("No indicators configured.")
-        lines.append("")
-    else:
-        lines.append("| Indicator | Instance | Settings | Signals | Most Recent Hit |")
-        lines.append("| --- | --- | --- | --- | --- |")
-        signals_by_instance: dict[str, list[dict[str, Any]]] = defaultdict(list)
-        for signal in signals:
-            signals_by_instance[signal.get("indicator_id", "unknown")].append(signal)
-        for instance in indicator_instances:
-            instance_id = instance.get("instance_id", "unknown")
-            indicator_type = instance.get("id", "unknown")
-            instance_signals = signals_by_instance.get(instance_id, [])
-            most_recent = "-"
-            if instance_signals:
-                most_recent = max(
-                    (signal.get("signal_date") or "" for signal in instance_signals),
-                    default="-",
-                )
-            settings_summary = _settings_summary(instance.get("settings", {}))
-            lines.append(
-                f"| {indicator_type} | {instance_id} | {settings_summary or '-'}"
-                f" | {len(instance_signals)} | {most_recent or '-'} |"
-            )
-        lines.append("")
-
     if signals:
         lines.append("## Latest-Day Highlight (All Indicators)")
         all_dates = _signal_dates(signals)
@@ -384,34 +371,6 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
                     )
             else:
                 lines.append("No signals on latest date.")
-        lines.append("")
-
-        lines.append("## Top Tickers (Overall)")
-        overall_counts: dict[str, int] = defaultdict(int)
-        for signal in signals:
-            ticker = signal.get("ticker")
-            if ticker:
-                overall_counts[ticker] += 1
-        if overall_counts:
-            lines.append("| Ticker | Signals |")
-            lines.append("| --- | --- |")
-            for ticker, count in sorted(
-                overall_counts.items(), key=lambda row: row[1], reverse=True
-            )[:TICKER_LIST_LIMIT]:
-                lines.append(f"| {ticker} | {count} |")
-        else:
-            lines.append("No signals.")
-        lines.append("")
-
-        lines.append("## Signal Density (Overall)")
-        density_rows = _signal_density(signals)
-        if density_rows:
-            lines.append("| Date | Signals |")
-            lines.append("| --- | --- |")
-            for date, count in density_rows:
-                lines.append(f"| {date} | {count} |")
-        else:
-            lines.append("No signals.")
         lines.append("")
 
     lines.append("## Indicator Rollups")
@@ -494,35 +453,6 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
                 lines.append("No criteria labels found.")
             lines.append("")
 
-            lines.append("**Signal Density (by date)**")
-            density_rows = _signal_density(indicator_signals)
-            if density_rows:
-                lines.append("| Date | Signals |")
-                lines.append("| --- | --- |")
-                for date, count in density_rows:
-                    lines.append(f"| {date} | {count} |")
-            else:
-                lines.append("No signals.")
-            lines.append("")
-
-            lines.append("**Top Tickers by Signal Count**")
-            ticker_counts: dict[str, int] = defaultdict(int)
-            for signal in indicator_signals:
-                ticker = signal.get("ticker")
-                if ticker:
-                    ticker_counts[ticker] += 1
-            if ticker_counts:
-                top_tickers = sorted(
-                    ticker_counts.items(), key=lambda row: row[1], reverse=True
-                )
-                lines.append("| Ticker | Signals |")
-                lines.append("| --- | --- |")
-                for ticker, count in top_tickers[:TICKER_LIST_LIMIT]:
-                    lines.append(f"| {ticker} | {count} |")
-            else:
-                lines.append("No ticker counts.")
-            lines.append("")
-
             lines.append("**Direction Streaks (if applicable)**")
             streaks = _direction_streaks(indicator_signals)
             if streaks:
@@ -533,26 +463,6 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             else:
                 lines.append("No direction streaks.")
             lines.append("")
-
-    lines.append("## Per-Ticker Summary")
-    lines.append("| Ticker | Last Date | Last Close | Change | Change % | Signals | Issues |")
-    lines.append("| --- | --- | --- | --- | --- | --- | --- |")
-    signal_counts: dict[str, int] = defaultdict(int)
-    for signal in signals:
-        ticker = signal.get("ticker")
-        if ticker:
-            signal_counts[ticker] += 1
-    for summary in sorted(ticker_summaries, key=lambda item: item.get("ticker", "")):
-        ticker = summary.get("ticker", "-")
-        lines.append(
-            f"| {ticker} | {summary.get('last_date', '-')}"
-            f" | {_format_number(summary.get('last_close'))}"
-            f" | {_format_number(summary.get('close_change'))}"
-            f" | {_format_percent(summary.get('close_change_pct'))}"
-            f" | {signal_counts.get(ticker, 0)}"
-            f" | {', '.join(summary.get('issues', [])) or '-'} |"
-        )
-    lines.append("")
 
     if issues:
         lines.append("## Issues")
@@ -621,5 +531,37 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
                     + f" | {_format_metadata(extra)} |"
                 )
             lines.append("")
+
+    lines.append("## Run Metadata")
+    lines.append(f"- Run ID: {run_metadata.get('run_id', '-')}")
+    lines.append(f"- Timestamp: {run_metadata.get('run_timestamp', '-')}")
+    lines.append(
+        f"- Date Range: {run_metadata.get('start_date', '-')} → {run_metadata.get('end_date', '-')}"
+    )
+    lines.append(f"- Interval: {run_metadata.get('interval', '-')}")
+    lines.append(f"- Tickers: {len(run_metadata.get('tickers', []))}")
+    lines.append(
+        f"- Duration (s): {_format_number(run_metadata.get('duration_seconds'), 3)}"
+    )
+    output_path = run_metadata.get("output_path")
+    markdown_path = run_metadata.get("markdown_path")
+    html_path = run_metadata.get("html_path")
+    if output_path:
+        lines.append(f"- JSON Output: {output_path}")
+    if markdown_path:
+        lines.append(f"- Markdown Output: {markdown_path}")
+    if html_path:
+        lines.append(f"- HTML Output: {html_path}")
+    storage_usage = payload.get("storage_usage")
+    if isinstance(storage_usage, dict):
+        scan_db = _format_bytes(storage_usage.get("scan_db_bytes"))
+        options_db = _format_bytes(storage_usage.get("options_db_bytes"))
+        task_logs = _format_bytes(storage_usage.get("task_logs_bytes"))
+        total = _format_bytes(storage_usage.get("total_bytes"))
+        lines.append(
+            f"- Storage Usage: scan_db={scan_db} | options_db={options_db}"
+            f" | task_logs={task_logs} | total={total}"
+        )
+    lines.append("")
 
     return "\n".join(lines)

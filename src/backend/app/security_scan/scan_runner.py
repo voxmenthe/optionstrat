@@ -18,6 +18,7 @@ from app.security_scan.series_math import compute_roc, compute_sma
 from app.security_scan.signals import IndicatorSignal, Signal
 from app.security_scan.storage import (
     get_or_create_security_set,
+    fetch_security_aggregate_series,
     fetch_security_metric_values,
     upsert_security_aggregate_values,
     upsert_security_metric_values,
@@ -702,13 +703,13 @@ def run_security_scan(
         ticker_summaries,
         advance_decline_lookbacks=config.advance_decline_lookbacks,
     )
+    set_hash: str | None = None
     try:
         set_hash = get_or_create_security_set(config.tickers)
         run_metadata["set_hash"] = set_hash
+        lookbacks = _normalize_lookbacks(config.advance_decline_lookbacks)
         aggregate_group_prefixes = AGGREGATE_GROUP_PREFIXES + [
-            f"ad_{lookback}"
-            for lookback in config.advance_decline_lookbacks
-            if lookback != 1
+            f"ad_{lookback}" for lookback in lookbacks if lookback != 1
         ]
         aggregate_records = _build_aggregate_records(
             aggregates=aggregates,
@@ -722,11 +723,43 @@ def run_security_scan(
     except Exception as exc:
         issues.append({"issue": "aggregate_storage_error", "detail": str(exc)})
 
+    historical_aggregates = []
+    try:
+        if not set_hash:
+            raise RuntimeError("missing_set_hash")
+        hist_start = (resolved_end - timedelta(days=30)).isoformat()
+        breadth_metrics = [
+            "advances",
+            "declines",
+            "unchanged",
+            "net_advances",
+            "advance_decline_ratio",
+            "advance_pct",
+        ]
+        hist_data = fetch_security_aggregate_series(
+            set_hash=set_hash,
+            metric_keys=breadth_metrics,
+            start_date=hist_start,
+            end_date=resolved_end.isoformat(),
+            interval=config.interval,
+        )
+        historical_aggregates = [
+            {
+                "as_of_date": rec.as_of_date,
+                "metric_key": rec.metric_key,
+                "value": rec.value,
+            }
+            for rec in hist_data
+        ]
+    except Exception as exc:
+        issues.append({"issue": "historical_aggregates_error", "detail": str(exc)})
+
     return {
         "run_metadata": run_metadata,
         "market_stats": market_stats,
         "ticker_summaries": ticker_summaries,
         "signals": [asdict(signal) for signal in signals],
         "aggregates": aggregates,
+        "aggregates_history": historical_aggregates,
         "issues": issues,
     }

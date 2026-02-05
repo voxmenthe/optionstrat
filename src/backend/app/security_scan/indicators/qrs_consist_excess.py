@@ -357,39 +357,7 @@ def evaluate(
         return []
 
     signals: list[IndicatorSignal] = []
-
-    for index in range(2, len(qrs_series)):
-        current = qrs_series[index]
-        prev1 = qrs_series[index - 1]
-        prev2 = qrs_series[index - 2]
-        if current > 0 and prev1 <= 0 and prev2 <= 0:
-            signals.append(
-                IndicatorSignal(
-                    signal_date=dates[index],
-                    signal_type="main_cross_above_zero",
-                    metadata={
-                        "indicator": "QRSConsistExcess",
-                        "current_value": current,
-                        "prev_1": prev1,
-                        "prev_2": prev2,
-                        "label": "qrs_main_cross_up",
-                    },
-                )
-            )
-        if current < 0 and prev1 >= 0 and prev2 >= 0:
-            signals.append(
-                IndicatorSignal(
-                    signal_date=dates[index],
-                    signal_type="main_cross_below_zero",
-                    metadata={
-                        "indicator": "QRSConsistExcess",
-                        "current_value": current,
-                        "prev_1": prev1,
-                        "prev_2": prev2,
-                        "label": "qrs_main_cross_down",
-                    },
-                )
-            )
+    signals.extend(_build_main_zero_cross_signals(dates, qrs_series))
 
     for index in range(1, len(ma1_series)):
         current = ma1_series[index]
@@ -421,6 +389,52 @@ def evaluate(
                 )
             )
 
+    return signals
+
+
+def _build_main_zero_cross_signals(
+    dates: Sequence[str],
+    series: Sequence[float],
+) -> list[IndicatorSignal]:
+    signals: list[IndicatorSignal] = []
+    if len(series) < 4:
+        return signals
+
+    for index in range(3, len(series)):
+        current = series[index]
+        prev1 = series[index - 1]
+        prev2 = series[index - 2]
+        prev3 = series[index - 3]
+        if current > 0 and prev1 <= 0 and prev2 <= 0 and prev3 <= 0:
+            signals.append(
+                IndicatorSignal(
+                    signal_date=dates[index],
+                    signal_type="main_cross_above_zero_3d",
+                    metadata={
+                        "indicator": "QRSConsistExcess",
+                        "current_value": current,
+                        "prev_1": prev1,
+                        "prev_2": prev2,
+                        "prev_3": prev3,
+                        "label": "qrs_main_cross_up_3d",
+                    },
+                )
+            )
+        if current < 0 and prev1 >= 0 and prev2 >= 0 and prev3 >= 0:
+            signals.append(
+                IndicatorSignal(
+                    signal_date=dates[index],
+                    signal_type="main_cross_below_zero_3d",
+                    metadata={
+                        "indicator": "QRSConsistExcess",
+                        "current_value": current,
+                        "prev_1": prev1,
+                        "prev_2": prev2,
+                        "prev_3": prev3,
+                        "label": "qrs_main_cross_down_3d",
+                    },
+                )
+            )
     return signals
 
 

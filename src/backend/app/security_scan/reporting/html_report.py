@@ -41,9 +41,18 @@ def render_html_report(
     body_html = _wrap_indicator_appendix(renderer.render(markdown_report))
 
     if charts_html:
-        body_html += "\n<section class=\"charts\">\n<h2>Aggregate Timeseries</h2>\n"
-        body_html += charts_html
-        body_html += "\n</section>\n"
+        charts_section = (
+            "\n<section class=\"charts\">\n"
+            "<h2>Aggregate Timeseries</h2>\n"
+            f"{charts_html}\n"
+            "</section>\n"
+        )
+        h1_end_index = body_html.find("</h1>")
+        if h1_end_index != -1:
+            insert_pos = h1_end_index + 5
+            body_html = body_html[:insert_pos] + charts_section + body_html[insert_pos:]
+        else:
+            body_html = charts_section + body_html
 
     return (
         "<!doctype html>\n"
@@ -74,15 +83,20 @@ def render_html_report(
         "      width: 100%;\n"
         "      margin-bottom: 1.5rem;\n"
         "      font-size: 0.95rem;\n"
+        "      border: 2px solid #444;\n"
         "    }\n"
         "    th, td {\n"
-        "      border: 1px solid #ddd;\n"
-        "      padding: 6px 8px;\n"
+        "      border: 1px solid #888;\n"
+        "      padding: 8px 10px;\n"
         "      text-align: left;\n"
         "    }\n"
         "    th {\n"
-        "      background: #f4f4f4;\n"
-        "      font-weight: 600;\n"
+        "      background: #e0e0e0;\n"
+        "      font-weight: 700;\n"
+        "      border-bottom: 2px solid #444;\n"
+        "    }\n"
+        "    tr:nth-child(even) {\n"
+        "      background-color: #f4f4f4;\n"
         "    }\n"
         "    code {\n"
         "      background: #f6f6f6;\n"
@@ -96,7 +110,7 @@ def render_html_report(
         "      overflow-x: auto;\n"
         "    }\n"
         "    .charts {\n"
-        "      margin-top: 2rem;\n"
+        "      margin: 2rem 0;\n"
         "    }\n"
         "    .chart-block {\n"
         "      margin-top: 1.5rem;\n"

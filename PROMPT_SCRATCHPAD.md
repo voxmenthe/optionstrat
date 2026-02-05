@@ -29,7 +29,26 @@ We'd like the ability to "sanity check" the indicators by looking at a dual pane
 
 uv run python -m app.security_scan.cli --backfill-aggregates
 
-Artifacts written:
-/Volumes/cdrive/repos/optionstrat/task-logs/security_scan_20260204-0649.json
-/Volumes/cdrive/repos/optionstrat/task-logs/security_scan_20260204-0649.md
-/Volumes/cdrive/repos/optionstrat/task-logs/security_scan_20260204-0649.html
+--------
+
+We'd like to update the html output from src/backend/app/security_scan as follows:
+* Make the tables more visually appealing by adding alternating row colors, and thicker borders.
+* Move all the run metadata to the bottom of the report
+* Move all the plots to the top of the report
+* Remove the following sections from the report:
+  - Indicator Overview
+  - Top Tickers
+  - Signal Density
+  - Per-Ticker Summary
+* For the Summary (Breadth) section:
+  - Add comparisan columns for t-1, t-2, and an average of the last 10 days
+  - Remove the Summary (Advance/Decline Lookbacks) section
+
+Please go ahead and implement this.
+
+-------
+
+For the html report (and markdown report) from src/backend/app/security_scan, we'd like to add the following indicator scans (if we don't have them already):
+for qrs_consist_excess:
+* ma1 crosses above or below 0
+* main indicator crosses above 0 after having been <= 0 for >= 3 days (or vice versa)
