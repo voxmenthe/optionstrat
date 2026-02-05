@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from datetime import datetime, timedelta
 from typing import Callable, Iterable, TYPE_CHECKING
 
+from app.security_scan.data_fetcher import MarketDataFetcher
 from app.security_scan.reporting.aggregate_series import (
     AggregateSeries,
     assemble_aggregate_series,
@@ -10,9 +12,12 @@ from app.security_scan.reporting.aggregate_series import (
     collect_aggregate_metric_keys,
 )
 from app.security_scan.storage import fetch_security_aggregate_series
+from app.services.market_data import MarketDataService
 
 if TYPE_CHECKING:
     import plotly.graph_objects as go
+
+BENCHMARK_TICKERS = ("QQQ", "SPY", "IWM")
 
 
 def build_aggregate_charts_html(
@@ -27,6 +32,7 @@ def build_aggregate_charts_html(
     net_advances_ma_days: int = 18,
     advance_pct_avg_smoothing_days: int = 3,
     roc_breadth_avg_smoothing_days: int = 3,
+    market_data_service: MarketDataService | None = None,
 ) -> str:
     definitions = build_aggregate_series_definitions(
         plot_lookbacks or advance_decline_lookbacks
@@ -59,8 +65,28 @@ def build_aggregate_charts_html(
             trimmed.append(trimmed_series)
         series_payloads = trimmed
 
+    date_bounds = _series_date_bounds(series_payloads)
+    benchmark_start = start_date or date_bounds[0]
+    benchmark_end = end_date or date_bounds[1]
+    benchmark_series = None
+    if benchmark_start and benchmark_end:
+        benchmark_series = _build_benchmark_average_series(
+            start_date=benchmark_start,
+            end_date=benchmark_end,
+            interval=interval,
+            market_data_service=market_data_service,
+        )
+
+    if benchmark_series is None:
+        benchmark_series = {
+            "metric_key": "benchmark_avg_price",
+            "label": "Benchmark Avg (QQQ+SPY+IWM)/3",
+            "points": [],
+        }
+
     return render_aggregate_charts_html(
         series_payloads,
+        benchmark_series=benchmark_series,
         net_advances_ma_days=net_advances_ma_days,
         advance_pct_avg_smoothing_days=advance_pct_avg_smoothing_days,
         roc_breadth_avg_smoothing_days=roc_breadth_avg_smoothing_days,
@@ -70,6 +96,7 @@ def build_aggregate_charts_html(
 def render_aggregate_charts_html(
     series_payloads: Iterable[AggregateSeries],
     *,
+    benchmark_series: AggregateSeries,
     net_advances_ma_days: int = 18,
     advance_pct_avg_smoothing_days: int = 3,
     roc_breadth_avg_smoothing_days: int = 3,
@@ -168,6 +195,8 @@ def render_aggregate_charts_html(
 
         figure = build_timeseries_figure(
             title=title,
+            top_series=benchmark_series,
+            top_y_label="Benchmark Avg Price",
             series=cleaned_series,
             y_label=y_label,
             y_tickformat=tickformat,
@@ -192,15 +221,77 @@ def render_aggregate_charts_html(
 def build_timeseries_figure(
     *,
     title: str,
+    top_series: AggregateSeries | None = None,
+    top_y_label: str | None = None,
     series: Iterable[AggregateSeries],
     y_label: str | None = None,
     y_tickformat: str | None = None,
     reference_lines: Iterable[float] | None = None,
 ) -> "go.Figure":
     import plotly.graph_objects as go
+    from plotly.subplots import make_subplots
 
-    figure = go.Figure()
-    for series_item in series:
+    if top_series is None:
+        top_series = {
+            "metric_key": "benchmark_avg_price",
+            "label": "Benchmark Avg (QQQ+SPY+IWM)/3",
+            "points": [],
+        }
+
+    figure = make_subplots(
+        rows=2,
+        cols=1,
+        shared_xaxes=True,
+        vertical_spacing=0.08,
+        row_heights=[0.35, 0.65],
+    )
+
+    _add_series_traces(figure, [top_series], row=1, col=1)
+    _add_series_traces(figure, list(series), row=2, col=1)
+
+    figure.update_layout(
+        title=title,
+        template="plotly_white",
+        height=520,
+        margin=dict(l=50, r=30, t=60, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+    )
+    figure.update_xaxes(title_text="Date", row=2, col=1)
+    figure.update_xaxes(showticklabels=False, row=1, col=1)
+    figure.update_yaxes(title_text=top_y_label, row=1, col=1)
+    figure.update_yaxes(title_text=y_label, row=2, col=1)
+    if y_tickformat:
+        figure.update_yaxes(tickformat=y_tickformat, row=2, col=1)
+    if reference_lines:
+        shapes = list(figure.layout.shapes) if figure.layout.shapes else []
+        for line_value in reference_lines:
+            shapes.append(
+                dict(
+                    type="line",
+                    xref="paper",
+                    x0=0,
+                    x1=1,
+                    yref="y2",
+                    y0=line_value,
+                    y1=line_value,
+                    line=dict(color="rgba(0, 0, 0, 0.35)", width=1),
+                    layer="below",
+                )
+            )
+        figure.update_layout(shapes=shapes)
+    return figure
+
+
+def _add_series_traces(
+    figure: "go.Figure",
+    series_list: Iterable[AggregateSeries],
+    *,
+    row: int,
+    col: int,
+) -> None:
+    import plotly.graph_objects as go
+
+    for series_item in series_list:
         points = series_item["points"]
         if not points:
             continue
@@ -226,38 +317,107 @@ def build_timeseries_figure(
                 mode=mode,
                 name=series_item["label"],
                 **trace_kwargs,
-            )
+            ),
+            row=row,
+            col=col,
         )
 
-    figure.update_layout(
-        title=title,
-        xaxis_title="Date",
-        yaxis_title=y_label,
-        template="plotly_white",
-        height=360,
-        margin=dict(l=50, r=30, t=60, b=40),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
-    )
-    if y_tickformat:
-        figure.update_yaxes(tickformat=y_tickformat)
-    if reference_lines:
-        shapes = list(figure.layout.shapes) if figure.layout.shapes else []
-        for line_value in reference_lines:
-            shapes.append(
-                dict(
-                    type="line",
-                    xref="paper",
-                    x0=0,
-                    x1=1,
-                    yref="y",
-                    y0=line_value,
-                    y1=line_value,
-                    line=dict(color="rgba(0, 0, 0, 0.35)", width=1),
-                    layer="below",
-                )
-            )
-        figure.update_layout(shapes=shapes)
-    return figure
+
+def _series_date_bounds(
+    series_payloads: Iterable[AggregateSeries],
+) -> tuple[str | None, str | None]:
+    min_date = None
+    max_date = None
+    for series in series_payloads:
+        for point in series.get("points", []):
+            date_value = point.get("date")
+            if not date_value:
+                continue
+            if min_date is None or date_value < min_date:
+                min_date = date_value
+            if max_date is None or date_value > max_date:
+                max_date = date_value
+    return min_date, max_date
+
+
+def _build_benchmark_average_series(
+    *,
+    start_date: str,
+    end_date: str,
+    interval: str,
+    market_data_service: MarketDataService | None = None,
+) -> AggregateSeries | None:
+    start_dt = _parse_date(start_date)
+    end_dt = _parse_date(end_date)
+    if start_dt is None or end_dt is None:
+        return None
+
+    fetcher = MarketDataFetcher(market_data_service=market_data_service)
+    end_dt_inclusive = end_dt + timedelta(days=1)
+    closes_by_ticker: dict[str, dict[str, float]] = {}
+    for ticker in BENCHMARK_TICKERS:
+        prices = fetcher.fetch_historical_prices(
+            ticker=ticker,
+            start_date=start_dt,
+            end_date=end_dt_inclusive,
+            interval=interval,
+        )
+        closes_by_ticker[ticker] = _close_by_date(prices)
+
+    if not closes_by_ticker:
+        return None
+
+    date_sets = [set(values.keys()) for values in closes_by_ticker.values() if values]
+    if not date_sets:
+        return None
+
+    shared_dates = set.intersection(*date_sets)
+    if not shared_dates:
+        return None
+
+    points = []
+    for date_value in sorted(shared_dates):
+        if date_value < start_date or date_value > end_date:
+            continue
+        values = [closes_by_ticker[ticker][date_value] for ticker in BENCHMARK_TICKERS]
+        points.append(
+            {
+                "date": date_value,
+                "value": sum(values) / len(values),
+            }
+        )
+
+    return {
+        "metric_key": "benchmark_avg_price",
+        "label": "Benchmark Avg (QQQ+SPY+IWM)/3",
+        "points": points,
+        "style": {"color": "#2f80ed", "width": 2},
+    }
+
+
+def _close_by_date(prices: Iterable[dict[str, object]]) -> dict[str, float]:
+    closes: dict[str, float] = {}
+    for row in prices:
+        if not isinstance(row, dict):
+            continue
+        date_value = row.get("date")
+        close_value = row.get("close")
+        if not date_value or close_value is None:
+            continue
+        try:
+            closes[str(date_value)] = float(close_value)
+        except (TypeError, ValueError):
+            continue
+    return closes
+
+
+def _parse_date(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None
 
 
 def _build_smoothed_average_series(

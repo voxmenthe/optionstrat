@@ -305,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
                     roc_breadth_avg_smoothing_days=(
                         config.report_roc_breadth_avg_smoothing_days
                     ),
+                    market_data_service=market_data_service,
                 )
             except Exception as exc:
                 issues = payload.setdefault("issues", [])
