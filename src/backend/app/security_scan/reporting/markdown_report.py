@@ -84,10 +84,8 @@ def _truncate_list(items: Iterable[str], limit: int = TICKER_LIST_LIMIT) -> str:
     cleaned = [item for item in items if item]
     if not cleaned:
         return "-"
-    if len(cleaned) <= limit:
-        return ", ".join(cleaned)
-    remaining = len(cleaned) - limit
-    return f"{', '.join(cleaned[:limit])} +{remaining} more"
+    # Render all matching tickers in report tables; HTML cells will wrap.
+    return ", ".join(cleaned)
 
 
 def _signal_dates(signals: list[dict[str, Any]]) -> list[str]:

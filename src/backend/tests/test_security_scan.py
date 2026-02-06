@@ -7,7 +7,10 @@ from app.security_scan.config_loader import load_security_scan_config
 from app.security_scan.db import SecurityAggregateValue
 from app.security_scan.indicators.roc_aggregate import evaluate as evaluate_roc_aggregate
 from app.security_scan.indicators.roc import evaluate as evaluate_roc
-from app.security_scan.reporting.aggregate_charts import render_aggregate_charts_html
+from app.security_scan.reporting.aggregate_charts import (
+    build_timeseries_figure,
+    render_aggregate_charts_html,
+)
 from app.security_scan.reporting.aggregate_series import (
     assemble_aggregate_series,
     build_aggregate_series_definitions,
@@ -59,6 +62,7 @@ max_points = 120
     assert config.report_aggregate_lookback_days == 90
     assert config.report_max_points == 120
     assert config.report_net_advances_ma_days == 18
+    assert config.report_net_advances_secondary_ma_days == 8
     assert config.report_advance_pct_avg_smoothing_days == 3
     assert config.report_roc_breadth_avg_smoothing_days == 3
 
@@ -204,8 +208,54 @@ def test_render_aggregate_charts_html_embeds_plotly() -> None:
             "points": [{"date": "2025-01-01", "value": 0.5}],
         }
     ]
-    html = render_aggregate_charts_html(series_payloads)
+    html = render_aggregate_charts_html(
+        series_payloads,
+        benchmark_pct_maps={},
+        benchmark_trading_dates=set(),
+    )
     assert "Plotly.newPlot" in html
+
+
+def test_render_aggregate_charts_html_uses_single_visible_chart_title() -> None:
+    series_payloads = [
+        {
+            "metric_key": "advance_pct",
+            "label": "Advance %",
+            "points": [{"date": "2025-01-01", "value": 0.5}],
+        }
+    ]
+    html = render_aggregate_charts_html(
+        series_payloads,
+        benchmark_pct_maps={},
+        benchmark_trading_dates=set(),
+    )
+    assert html.count("Advance % (t-1 + lookbacks)") == 1
+
+
+def test_build_timeseries_figure_vertical_grid_spans_all_rows() -> None:
+    figure = build_timeseries_figure(
+        title="Advance %",
+        series=[
+            {
+                "metric_key": "advance_pct",
+                "label": "Advance %",
+                "points": [
+                    {"date": "2025-01-01", "value": 0.5},
+                    {"date": "2025-01-02", "value": 0.6},
+                ],
+            }
+        ],
+        y_label="Percent",
+        x_categories=["2025-01-01", "2025-01-02"],
+    )
+    shapes = list(figure.layout.shapes) if figure.layout.shapes else []
+    vertical_shapes = [
+        shape
+        for shape in shapes
+        if getattr(shape, "yref", None) == "paper"
+        and getattr(shape, "xref", None) == "x3"
+    ]
+    assert len(vertical_shapes) == 2
 
 
 def test_render_aggregate_charts_html_includes_average_series() -> None:
@@ -251,8 +301,13 @@ def test_render_aggregate_charts_html_includes_average_series() -> None:
             ],
         },
     ]
-    html = render_aggregate_charts_html(series_payloads)
+    html = render_aggregate_charts_html(
+        series_payloads,
+        benchmark_pct_maps={},
+        benchmark_trading_dates=set(),
+    )
     assert "Net Advances MA 18" in html
+    assert "Net Advances MA 8" in html
     assert "Advance % Avg (MA 3)" in html
     assert "ROC Breadth Avg (MA 3)" in html
 
@@ -468,6 +523,43 @@ def test_markdown_report_contains_sections() -> None:
     assert "Security Scan Report" in report
     assert "Market Snapshot" in report
     assert "HTML Output" in report
+
+
+def test_markdown_report_does_not_truncate_ticker_lists() -> None:
+    signals = [
+        {
+            "ticker": f"TICK{i:02d}",
+            "indicator_id": "roc_1",
+            "indicator_type": "roc",
+            "signal_date": "2025-01-01",
+            "signal_type": "crossover_up",
+            "metadata": {"series": "roc", "label": "cross_up"},
+        }
+        for i in range(1, 13)
+    ]
+    payload = {
+        "run_metadata": {
+            "run_id": "test",
+            "run_timestamp": "2025-01-01T00:00:00Z",
+            "start_date": "2024-12-01",
+            "end_date": "2025-01-01",
+            "interval": "day",
+            "tickers": [signal["ticker"] for signal in signals],
+            "indicator_instances": [
+                {"id": "roc", "instance_id": "roc_1", "settings": {"roc_lookback": 12}}
+            ],
+        },
+        "market_stats": {},
+        "storage_usage": {},
+        "aggregates": {},
+        "signals": signals,
+        "ticker_summaries": [],
+        "issues": [],
+    }
+
+    report = render_markdown_report(payload)
+    assert "+2 more" not in report
+    assert "TICK12" in report
 
 
 def test_render_html_report_contains_title() -> None:

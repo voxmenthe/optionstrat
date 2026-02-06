@@ -25,6 +25,7 @@ class SecurityScanConfig:
     report_aggregate_lookback_days: int | None
     report_max_points: int | None
     report_net_advances_ma_days: int
+    report_net_advances_secondary_ma_days: int
     report_advance_pct_avg_smoothing_days: int
     report_roc_breadth_avg_smoothing_days: int
     config_dir: Path
@@ -229,6 +230,13 @@ def load_security_scan_config(
         )
         or 18
     )
+    report_net_advances_secondary_ma_days = (
+        _require_optional_positive_int(
+            report_section.get("net_advances_secondary_ma_days"),
+            "report.net_advances_secondary_ma_days",
+        )
+        or 8
+    )
     report_advance_pct_avg_smoothing_days = (
         _require_optional_positive_int(
             report_section.get("advance_pct_avg_smoothing_days"),
@@ -255,6 +263,7 @@ def load_security_scan_config(
         report_aggregate_lookback_days=report_aggregate_lookback_days,
         report_max_points=report_max_points,
         report_net_advances_ma_days=report_net_advances_ma_days,
+        report_net_advances_secondary_ma_days=report_net_advances_secondary_ma_days,
         report_advance_pct_avg_smoothing_days=report_advance_pct_avg_smoothing_days,
         report_roc_breadth_avg_smoothing_days=report_roc_breadth_avg_smoothing_days,
         config_dir=resolved_dir,

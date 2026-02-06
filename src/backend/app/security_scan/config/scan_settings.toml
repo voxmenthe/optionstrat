@@ -46,9 +46,10 @@ advance_decline_lookbacks = [1, 5, 10]
 # -----------------------------------------------------------------------------
 [report]
 html = true
-# aggregate_lookback_days = 60
+aggregate_lookback_days = 90
 # plot_lookbacks = [1, 5, 10]
-# max_points = 60
-# net_advances_ma_days = 18
-# advance_pct_avg_smoothing_days = 3
-# roc_breadth_avg_smoothing_days = 3
+# max_points = 120
+net_advances_ma_days = 26
+net_advances_secondary_ma_days = 8
+advance_pct_avg_smoothing_days = 4
+roc_breadth_avg_smoothing_days = 4

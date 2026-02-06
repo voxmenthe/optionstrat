@@ -31,7 +31,7 @@ uv run python -m app.security_scan.cli \
   --end-date 2025-12-31 \
   --provider yfinance \
   --use-cache \
-  --output /path/to/task-logs
+  --output /path/to/scan-reports
 ```
 
 Backfill aggregate history (so charts have more than the latest run):
@@ -86,6 +86,7 @@ html = true
 # plot_lookbacks = [1, 5, 10]
 # max_points = 120
 # net_advances_ma_days = 18
+# net_advances_secondary_ma_days = 8
 # advance_pct_avg_smoothing_days = 3
 # roc_breadth_avg_smoothing_days = 3
 ```
@@ -99,7 +100,7 @@ window).
 
 ## Output
 
-By default, output is written to `task-logs/` at the repo root with filenames
+By default, output is written to `scan-reports/` at the repo root with filenames
 like `security_scan_<run_id>.json`, `security_scan_<run_id>.md`, and
 `security_scan_<run_id>.html`, and JSON is also printed to stdout. Use `--output`
 to specify a file path or a directory.

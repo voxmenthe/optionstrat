@@ -106,12 +106,12 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _find_task_logs_dir(start: Path) -> Path:
+def _find_scan_reports_dir(start: Path) -> Path:
     for base in [start, *start.parents]:
-        candidate = base / "task-logs"
+        candidate = base / "scan-reports"
         if candidate.is_dir():
             return candidate
-    return start / "task-logs"
+    return start / "scan-reports"
 
 
 def _resolve_output_paths(
@@ -133,12 +133,12 @@ def _resolve_output_paths(
         html_path = output_path.with_suffix(".html")
         return json_path, markdown_path, html_path
 
-    task_logs_dir = _find_task_logs_dir(Path.cwd())
-    task_logs_dir.mkdir(parents=True, exist_ok=True)
+    scan_reports_dir = _find_scan_reports_dir(Path.cwd())
+    scan_reports_dir.mkdir(parents=True, exist_ok=True)
     return (
-        task_logs_dir / f"{base_filename}.json",
-        task_logs_dir / f"{base_filename}.md",
-        task_logs_dir / f"{base_filename}.html",
+        scan_reports_dir / f"{base_filename}.json",
+        scan_reports_dir / f"{base_filename}.md",
+        scan_reports_dir / f"{base_filename}.html",
     )
 
 
@@ -174,11 +174,11 @@ def _file_size(path: Path) -> int:
         return 0
 
 
-def _collect_storage_usage(task_logs_dir: Path) -> dict[str, int]:
+def _collect_storage_usage(scan_reports_dir: Path) -> dict[str, int]:
     options_db_path = BACKEND_ROOT / "options.db"
     scan_db_bytes = _file_size(SECURITY_SCAN_DB_PATH)
     options_db_bytes = _file_size(options_db_path)
-    task_logs_bytes = _directory_size(task_logs_dir)
+    task_logs_bytes = _directory_size(scan_reports_dir)
     return {
         "scan_db_bytes": scan_db_bytes,
         "options_db_bytes": options_db_bytes,
@@ -231,8 +231,8 @@ def main(argv: list[str] | None = None) -> int:
     html_enabled = config.report_html and not args.no_html
     if html_enabled:
         payload["run_metadata"]["html_path"] = str(html_path)
-    task_logs_dir = _find_task_logs_dir(Path.cwd())
-    payload["storage_usage"] = _collect_storage_usage(task_logs_dir)
+    scan_reports_dir = _find_scan_reports_dir(Path.cwd())
+    payload["storage_usage"] = _collect_storage_usage(scan_reports_dir)
 
     if args.backfill_aggregates:
         backfill_start = args.backfill_start_date or args.start_date
@@ -299,6 +299,9 @@ def main(argv: list[str] | None = None) -> int:
                     plot_lookbacks=plot_lookbacks,
                     max_points=config.report_max_points,
                     net_advances_ma_days=config.report_net_advances_ma_days,
+                    net_advances_secondary_ma_days=(
+                        config.report_net_advances_secondary_ma_days
+                    ),
                     advance_pct_avg_smoothing_days=(
                         config.report_advance_pct_avg_smoothing_days
                     ),
