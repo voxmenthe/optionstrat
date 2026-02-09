@@ -387,8 +387,12 @@ def _build_full_height_vertical_grid_shapes(
             "yref": "paper",
             "y0": 0,
             "y1": 1,
-            "line": {"color": "rgba(47, 128, 237, 0.12)", "width": 1},
-            "layer": "below",
+            # Plotly's "below" layer can render behind subplot backgrounds in some
+            # environments, making these lines effectively invisible. We draw
+            # them "above" with low opacity so they stay visible while remaining
+            # subtle across all three subplots.
+            "line": {"color": "rgba(71, 85, 105, 0.22)", "width": 1},
+            "layer": "above",
         }
         for category_value in x_categories
     ]
