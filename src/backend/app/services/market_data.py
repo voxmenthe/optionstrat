@@ -198,6 +198,41 @@ class MarketDataService:
             List of data points with OHLCV data
         """
         return self.provider.get_historical_prices(ticker, start_date, end_date, interval)
+
+    def get_intraday_prices(
+        self,
+        ticker: str,
+        start_datetime: datetime,
+        end_datetime: datetime,
+        interval: str = "1m",
+        regular_hours_only: bool = True,
+    ) -> List[Dict]:
+        """
+        Get intraday OHLCV bars for a ticker.
+
+        Args:
+            ticker: The ticker symbol
+            start_datetime: Start datetime (inclusive)
+            end_datetime: End datetime (exclusive/inclusive provider-dependent)
+            interval: Intraday interval (e.g., 1m, 5m, 15m, 60m)
+            regular_hours_only: Whether to exclude pre/post-market bars
+
+        Returns:
+            List of timestamped OHLCV bars
+        """
+        if hasattr(self.provider, "get_intraday_prices"):
+            return self.provider.get_intraday_prices(
+                ticker=ticker,
+                start_datetime=start_datetime,
+                end_datetime=end_datetime,
+                interval=interval,
+                regular_hours_only=regular_hours_only,
+            )
+        logger.warning(
+            "Provider '%s' does not support intraday prices.",
+            self.provider.__class__.__name__,
+        )
+        return []
     
     def get_option_data(
         self, 

@@ -50,6 +50,9 @@ uv run python -m app.security_scan.cli \
 - `--use-cache`: Enable provider caching (Redis/DB).
 - `--no-cache`: Disable provider caching (default).
 - `--output`: Output file path or directory for JSON results.
+- `--intraday`: Enable intraday nowcast mode (disabled by default).
+- `--intraday-interval`: Override intraday interval (`1m`, `5m`, `15m`, `60m`).
+- `--intraday-min-bars`: Minimum intraday bars required to build the synthetic bar.
 - `--no-html`: Disable HTML report output.
 - `--backfill-aggregates`: Compute and store daily aggregates for the date range.
 - `--backfill-start-date`, `--backfill-end-date`: Override the backfill date range
@@ -67,6 +70,11 @@ list = ["AAPL", "MSFT", "AMZN", "TSLA", "GOOG"]
 [scan_defaults]
 lookback_days = 90
 interval = "day"
+
+[scan_defaults.intraday]
+interval = "1m"
+regular_hours_only = true
+min_bars_required = 30
 ```
 
 `scan_settings.toml`
@@ -97,6 +105,9 @@ from `securities.toml`.
 For charts, set `report.aggregate_lookback_days` to control how many days of
 stored aggregates are included in the HTML report (independent of the scan
 window).
+
+Intraday nowcast mode is only activated when `--intraday` is passed on the CLI.
+Without that flag, scans use the latest available daily bars only.
 
 ## Output
 

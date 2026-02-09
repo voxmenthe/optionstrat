@@ -699,6 +699,71 @@ class YFinanceProvider(MarketDataProvider):
         except Exception as e:
             print(f"Error in get_historical_prices: {str(e)}")
             return []
+
+    def get_intraday_prices(
+        self,
+        ticker: str,
+        start_datetime: datetime,
+        end_datetime: datetime,
+        interval: str = "1m",
+        regular_hours_only: bool = True,
+    ) -> List[Dict]:
+        """Get timestamped intraday OHLCV bars for a ticker."""
+        cache_key = (
+            "yfinance:intraday_prices:"
+            f"{ticker}:{start_datetime.isoformat()}:{end_datetime.isoformat()}:"
+            f"{interval}:{int(regular_hours_only)}"
+        )
+        cached_data = self._get_from_cache(cache_key)
+        if cached_data:
+            return cached_data
+
+        try:
+            ticker_data = yf.Ticker(ticker)
+            history = ticker_data.history(
+                start=start_datetime,
+                end=end_datetime,
+                interval=interval,
+                prepost=not regular_hours_only,
+            )
+            if history.empty:
+                return []
+
+            formatted_data: list[dict[str, object]] = []
+            for bar_timestamp, row in history.iterrows():
+                if isinstance(bar_timestamp, pd.Timestamp):
+                    if bar_timestamp.tzinfo is None:
+                        bar_timestamp = bar_timestamp.tz_localize("UTC")
+                    else:
+                        bar_timestamp = bar_timestamp.tz_convert("UTC")
+                    timestamp_text = bar_timestamp.to_pydatetime().isoformat()
+                elif isinstance(bar_timestamp, datetime):
+                    if bar_timestamp.tzinfo is None:
+                        bar_timestamp = bar_timestamp.replace(tzinfo=datetime.UTC)
+                    timestamp_text = bar_timestamp.isoformat()
+                else:
+                    timestamp_text = str(bar_timestamp)
+
+                formatted_data.append(
+                    {
+                        "timestamp": timestamp_text,
+                        "open": row.get("Open", 0.0),
+                        "high": row.get("High", 0.0),
+                        "low": row.get("Low", 0.0),
+                        "close": row.get("Close", 0.0),
+                        "volume": row.get("Volume", 0),
+                    }
+                )
+
+            self._save_to_cache(cache_key, formatted_data, ttl=60)
+            return formatted_data
+        except Exception as exc:
+            self.logger.warning(
+                "Error in get_intraday_prices for %s: %s",
+                ticker,
+                exc,
+            )
+            return []
     
     def get_implied_volatility(self, ticker: str) -> float:
         """

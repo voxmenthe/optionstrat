@@ -1,12 +1,13 @@
 import os
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as time_module
 from typing import Dict, List, Optional, Any, Union
 import json
 import redis
 from fastapi import HTTPException
 import logging
 from sqlalchemy.orm import Session
+from zoneinfo import ZoneInfo
 
 from app.services.market_data_provider import MarketDataProvider
 from app.models.database import CacheEntry, get_db
@@ -425,6 +426,75 @@ class PolygonProvider(MarketDataProvider):
             return formatted_data
         else:
             return []
+
+    def get_intraday_prices(
+        self,
+        ticker: str,
+        start_datetime: datetime,
+        end_datetime: datetime,
+        interval: str = "1m",
+        regular_hours_only: bool = True,
+    ) -> List[Dict]:
+        """Get timestamped intraday OHLCV bars for a ticker."""
+        interval_value = interval.strip().lower() if isinstance(interval, str) else "1m"
+        multiplier = 1
+        timespan = "minute"
+        if interval_value.endswith("m"):
+            try:
+                multiplier = max(1, int(interval_value[:-1]))
+            except ValueError:
+                multiplier = 1
+            timespan = "minute"
+        elif interval_value.endswith("h"):
+            try:
+                multiplier = max(1, int(interval_value[:-1]))
+            except ValueError:
+                multiplier = 1
+            timespan = "hour"
+
+        from_str = start_datetime.strftime("%Y-%m-%d")
+        to_str = end_datetime.strftime("%Y-%m-%d")
+        endpoint = (
+            f"/v2/aggs/ticker/{ticker}/range/{multiplier}/{timespan}/{from_str}/{to_str}"
+        )
+        response = self._make_request(endpoint, params={"sort": "asc", "limit": 50000})
+        if "results" not in response or not isinstance(response["results"], list):
+            return []
+
+        market_tz = ZoneInfo("America/New_York")
+        session_start = time_module(9, 30)
+        session_end = time_module(16, 0)
+        formatted_data: list[dict[str, object]] = []
+        for data_point in response["results"]:
+            timestamp_ms = data_point.get("t")
+            if timestamp_ms is None:
+                continue
+            try:
+                timestamp_utc = datetime.fromtimestamp(
+                    float(timestamp_ms) / 1000.0,
+                    tz=datetime.UTC,
+                )
+            except (TypeError, ValueError, OSError):
+                continue
+
+            if regular_hours_only:
+                timestamp_et = timestamp_utc.astimezone(market_tz)
+                local_time = timestamp_et.time()
+                if local_time < session_start or local_time > session_end:
+                    continue
+
+            formatted_data.append(
+                {
+                    "timestamp": timestamp_utc.isoformat(),
+                    "open": data_point.get("o", 0.0),
+                    "high": data_point.get("h", 0.0),
+                    "low": data_point.get("l", 0.0),
+                    "close": data_point.get("c", 0.0),
+                    "volume": data_point.get("v", 0),
+                }
+            )
+
+        return formatted_data
     
     def get_implied_volatility(self, ticker: str) -> float:
         """

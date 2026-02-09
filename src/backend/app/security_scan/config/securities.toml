@@ -4,3 +4,8 @@ list = ["A", "AAPL", "AMZN", "ARKK", "ASML", "AVGO", "BAC", "C", "COIN", "COST",
 [scan_defaults]
 lookback_days = 365
 interval = "day"
+
+[scan_defaults.intraday]
+interval = "1m"
+regular_hours_only = true
+min_bars_required = 30

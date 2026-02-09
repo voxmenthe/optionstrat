@@ -80,6 +80,24 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Override end date (YYYY-MM-DD).",
     )
     parser.add_argument(
+        "--intraday",
+        dest="intraday",
+        action="store_true",
+        help="Enable intraday nowcast mode (default is disabled).",
+    )
+    parser.add_argument(
+        "--intraday-interval",
+        type=str,
+        default=None,
+        help="Override intraday bar interval (e.g., 1m, 5m, 15m, 60m).",
+    )
+    parser.add_argument(
+        "--intraday-min-bars",
+        type=int,
+        default=None,
+        help="Minimum intraday bars required to synthesize the current session bar.",
+    )
+    parser.add_argument(
         "--no-html",
         dest="no_html",
         action="store_true",
@@ -207,6 +225,15 @@ def main(argv: list[str] | None = None) -> int:
     if args.start_date and args.end_date and args.start_date > args.end_date:
         print("Error: start-date must be on or before end-date", file=sys.stderr)
         return 1
+    intraday_interval = args.intraday_interval or config.intraday_interval
+    intraday_min_bars = (
+        args.intraday_min_bars
+        if args.intraday_min_bars is not None
+        else config.intraday_min_bars_required
+    )
+    if intraday_min_bars <= 0:
+        print("Error: intraday-min-bars must be > 0", file=sys.stderr)
+        return 1
 
     market_data_service = MarketDataService(
         provider_name=args.provider,
@@ -219,6 +246,10 @@ def main(argv: list[str] | None = None) -> int:
             start_date=args.start_date,
             end_date=args.end_date,
             market_data_service=market_data_service,
+            intraday_enabled=args.intraday,
+            intraday_interval=intraday_interval,
+            intraday_regular_hours_only=config.intraday_regular_hours_only,
+            intraday_min_bars_required=intraday_min_bars,
         )
     except Exception as exc:
         print(f"Error running scan: {exc}", file=sys.stderr)

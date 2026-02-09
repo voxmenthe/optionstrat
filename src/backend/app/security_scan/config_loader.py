@@ -18,6 +18,9 @@ class SecurityScanConfig:
     tickers: list[str]
     lookback_days: int
     interval: str
+    intraday_interval: str
+    intraday_regular_hours_only: bool
+    intraday_min_bars_required: int
     indicator_instances: list[IndicatorInstanceConfig]
     advance_decline_lookbacks: list[int]
     report_html: bool
@@ -158,6 +161,27 @@ def load_security_scan_config(
     if not isinstance(interval_raw, str) or not interval_raw.strip():
         raise ValueError("scan_defaults.interval must be a non-empty string")
     interval = interval_raw.strip()
+    intraday_section = _require_mapping(
+        defaults_section.get("intraday"), "[scan_defaults.intraday]"
+    )
+    intraday_interval_raw = intraday_section.get("interval", "1m")
+    if (
+        not isinstance(intraday_interval_raw, str)
+        or not intraday_interval_raw.strip()
+    ):
+        raise ValueError("scan_defaults.intraday.interval must be a non-empty string")
+    intraday_interval = intraday_interval_raw.strip()
+    intraday_regular_hours_only = _require_bool(
+        intraday_section.get("regular_hours_only", True),
+        "scan_defaults.intraday.regular_hours_only",
+    )
+    intraday_min_bars_required = (
+        _require_optional_positive_int(
+            intraday_section.get("min_bars_required"),
+            "scan_defaults.intraday.min_bars_required",
+        )
+        or 30
+    )
 
     indicators_section = _require_mapping(scan_settings.get("indicators"), "[indicators]")
     aggregates_section = _require_mapping(scan_settings.get("aggregates"), "[aggregates]")
@@ -256,6 +280,9 @@ def load_security_scan_config(
         tickers=tickers,
         lookback_days=lookback_days,
         interval=interval,
+        intraday_interval=intraday_interval,
+        intraday_regular_hours_only=intraday_regular_hours_only,
+        intraday_min_bars_required=intraday_min_bars_required,
         indicator_instances=indicator_instances,
         advance_decline_lookbacks=advance_decline_lookbacks,
         report_html=report_html,

@@ -7,38 +7,13 @@ from markdown_it import MarkdownIt
 from app.security_scan.reporting.markdown_report import render_markdown_report
 
 
-def _wrap_indicator_appendix(body_html: str) -> str:
-    marker = "<h2>Indicator Signals (Appendix)</h2>"
-    marker_index = body_html.find(marker)
-    if marker_index == -1:
-        return body_html
-
-    before = body_html[:marker_index]
-    after = body_html[marker_index + len(marker) :]
-    next_section_index = after.find("<h2>")
-    if next_section_index == -1:
-        appendix_body = after
-        remainder = ""
-    else:
-        appendix_body = after[:next_section_index]
-        remainder = after[next_section_index:]
-
-    details_block = (
-        "<details class=\"appendix\">\n"
-        "<summary>Indicator Signals (Appendix)</summary>\n"
-        f"{appendix_body}\n"
-        "</details>\n"
-    )
-    return before + details_block + remainder
-
-
 def render_html_report(
     payload: dict[str, Any],
     charts_html: str | None = None,
 ) -> str:
     markdown_report = render_markdown_report(payload)
     renderer = MarkdownIt("commonmark").enable("table")
-    body_html = _wrap_indicator_appendix(renderer.render(markdown_report))
+    body_html = renderer.render(markdown_report)
 
     if charts_html:
         charts_section = (
@@ -64,12 +39,26 @@ def render_html_report(
         "  <style>\n"
         "    :root {\n"
         "      color-scheme: light;\n"
+        "      --bg: #ffffff;\n"
+        "      --text: #0f172a;\n"
+        "      --muted: #475569;\n"
+        "      --surface: #ffffff;\n"
+        "      --surface-muted: #f8fafc;\n"
+        "      --border: #cbd5e1;\n"
+        "      --border-strong: #94a3b8;\n"
+        "      --code-bg: #f1f5f9;\n"
+        "      --table-header-bg: #e2e8f0;\n"
+        "      --table-row-alt: #f3f4f6;\n"
+        "      --table-col-alt: rgba(15, 23, 42, 0.06);\n"
+        "      --table-hover: rgba(59, 130, 246, 0.06);\n"
         "    }\n"
         "    body {\n"
         "      margin: 24px;\n"
-        "      font-family: -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif;\n"
-        "      color: #111;\n"
-        "      background: #fff;\n"
+        "      font-family: ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", Roboto, Helvetica, Arial, sans-serif;\n"
+        "      font-size: 16px;\n"
+        "      line-height: 1.45;\n"
+        "      color: var(--text);\n"
+        "      background: var(--bg);\n"
         "    }\n"
         "    .report {\n"
         "      max-width: 1100px;\n"
@@ -77,41 +66,77 @@ def render_html_report(
         "    }\n"
         "    h1, h2, h3 {\n"
         "      margin-top: 1.4rem;\n"
+        "      letter-spacing: -0.01em;\n"
+        "    }\n"
+        "    h1 {\n"
+        "      margin-top: 0;\n"
         "    }\n"
         "    table {\n"
-        "      border-collapse: collapse;\n"
+        "      border-collapse: separate;\n"
+        "      border-spacing: 0;\n"
         "      width: 100%;\n"
         "      margin-bottom: 1.5rem;\n"
         "      font-size: 0.95rem;\n"
-        "      border: 2px solid #444;\n"
+        "      background: var(--surface);\n"
+        "      border: 1px solid var(--border-strong);\n"
+        "      border-radius: 10px;\n"
+        "      overflow: hidden;\n"
+        "      box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04);\n"
         "    }\n"
         "    th, td {\n"
-        "      border: 1px solid #888;\n"
-        "      padding: 8px 10px;\n"
+        "      padding: 10px 12px;\n"
         "      text-align: left;\n"
         "      white-space: normal;\n"
         "      overflow-wrap: anywhere;\n"
         "      word-break: break-word;\n"
         "      vertical-align: top;\n"
+        "      border-right: 1px solid var(--border);\n"
+        "      border-bottom: 1px solid var(--border);\n"
         "    }\n"
-        "    th {\n"
-        "      background: #e0e0e0;\n"
+        "    thead th {\n"
+        "      background: var(--table-header-bg);\n"
         "      font-weight: 700;\n"
-        "      border-bottom: 2px solid #444;\n"
+        "      border-bottom: 1px solid var(--border-strong);\n"
         "    }\n"
-        "    tr:nth-child(even) {\n"
-        "      background-color: #f4f4f4;\n"
+        "    thead th:nth-child(even) {\n"
+        "      background-image: linear-gradient(rgba(15, 23, 42, 0.06), rgba(15, 23, 42, 0.06));\n"
+        "      background-image: linear-gradient(var(--table-col-alt), var(--table-col-alt));\n"
+        "    }\n"
+        "    th:last-child, td:last-child {\n"
+        "      border-right: none;\n"
+        "    }\n"
+        "    tbody tr:last-child td {\n"
+        "      border-bottom: none;\n"
+        "    }\n"
+        "    tbody tr:nth-child(even) td {\n"
+        "      background-color: #f3f4f6;\n"
+        "      background-color: var(--table-row-alt);\n"
+        "    }\n"
+        "    tbody td:nth-child(even) {\n"
+        "      background-image: linear-gradient(rgba(15, 23, 42, 0.06), rgba(15, 23, 42, 0.06));\n"
+        "      background-image: linear-gradient(var(--table-col-alt), var(--table-col-alt));\n"
+        "    }\n"
+        "    tbody tr:hover td {\n"
+        "      background-color: var(--table-hover);\n"
         "    }\n"
         "    code {\n"
-        "      background: #f6f6f6;\n"
+        "      background: var(--code-bg);\n"
         "      padding: 0 4px;\n"
         "      border-radius: 4px;\n"
+        "      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \"Liberation Mono\", \"Courier New\", monospace;\n"
+        "      font-size: 0.92em;\n"
         "    }\n"
         "    pre {\n"
-        "      background: #f6f6f6;\n"
+        "      background: var(--code-bg);\n"
         "      padding: 12px;\n"
         "      border-radius: 6px;\n"
         "      overflow-x: auto;\n"
+        "      border: 1px solid var(--border);\n"
+        "    }\n"
+        "    pre code {\n"
+        "      padding: 0;\n"
+        "      border-radius: 0;\n"
+        "      background: transparent;\n"
         "    }\n"
         "    .charts {\n"
         "      margin: 2rem 0;\n"
@@ -121,13 +146,6 @@ def render_html_report(
         "    }\n"
         "    .chart-block h3 {\n"
         "      margin: 0 0 0.75rem;\n"
-        "    }\n"
-        "    details.appendix {\n"
-        "      margin-top: 1.4rem;\n"
-        "    }\n"
-        "    details.appendix summary {\n"
-        "      cursor: pointer;\n"
-        "      font-weight: 600;\n"
         "    }\n"
         "  </style>\n"
         "</head>\n"

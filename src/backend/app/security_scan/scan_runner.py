@@ -5,6 +5,7 @@ import time
 from dataclasses import asdict
 from datetime import date, datetime, time as time_module, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from app.security_scan.aggregates import compute_breadth
 from app.security_scan.config_loader import IndicatorInstanceConfig, SecurityScanConfig
@@ -47,6 +48,9 @@ AGGREGATE_GROUP_PREFIXES = [
     "roc_27_vs_4",
 ]
 MARKET_SNAPSHOT_TICKERS = ["SPY", "QQQ", "IWM"]
+MARKET_TIMEZONE = ZoneInfo("America/New_York")
+REGULAR_SESSION_START = time_module(9, 30)
+REGULAR_SESSION_END = time_module(16, 0)
 
 
 def _compute_percent_change(
@@ -123,6 +127,125 @@ def _extract_close_series(
             continue
         closes.append((str(date_value), float(close)))
     return closes
+
+
+def _to_utc_datetime(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        dt_value = value
+    elif isinstance(value, str):
+        raw = value.strip()
+        if not raw:
+            return None
+        try:
+            dt_value = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    else:
+        return None
+
+    if dt_value.tzinfo is None:
+        dt_value = dt_value.replace(tzinfo=timezone.utc)
+    return dt_value.astimezone(timezone.utc)
+
+
+def _to_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _build_intraday_synthetic_bar(
+    intraday_prices: list[dict[str, Any]],
+    *,
+    min_bars_required: int,
+    regular_hours_only: bool,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    rows_by_market_date: dict[str, list[dict[str, Any]]] = {}
+    for row in intraday_prices:
+        timestamp_utc = _to_utc_datetime(row.get("timestamp") or row.get("date"))
+        if timestamp_utc is None:
+            continue
+        timestamp_local = timestamp_utc.astimezone(MARKET_TIMEZONE)
+        if regular_hours_only:
+            local_time = timestamp_local.time()
+            if local_time < REGULAR_SESSION_START or local_time > REGULAR_SESSION_END:
+                continue
+        open_value = _to_float(row.get("open"))
+        high_value = _to_float(row.get("high"))
+        low_value = _to_float(row.get("low"))
+        close_value = _to_float(row.get("close"))
+        volume_value = _to_float(row.get("volume"))
+        if (
+            open_value is None
+            or high_value is None
+            or low_value is None
+            or close_value is None
+            or volume_value is None
+        ):
+            continue
+        market_date = timestamp_local.date().isoformat()
+        rows_by_market_date.setdefault(market_date, []).append(
+            {
+                "timestamp_utc": timestamp_utc,
+                "open": open_value,
+                "high": high_value,
+                "low": low_value,
+                "close": close_value,
+                "volume": volume_value,
+            }
+        )
+
+    if not rows_by_market_date:
+        return None, None
+
+    latest_market_date = max(rows_by_market_date.keys())
+    latest_rows = rows_by_market_date[latest_market_date]
+    latest_rows.sort(key=lambda item: item["timestamp_utc"])
+    if len(latest_rows) < max(1, min_bars_required):
+        return (
+            None,
+            {
+                "market_date": latest_market_date,
+                "bar_count": len(latest_rows),
+                "reason": "insufficient_bars",
+            },
+        )
+
+    synthetic_bar = {
+        "date": latest_market_date,
+        "open": latest_rows[0]["open"],
+        "high": max(row["high"] for row in latest_rows),
+        "low": min(row["low"] for row in latest_rows),
+        "close": latest_rows[-1]["close"],
+        "volume": int(round(sum(row["volume"] for row in latest_rows))),
+        "_intraday_synthetic": True,
+        "_intraday_bar_count": len(latest_rows),
+        "_intraday_last_bar_timestamp": latest_rows[-1]["timestamp_utc"].isoformat(),
+    }
+    return synthetic_bar, None
+
+
+def _merge_with_synthetic_bar(
+    daily_prices: list[dict[str, Any]],
+    synthetic_bar: dict[str, Any],
+) -> tuple[list[dict[str, Any]], bool]:
+    merged_prices: list[dict[str, Any]] = []
+    replaced = False
+    synthetic_date = str(synthetic_bar.get("date"))
+    for row in _ordered_prices(daily_prices):
+        row_date = row.get("date")
+        if row_date and str(row_date) == synthetic_date:
+            merged_row = {**row, **synthetic_bar}
+            merged_prices.append(merged_row)
+            replaced = True
+        else:
+            merged_prices.append(row)
+    if not replaced:
+        merged_prices.append(synthetic_bar)
+    return _ordered_prices(merged_prices), replaced
 
 
 def _summarize_prices(
@@ -500,12 +623,19 @@ def run_security_scan(
     start_date: date | None = None,
     end_date: date | None = None,
     market_data_service: MarketDataService | None = None,
+    *,
+    intraday_enabled: bool = False,
+    intraday_interval: str = "1m",
+    intraday_regular_hours_only: bool = True,
+    intraday_min_bars_required: int = 30,
 ) -> dict[str, Any]:
     resolved_start, resolved_end = _resolve_date_range(config, start_date, end_date)
     start_dt = datetime.combine(resolved_start, time_module.min)
     end_dt = datetime.combine(resolved_end + timedelta(days=1), time_module.min)
-
     now = datetime.now(timezone.utc)
+    intraday_start_dt = now - timedelta(days=2)
+    intraday_end_dt = now + timedelta(minutes=1)
+
     run_id = now.strftime("%Y%m%d-%H%M")
     run_timestamp = now.isoformat()
 
@@ -522,22 +652,73 @@ def run_security_scan(
 
     started_at = time.monotonic()
     fetcher = MarketDataFetcher(market_data_service=market_data_service)
-    market_prices_by_ticker = {
-        ticker: fetcher.fetch_historical_prices(
+    issues: list[dict[str, str]] = []
+    signals: list[Signal] = []
+    ticker_summaries: list[dict[str, Any]] = []
+    intraday_synthetic_tickers: set[str] = set()
+    intraday_synthetic_scan_tickers: set[str] = set()
+    intraday_last_bar_by_ticker: dict[str, str] = {}
+    intraday_bar_count_by_ticker: dict[str, int] = {}
+
+    market_prices_by_ticker: dict[str, list[dict[str, Any]]] = {}
+    for ticker in MARKET_SNAPSHOT_TICKERS:
+        benchmark_prices = fetcher.fetch_historical_prices(
             ticker=ticker,
             start_date=start_dt,
             end_date=end_dt,
             interval=config.interval,
         )
-        for ticker in MARKET_SNAPSHOT_TICKERS
-    }
+        if intraday_enabled:
+            intraday_prices = fetcher.fetch_intraday_prices(
+                ticker=ticker,
+                start_datetime=intraday_start_dt,
+                end_datetime=intraday_end_dt,
+                interval=intraday_interval,
+                regular_hours_only=intraday_regular_hours_only,
+            )
+            synthetic_bar, intraday_skip = _build_intraday_synthetic_bar(
+                intraday_prices,
+                min_bars_required=intraday_min_bars_required,
+                regular_hours_only=intraday_regular_hours_only,
+            )
+            if synthetic_bar:
+                benchmark_prices, _ = _merge_with_synthetic_bar(
+                    benchmark_prices,
+                    synthetic_bar,
+                )
+                intraday_synthetic_tickers.add(ticker)
+                intraday_last_bar_by_ticker[ticker] = str(
+                    synthetic_bar.get("_intraday_last_bar_timestamp")
+                )
+                intraday_bar_count_by_ticker[ticker] = int(
+                    synthetic_bar.get("_intraday_bar_count", 0)
+                )
+            elif intraday_skip:
+                issues.append(
+                    {
+                        "ticker": ticker,
+                        "issue": "intraday_synthetic_skipped",
+                        "detail": (
+                            f"{intraday_skip.get('reason')} "
+                            f"(date={intraday_skip.get('market_date')}, "
+                            f"bars={intraday_skip.get('bar_count')})"
+                        ),
+                    }
+                )
+            elif not intraday_prices:
+                issues.append(
+                    {
+                        "ticker": ticker,
+                        "issue": "intraday_fetch_error",
+                        "detail": "no_intraday_prices",
+                    }
+                )
+        market_prices_by_ticker[ticker] = benchmark_prices
+
     indicator_context = {
         "benchmark_prices_by_ticker": market_prices_by_ticker,
         "benchmark_tickers": MARKET_SNAPSHOT_TICKERS,
     }
-    ticker_summaries: list[dict[str, Any]] = []
-    issues: list[dict[str, str]] = []
-    signals: list[Signal] = []
 
     resolved_indicators = _resolve_indicator_instances(config.indicator_instances)
     indicator_instances_metadata: list[dict[str, Any]] = []
@@ -565,7 +746,56 @@ def run_security_scan(
             end_date=end_dt,
             interval=config.interval,
         )
-        ordered_prices = _ordered_prices(prices)
+        effective_prices = prices
+        synthetic_bar: dict[str, Any] | None = None
+        if intraday_enabled:
+            intraday_prices = fetcher.fetch_intraday_prices(
+                ticker=ticker,
+                start_datetime=intraday_start_dt,
+                end_datetime=intraday_end_dt,
+                interval=intraday_interval,
+                regular_hours_only=intraday_regular_hours_only,
+            )
+            synthetic_bar, intraday_skip = _build_intraday_synthetic_bar(
+                intraday_prices,
+                min_bars_required=intraday_min_bars_required,
+                regular_hours_only=intraday_regular_hours_only,
+            )
+            if synthetic_bar:
+                effective_prices, _ = _merge_with_synthetic_bar(
+                    effective_prices,
+                    synthetic_bar,
+                )
+                intraday_synthetic_tickers.add(ticker)
+                intraday_synthetic_scan_tickers.add(ticker)
+                intraday_last_bar_by_ticker[ticker] = str(
+                    synthetic_bar.get("_intraday_last_bar_timestamp")
+                )
+                intraday_bar_count_by_ticker[ticker] = int(
+                    synthetic_bar.get("_intraday_bar_count", 0)
+                )
+            elif intraday_skip:
+                issues.append(
+                    {
+                        "ticker": ticker,
+                        "issue": "intraday_synthetic_skipped",
+                        "detail": (
+                            f"{intraday_skip.get('reason')} "
+                            f"(date={intraday_skip.get('market_date')}, "
+                            f"bars={intraday_skip.get('bar_count')})"
+                        ),
+                    }
+                )
+            elif not intraday_prices:
+                issues.append(
+                    {
+                        "ticker": ticker,
+                        "issue": "intraday_fetch_error",
+                        "detail": "no_intraday_prices",
+                    }
+                )
+
+        ordered_prices = _ordered_prices(effective_prices)
         close_series = _extract_close_series(ordered_prices)
         summary, summary_issues = _summarize_prices_from_series(
             ticker,
@@ -587,6 +817,15 @@ def run_security_scan(
         else:
             summary["scl_5bar_high"] = None
             summary["scl_5bar_low"] = None
+        summary["uses_intraday_synthetic_bar"] = bool(synthetic_bar)
+        summary["intraday_bar_count"] = (
+            int(synthetic_bar.get("_intraday_bar_count", 0)) if synthetic_bar else None
+        )
+        summary["intraday_last_bar_timestamp"] = (
+            str(synthetic_bar.get("_intraday_last_bar_timestamp"))
+            if synthetic_bar
+            else None
+        )
         if summary_issues:
             for issue in summary_issues:
                 issues.append({"ticker": ticker, "issue": issue})
@@ -594,7 +833,7 @@ def run_security_scan(
         if close_series:
             last_date = summary.get("last_date")
             cached_values: dict[str, float | None] = {}
-            if last_date:
+            if last_date and not summary["uses_intraday_synthetic_bar"]:
                 cached_values = fetch_security_metric_values(
                     ticker=ticker,
                     as_of_date=str(last_date),
@@ -604,7 +843,7 @@ def run_security_scan(
             closes = [value for _, value in close_series]
             metric_values = _compute_metric_values(closes, cached_values)
             summary["metric_values"] = metric_values
-            if last_date:
+            if last_date and not summary["uses_intraday_synthetic_bar"]:
                 values_to_upsert = []
                 for metric_key, value in metric_values.items():
                     if metric_key in cached_values:
@@ -640,7 +879,7 @@ def run_security_scan(
                 if not isinstance(settings, dict):
                     settings = {}
                 settings_for_eval = {**settings, "_context": indicator_context}
-                raw_signals = evaluator(prices, settings_for_eval)
+                raw_signals = evaluator(effective_prices, settings_for_eval)
             except Exception as exc:
                 issues.append(
                     {
@@ -685,6 +924,25 @@ def run_security_scan(
         "duration_seconds": duration_seconds,
         "indicator_instances": indicator_instances_metadata,
         "indicator_count": len(indicator_instances_metadata),
+        "intraday_requested": intraday_enabled,
+        "intraday_interval": intraday_interval if intraday_enabled else None,
+        "intraday_regular_hours_only": (
+            intraday_regular_hours_only if intraday_enabled else None
+        ),
+        "intraday_min_bars_required": (
+            intraday_min_bars_required if intraday_enabled else None
+        ),
+        "intraday_synthetic_ticker_count": len(intraday_synthetic_tickers),
+        "intraday_synthetic_tickers": sorted(intraday_synthetic_tickers),
+        "intraday_synthetic_scan_tickers": sorted(intraday_synthetic_scan_tickers),
+        "intraday_last_bar_by_ticker": intraday_last_bar_by_ticker,
+        "intraday_bar_count_by_ticker": intraday_bar_count_by_ticker,
+        "intraday_metric_persistence_skipped": bool(
+            intraday_synthetic_scan_tickers
+        ),
+        "intraday_aggregate_persistence_skipped": bool(
+            intraday_synthetic_scan_tickers
+        ),
     }
 
     market_stats: dict[str, Any] = {}
@@ -703,6 +961,7 @@ def run_security_scan(
         ticker_summaries,
         advance_decline_lookbacks=config.advance_decline_lookbacks,
     )
+    should_persist_aggregates = not intraday_synthetic_scan_tickers
     set_hash: str | None = None
     try:
         set_hash = get_or_create_security_set(config.tickers)
@@ -718,8 +977,15 @@ def run_security_scan(
             interval=config.interval,
             aggregate_group_prefixes=aggregate_group_prefixes,
         )
-        if aggregate_records:
+        if aggregate_records and should_persist_aggregates:
             upsert_security_aggregate_values(aggregate_records)
+        if aggregate_records and not should_persist_aggregates:
+            issues.append(
+                {
+                    "issue": "intraday_synthetic_skipped",
+                    "detail": "aggregate_persistence_skipped_for_intraday_synthetic_data",
+                }
+            )
     except Exception as exc:
         issues.append({"issue": "aggregate_storage_error", "detail": str(exc)})
 

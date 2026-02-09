@@ -148,7 +148,8 @@ def qrs_consist_excess(
     deadband_period: int = 20,
     deadband_mult: float = 0.25,
     map1: int = 7,
-    map2: int = 14,
+    map2: int = 27,
+    map3: int = 56,
     cons_weight: float = 0.6,
     excess_weight: float = 0.4,
     ma_shift: int = 3,
@@ -243,12 +244,14 @@ def qrs_consist_excess(
 
     ma1 = _ref(_sma(quiet_score, map1), -ma_shift)
     ma2 = _ref(_sma(quiet_score, map2), -ma_shift)
+    ma3 = _ref(_sma(quiet_score, map3), -ma_shift)
 
     return {
         "QRSConsistExcess": _nan_to_zero(quiet_score),
         "CrossoverLine": [0.0] * n,
         "MA1": _nan_to_zero(ma1),
         "MA2": _nan_to_zero(ma2),
+        "MA3": _nan_to_zero(ma3),
     }
 
 
@@ -345,7 +348,8 @@ def evaluate(
         deadband_period=_to_int_setting(settings, "deadband_period", 20),
         deadband_mult=_to_float_setting(settings, "deadband_mult", 0.25),
         map1=_to_int_setting(settings, "map1", 7),
-        map2=_to_int_setting(settings, "map2", 14),
+        map2=_to_int_setting(settings, "map2", 27),
+        map3=_to_int_setting(settings, "map3", 56),
         cons_weight=_to_float_setting(settings, "cons_weight", 0.6),
         excess_weight=_to_float_setting(settings, "excess_weight", 0.4),
         ma_shift=_to_int_setting(settings, "ma_shift", 3),
@@ -353,11 +357,28 @@ def evaluate(
 
     qrs_series = outputs.get("QRSConsistExcess", [])
     ma1_series = outputs.get("MA1", [])
-    if len(qrs_series) != len(dates) or len(ma1_series) != len(dates):
+    ma2_series = outputs.get("MA2", [])
+    ma3_series = outputs.get("MA3", [])
+    if (
+        len(qrs_series) != len(dates)
+        or len(ma1_series) != len(dates)
+        or len(ma2_series) != len(dates)
+        or len(ma3_series) != len(dates)
+    ):
         return []
 
     signals: list[IndicatorSignal] = []
     signals.extend(_build_main_zero_cross_signals(dates, qrs_series))
+    signals.extend(_build_ma1_ma2_cross_signals(dates, ma1_series, ma2_series))
+    signals.extend(
+        _build_main_vs_all_mas_regime_signals(
+            dates,
+            qrs_series,
+            ma1_series,
+            ma2_series,
+            ma3_series,
+        )
+    )
 
     for index in range(1, len(ma1_series)):
         current = ma1_series[index]
@@ -385,6 +406,136 @@ def evaluate(
                         "current_value": current,
                         "prev_value": prev,
                         "label": "qrs_ma1_cross_down",
+                    },
+                )
+            )
+
+    return signals
+
+
+def _build_ma1_ma2_cross_signals(
+    dates: Sequence[str],
+    ma1_series: Sequence[float],
+    ma2_series: Sequence[float],
+) -> list[IndicatorSignal]:
+    signals: list[IndicatorSignal] = []
+    if len(ma1_series) < 2 or len(ma2_series) < 2:
+        return signals
+
+    length = min(len(dates), len(ma1_series), len(ma2_series))
+    for index in range(1, length):
+        prev_delta = ma1_series[index - 1] - ma2_series[index - 1]
+        current_delta = ma1_series[index] - ma2_series[index]
+
+        crossed_up = prev_delta <= 0 and current_delta > 0
+        crossed_down = prev_delta >= 0 and current_delta < 0
+
+        if crossed_up:
+            signals.append(
+                IndicatorSignal(
+                    signal_date=dates[index],
+                    signal_type="ma1_cross_above_ma2",
+                    metadata={
+                        "indicator": "MA1_vs_MA2",
+                        "prev_ma1": ma1_series[index - 1],
+                        "prev_ma2": ma2_series[index - 1],
+                        "current_ma1": ma1_series[index],
+                        "current_ma2": ma2_series[index],
+                        "label": "qrs_ma1_cross_above_ma2",
+                    },
+                )
+            )
+        if crossed_down:
+            signals.append(
+                IndicatorSignal(
+                    signal_date=dates[index],
+                    signal_type="ma1_cross_below_ma2",
+                    metadata={
+                        "indicator": "MA1_vs_MA2",
+                        "prev_ma1": ma1_series[index - 1],
+                        "prev_ma2": ma2_series[index - 1],
+                        "current_ma1": ma1_series[index],
+                        "current_ma2": ma2_series[index],
+                        "label": "qrs_ma1_cross_below_ma2",
+                    },
+                )
+            )
+
+    return signals
+
+
+def _build_main_vs_all_mas_regime_signals(
+    dates: Sequence[str],
+    main_series: Sequence[float],
+    ma1_series: Sequence[float],
+    ma2_series: Sequence[float],
+    ma3_series: Sequence[float],
+) -> list[IndicatorSignal]:
+    signals: list[IndicatorSignal] = []
+    if (
+        len(main_series) < 2
+        or len(ma1_series) < 2
+        or len(ma2_series) < 2
+        or len(ma3_series) < 2
+    ):
+        return signals
+
+    length = min(len(dates), len(main_series), len(ma1_series), len(ma2_series), len(ma3_series))
+    for index in range(1, length):
+        ma1 = ma1_series[index]
+        ma2 = ma2_series[index]
+        ma3 = ma3_series[index]
+        main = main_series[index]
+
+        pos_regime = ma1 > 0 and ma2 > 0 and ma3 > 0
+        neg_regime = ma1 < 0 and ma2 < 0 and ma3 < 0
+
+        cur_above_all = main > ma1 and main > ma2 and main > ma3
+        cur_below_all = main < ma1 and main < ma2 and main < ma3
+
+        prev_main = main_series[index - 1]
+        prev_ma1 = ma1_series[index - 1]
+        prev_ma2 = ma2_series[index - 1]
+        prev_ma3 = ma3_series[index - 1]
+
+        prev_above_all = prev_main > prev_ma1 and prev_main > prev_ma2 and prev_main > prev_ma3
+        prev_below_all = prev_main < prev_ma1 and prev_main < prev_ma2 and prev_main < prev_ma3
+
+        if pos_regime and cur_above_all and not prev_above_all:
+            signals.append(
+                IndicatorSignal(
+                    signal_date=dates[index],
+                    signal_type="main_above_all_mas_pos_regime",
+                    metadata={
+                        "indicator": "QRSConsistExcess",
+                        "current_main": main,
+                        "current_ma1": ma1,
+                        "current_ma2": ma2,
+                        "current_ma3": ma3,
+                        "prev_main": prev_main,
+                        "prev_ma1": prev_ma1,
+                        "prev_ma2": prev_ma2,
+                        "prev_ma3": prev_ma3,
+                        "label": "qrs_main_above_all_mas_pos_regime",
+                    },
+                )
+            )
+        if neg_regime and cur_below_all and not prev_below_all:
+            signals.append(
+                IndicatorSignal(
+                    signal_date=dates[index],
+                    signal_type="main_below_all_mas_neg_regime",
+                    metadata={
+                        "indicator": "QRSConsistExcess",
+                        "current_main": main,
+                        "current_ma1": ma1,
+                        "current_ma2": ma2,
+                        "current_ma3": ma3,
+                        "prev_main": prev_main,
+                        "prev_ma1": prev_ma1,
+                        "prev_ma2": prev_ma2,
+                        "prev_ma3": prev_ma3,
+                        "label": "qrs_main_below_all_mas_neg_regime",
                     },
                 )
             )
