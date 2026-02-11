@@ -4,6 +4,7 @@ from app.security_scan.indicators.qrs_consist_excess import (
     _build_main_zero_cross_signals,
     _build_ma1_ma2_cross_signals,
     _build_main_vs_all_mas_regime_signals,
+    qrs_consist_excess,
 )
 
 
@@ -106,3 +107,36 @@ def test_qrs_main_below_all_mas_neg_regime_requires_regime_and_transition() -> N
     assert signal.signal_type == "main_below_all_mas_neg_regime"
     assert signal.signal_date == "2025-05-02"
     assert signal.metadata["label"] == "qrs_main_below_all_mas_neg_regime"
+
+
+def test_qrs_consist_excess_v2_confidence_weighting_avoids_hard_zero_plateau() -> None:
+    # Benchmark is consistently up; stock consistently outperforms.
+    # v2 logic should output a non-zero series even when one-sided market direction
+    # would have failed the old hard "up+down day minimums" gate.
+    n = 140
+    stock_close = [100.0 * (1.02**i) for i in range(n)]
+    bench_close = [100.0 * (1.01**i) for i in range(n)]
+
+    outputs = qrs_consist_excess(
+        stock_close,
+        bench_close,
+        bench_close,
+        bench_close,
+        lookback=84,
+        deadband_period=20,
+        deadband_mult=0.25,
+        map1=7,
+        map2=21,
+        map3=56,
+        cons_weight=0.6,
+        excess_weight=0.4,
+        ma_shift=3,
+    )
+
+    qrs = outputs.get("QRSConsistExcess") or []
+    qrs_v2 = outputs.get("QRSConsistExcessV2") or []
+
+    assert len(qrs) == n
+    assert qrs == qrs_v2
+    assert any(abs(value) > 0 for value in qrs)
+    assert qrs[-1] > 0

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import math
 from typing import Any, Iterable
 
 
@@ -40,26 +41,117 @@ def _format_bytes(value: Any) -> str:
     return f"{size:.1f}{units[index]}"
 
 
+def _format_compact_scalar(value: Any) -> str:
+    if value is None:
+        return "-"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if math.isnan(value):
+            return "nan"
+        if value.is_integer():
+            return str(int(value))
+        return format(value, "g")
+    if isinstance(value, str):
+        return value
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return str(value)
+    if math.isnan(parsed):
+        return "nan"
+    if parsed.is_integer():
+        return str(int(parsed))
+    return format(parsed, "g")
+
+
+def _describe_criteria_rule(rule: dict[str, Any]) -> str:
+    rule_type = rule.get("type")
+    if not isinstance(rule_type, str) or not rule_type.strip():
+        return str(rule)
+    rule_type = rule_type.strip()
+
+    series = rule.get("series")
+    series_label = "*"
+    if isinstance(series, str) and series.strip():
+        series_label = series.strip()
+
+    label = rule.get("label")
+    label_suffix = ""
+    if isinstance(label, str) and label.strip():
+        label_suffix = f" (label={label.strip()})"
+
+    if rule_type == "crossover":
+        level = _format_compact_scalar(rule.get("level", 0))
+        direction = rule.get("direction")
+        direction_norm = (
+            str(direction).strip().lower() if direction is not None else "both"
+        )
+        if direction_norm == "up":
+            action = "crosses above"
+        elif direction_norm == "down":
+            action = "crosses below"
+        else:
+            action = "crosses above/below"
+        return f"crossover: {series_label} {action} {level}{label_suffix}"
+
+    if rule_type == "threshold":
+        op = rule.get("op")
+        op_label = str(op).strip() if isinstance(op, str) and op.strip() else "?"
+        level = _format_compact_scalar(rule.get("level"))
+        return f"threshold: {series_label} {op_label} {level}{label_suffix}"
+
+    if rule_type == "direction":
+        lookback = _format_compact_scalar(rule.get("lookback", 1))
+        return (
+            f"direction: {series_label} over {lookback} bars"
+            f" (emits up/down/flat){label_suffix}"
+        )
+
+    details = []
+    for key in sorted(rule.keys()):
+        if key == "type":
+            continue
+        details.append(f"{key}={rule.get(key)}")
+    if not details:
+        return rule_type
+    return f"{rule_type}: {', '.join(details)}"
+
+
+def _describe_criteria(criteria: Any) -> str:
+    if not criteria:
+        return "none"
+    if isinstance(criteria, dict):
+        return _describe_criteria_rule(criteria)
+    if isinstance(criteria, list):
+        descriptions: list[str] = []
+        for item in criteria:
+            if isinstance(item, dict):
+                descriptions.append(_describe_criteria_rule(item))
+            else:
+                descriptions.append(str(item))
+        return "none" if not descriptions else "; ".join(descriptions)
+    return str(criteria)
+
+
 def _settings_summary(settings: dict[str, Any]) -> str:
     if not settings:
         return ""
     summary_parts: list[str] = []
-    criteria = settings.get("criteria")
-    if isinstance(criteria, list) and criteria:
-        labels = []
-        for item in criteria:
-            if not isinstance(item, dict):
-                continue
-            label = item.get("label") or item.get("type")
-            if isinstance(label, str):
-                labels.append(label)
-        if labels:
-            summary_parts.append(f"criteria={','.join(labels)}")
+    criteria_description = _describe_criteria(settings.get("criteria"))
+    if criteria_description != "none":
+        summary_parts.append(f"criteria={criteria_description}")
     for key, value in settings.items():
-        if key == "criteria":
+        if key in {"criteria", "_context"}:
             continue
         summary_parts.append(f"{key}={value}")
     return ", ".join(summary_parts)
+
+
+def _escape_markdown_table_cell(value: str) -> str:
+    return value.replace("|", "\\|").replace("\n", "<br>")
 
 def _truncate_list(items: Iterable[str], limit: int = TICKER_LIST_LIMIT) -> str:
     cleaned = [item for item in items if item]
@@ -425,6 +517,43 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             f"{run_metadata.get('intraday_aggregate_persistence_skipped', False)}"
         )
     lines.append(f"- Tickers: {len(run_metadata.get('tickers', []))}")
+
+    lines.append("")
+    lines.append("### Indicator Instances")
+    if not isinstance(indicator_instances, list) or not indicator_instances:
+        lines.append("No indicator instances configured.")
+    else:
+        lines.append("| Indicator | Criteria | Settings |")
+        lines.append("| --- | --- | --- |")
+        for instance in indicator_instances:
+            if not isinstance(instance, dict):
+                continue
+            indicator_type = instance.get("id") or "unknown"
+            instance_id = instance.get("instance_id") or "unknown"
+            indicator_label = f"{indicator_type} ({instance_id})"
+
+            settings = instance.get("settings") if isinstance(instance.get("settings"), dict) else {}
+            criteria_description = _describe_criteria(settings.get("criteria"))
+
+            settings_kv_parts: list[str] = []
+            for key in sorted(settings.keys()):
+                if key in {"criteria", "_context"}:
+                    continue
+                settings_kv_parts.append(f"{key}={settings[key]}")
+            settings_description = "-" if not settings_kv_parts else ", ".join(settings_kv_parts)
+
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        _escape_markdown_table_cell(str(indicator_label)),
+                        _escape_markdown_table_cell(str(criteria_description)),
+                        _escape_markdown_table_cell(str(settings_description)),
+                    ]
+                )
+                + " |"
+            )
+
     lines.append(
         f"- Duration (s): {_format_number(run_metadata.get('duration_seconds'), 3)}"
     )

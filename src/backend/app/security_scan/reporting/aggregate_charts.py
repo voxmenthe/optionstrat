@@ -308,6 +308,17 @@ def build_timeseries_figure(
         height=620,
         margin=dict(l=90, r=30, t=48, b=40),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
+        # Make it easier to compare series at the same date by showing a shared
+        # hover readout + a vertical cursor line ("crosshair").
+        hovermode="x unified",
+        spikedistance=-1,
+    )
+    figure.update_xaxes(
+        showspikes=True,
+        spikemode="across",
+        spikesnap="cursor",
+        spikethickness=1,
+        spikecolor="rgba(15, 23, 42, 0.55)",
     )
     figure.update_xaxes(title_text="Date", row=3, col=1)
     figure.update_xaxes(showticklabels=False, row=1, col=1)
@@ -391,7 +402,7 @@ def _build_full_height_vertical_grid_shapes(
             # environments, making these lines effectively invisible. We draw
             # them "above" with low opacity so they stay visible while remaining
             # subtle across all three subplots.
-            "line": {"color": "rgba(71, 85, 105, 0.22)", "width": 1},
+            "line": {"color": "rgba(71, 85, 105, 0.30)", "width": 1},
             "layer": "above",
         }
         for category_value in x_categories

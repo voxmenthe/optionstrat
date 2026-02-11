@@ -148,7 +148,7 @@ def qrs_consist_excess(
     deadband_period: int = 20,
     deadband_mult: float = 0.25,
     map1: int = 7,
-    map2: int = 27,
+    map2: int = 21,
     map3: int = 56,
     cons_weight: float = 0.6,
     excess_weight: float = 0.4,
@@ -216,31 +216,36 @@ def qrs_consist_excess(
         for i in range(n)
     ]
 
-    min_day_frac = 0.2
-    min_up_days = lookback * min_day_frac
-    min_down_days = lookback * min_day_frac
-
-    valid_counts = [
-        1.0 if (up_day_count[i] >= min_up_days and down_day_count[i] >= min_down_days) else 0.0
-        for i in range(n)
-    ]
-
-    sign_aligned = [
-        1.0
-        if ((raw_excess[i] > 0 and consistency[i] > 0) or (raw_excess[i] < 0 and consistency[i] < 0))
-        else 0.0
-        for i in range(n)
-    ]
-
     combined = [
         (consistency[i] * cons_weight) + (excess_norm[i] * excess_weight)
         for i in range(n)
     ]
 
-    quiet_score = [
-        combined[i] if (valid_counts[i] > 0.0 and sign_aligned[i] > 0.0) else 0.0
+    # v2 logic: soft confidence weighting to reduce long all-zero plateaus.
+    min_active_days = lookback * 0.4
+    min_active_days_floor = max(min_active_days, 1.0)
+    sample_conf = [
+        min(active_day_count[i] / min_active_days_floor, 1.0) for i in range(n)
+    ]
+
+    min_dir_days = lookback * 0.2
+    balance_floor = max(min_dir_days, 1.0)
+    balance_conf = [
+        (min(up_day_count[i], down_day_count[i]) + balance_floor)
+        / (max(up_day_count[i], down_day_count[i]) + balance_floor)
         for i in range(n)
     ]
+
+    align_penalty = 0.25
+    align_conf = [
+        1.0 if (raw_excess[i] * consistency[i]) >= 0.0 else align_penalty
+        for i in range(n)
+    ]
+
+    confidence = [
+        sample_conf[i] * balance_conf[i] * align_conf[i] for i in range(n)
+    ]
+    quiet_score = [combined[i] * confidence[i] for i in range(n)]
 
     ma1 = _ref(_sma(quiet_score, map1), -ma_shift)
     ma2 = _ref(_sma(quiet_score, map2), -ma_shift)
@@ -248,6 +253,7 @@ def qrs_consist_excess(
 
     return {
         "QRSConsistExcess": _nan_to_zero(quiet_score),
+        "QRSConsistExcessV2": _nan_to_zero(quiet_score),
         "CrossoverLine": [0.0] * n,
         "MA1": _nan_to_zero(ma1),
         "MA2": _nan_to_zero(ma2),
@@ -348,7 +354,7 @@ def evaluate(
         deadband_period=_to_int_setting(settings, "deadband_period", 20),
         deadband_mult=_to_float_setting(settings, "deadband_mult", 0.25),
         map1=_to_int_setting(settings, "map1", 7),
-        map2=_to_int_setting(settings, "map2", 27),
+        map2=_to_int_setting(settings, "map2", 21),
         map3=_to_int_setting(settings, "map3", 56),
         cons_weight=_to_float_setting(settings, "cons_weight", 0.6),
         excess_weight=_to_float_setting(settings, "excess_weight", 0.4),
