@@ -7,6 +7,11 @@ from typing import Any, Iterable
 
 RECENT_DATE_WINDOW = 5
 TICKER_LIST_LIMIT = 10
+AGGREGATE_UNIVERSE_ORDER = [
+    ("all", "All Tickers"),
+    ("nasdaq", "NASDAQ Tickers"),
+    ("sp100", "S&P 100 Tickers"),
+]
 
 
 def _format_number(value: Any, decimals: int = 4) -> str:
@@ -214,6 +219,57 @@ def _group_by_date_indicator_and_type(
     rows.sort(key=lambda row: (row[0], row[1], row[2]), reverse=True)
     return rows
 
+
+def _resolve_aggregate_universes(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    aggregate_universes = payload.get("aggregate_universes")
+    if not isinstance(aggregate_universes, dict):
+        aggregates = payload.get("aggregates")
+        aggregates_history = payload.get("aggregates_history")
+        return [
+            {
+                "key": "all",
+                "label": "All Tickers",
+                "aggregates": aggregates if isinstance(aggregates, dict) else {},
+                "aggregates_history": (
+                    aggregates_history if isinstance(aggregates_history, list) else []
+                ),
+            }
+        ]
+
+    resolved: list[dict[str, Any]] = []
+    fallback_all_aggregates = payload.get("aggregates")
+    fallback_all_history = payload.get("aggregates_history")
+    for key, default_label in AGGREGATE_UNIVERSE_ORDER:
+        raw_universe = aggregate_universes.get(key)
+        if isinstance(raw_universe, dict):
+            label_raw = raw_universe.get("label")
+            label = (
+                label_raw.strip()
+                if isinstance(label_raw, str) and label_raw.strip()
+                else default_label
+            )
+            aggregates = raw_universe.get("aggregates")
+            aggregates_history = raw_universe.get("aggregates_history")
+        elif key == "all":
+            label = default_label
+            aggregates = fallback_all_aggregates
+            aggregates_history = fallback_all_history
+        else:
+            label = default_label
+            aggregates = {}
+            aggregates_history = []
+        resolved.append(
+            {
+                "key": key,
+                "label": label,
+                "aggregates": aggregates if isinstance(aggregates, dict) else {},
+                "aggregates_history": (
+                    aggregates_history if isinstance(aggregates_history, list) else []
+                ),
+            }
+        )
+    return resolved
+
 def _compute_history_stats(
     aggregates_history: list[dict[str, Any]] | None,
     *,
@@ -272,8 +328,7 @@ def _compute_history_stats(
 
 def render_markdown_report(payload: dict[str, Any]) -> str:
     run_metadata = payload.get("run_metadata", {})
-    aggregates = payload.get("aggregates", {})
-    aggregates_history = payload.get("aggregates_history", [])
+    aggregate_universes = _resolve_aggregate_universes(payload)
     signals = payload.get("signals", [])
     issues = payload.get("issues", [])
 
@@ -328,11 +383,6 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
         "advance_decline_ratio",
         "advance_pct",
     ]
-    breadth_stats = _compute_history_stats(
-        aggregates_history,
-        metric_keys=breadth_metric_keys,
-        end_date=run_metadata.get("end_date"),
-    )
 
     def _format_count(value: Any) -> str:
         if value is None:
@@ -345,34 +395,49 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
             return str(int(numeric))
         return _format_number(numeric, 4)
 
-    def _add_breadth_row(label: str, key: str, formatter) -> None:
-        stats = breadth_stats.get(key, {})
-        lines.append(
-            f"| {label}"
-            f" | {formatter(aggregates.get(key))}"
-            f" | {formatter(stats.get('t_minus_1'))}"
-            f" | {formatter(stats.get('t_minus_2'))}"
-            f" | {formatter(stats.get('avg_10d'))} |"
-        )
-
     lines.append("## Summary (Breadth)")
-    lines.append("| Metric | Value | t-1 | t-2 | 10d Avg |")
-    lines.append("| --- | --- | --- | --- | --- |")
-    _add_breadth_row("Advances", "advances", _format_count)
-    _add_breadth_row("Declines", "declines", _format_count)
-    _add_breadth_row("Unchanged", "unchanged", _format_count)
-    _add_breadth_row("Net Advances", "net_advances", _format_count)
-    _add_breadth_row(
-        "Advance/Decline Ratio",
-        "advance_decline_ratio",
-        lambda value: _format_number(value, 4),
-    )
-    _add_breadth_row("Advance %", "advance_pct", _format_percent)
+    lines.append("| Universe | Metric | Value | t-1 | t-2 | 10d Avg |")
+    lines.append("| --- | --- | --- | --- | --- | --- |")
+    breadth_rows = [
+        ("Advances", "advances", _format_count),
+        ("Declines", "declines", _format_count),
+        ("Unchanged", "unchanged", _format_count),
+        ("Net Advances", "net_advances", _format_count),
+        (
+            "Advance/Decline Ratio",
+            "advance_decline_ratio",
+            lambda value: _format_number(value, 4),
+        ),
+        ("Advance %", "advance_pct", _format_percent),
+    ]
+    universe_breadth_rows = [
+        (
+            universe["label"],
+            universe["aggregates"],
+            _compute_history_stats(
+                universe["aggregates_history"],
+                metric_keys=breadth_metric_keys,
+                end_date=run_metadata.get("end_date"),
+            ),
+        )
+        for universe in aggregate_universes
+    ]
+    for metric_label, key, formatter in breadth_rows:
+        for universe_label, universe_aggregates, universe_history_stats in universe_breadth_rows:
+            stats = universe_history_stats.get(key, {})
+            lines.append(
+                f"| {universe_label}"
+                f" | {metric_label}"
+                f" | {formatter(universe_aggregates.get(key))}"
+                f" | {formatter(stats.get('t_minus_1'))}"
+                f" | {formatter(stats.get('t_minus_2'))}"
+                f" | {formatter(stats.get('avg_10d'))} |"
+            )
     lines.append("")
 
     lines.append("## Summary (MA Breadth)")
-    lines.append("| Metric | Above % | Below % | Equal % | Valid |")
-    lines.append("| --- | --- | --- | --- | --- |")
+    lines.append("| Universe | Metric | Above % | Below % | Equal % | Valid |")
+    lines.append("| --- | --- | --- | --- | --- | --- |")
     ma_rows = [
         ("SMA 13", "ma_13"),
         ("SMA 28", "ma_28"),
@@ -380,28 +445,38 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
         ("SMA 8 (shift 5)", "ma_8_shift_5"),
     ]
     for label, prefix in ma_rows:
-        lines.append(
-            f"| {label} | {_format_percent(aggregates.get(f'{prefix}_above_pct'))}"
-            f" | {_format_percent(aggregates.get(f'{prefix}_below_pct'))}"
-            f" | {_format_percent(aggregates.get(f'{prefix}_equal_pct'))}"
-            f" | {aggregates.get(f'{prefix}_valid_count', 0)} |"
-        )
+        for universe in aggregate_universes:
+            universe_label = universe["label"]
+            universe_aggregates = universe["aggregates"]
+            lines.append(
+                f"| {universe_label}"
+                f" | {label}"
+                f" | {_format_percent(universe_aggregates.get(f'{prefix}_above_pct'))}"
+                f" | {_format_percent(universe_aggregates.get(f'{prefix}_below_pct'))}"
+                f" | {_format_percent(universe_aggregates.get(f'{prefix}_equal_pct'))}"
+                f" | {_format_count(universe_aggregates.get(f'{prefix}_valid_count', 0))} |"
+            )
     lines.append("")
 
     lines.append("## Summary (ROC Breadth)")
-    lines.append("| Metric | > % | < % | = % | Valid |")
-    lines.append("| --- | --- | --- | --- | --- |")
+    lines.append("| Universe | Metric | > % | < % | = % | Valid |")
+    lines.append("| --- | --- | --- | --- | --- | --- |")
     roc_rows = [
         ("ROC 17 vs 5d", "roc_17_vs_5"),
         ("ROC 27 vs 4d", "roc_27_vs_4"),
     ]
     for label, prefix in roc_rows:
-        lines.append(
-            f"| {label} | {_format_percent(aggregates.get(f'{prefix}_gt_pct'))}"
-            f" | {_format_percent(aggregates.get(f'{prefix}_lt_pct'))}"
-            f" | {_format_percent(aggregates.get(f'{prefix}_eq_pct'))}"
-            f" | {aggregates.get(f'{prefix}_valid_count', 0)} |"
-        )
+        for universe in aggregate_universes:
+            universe_label = universe["label"]
+            universe_aggregates = universe["aggregates"]
+            lines.append(
+                f"| {universe_label}"
+                f" | {label}"
+                f" | {_format_percent(universe_aggregates.get(f'{prefix}_gt_pct'))}"
+                f" | {_format_percent(universe_aggregates.get(f'{prefix}_lt_pct'))}"
+                f" | {_format_percent(universe_aggregates.get(f'{prefix}_eq_pct'))}"
+                f" | {_format_count(universe_aggregates.get(f'{prefix}_valid_count', 0))} |"
+            )
     lines.append("")
 
     if signals:
@@ -560,12 +635,18 @@ def render_markdown_report(payload: dict[str, Any]) -> str:
     output_path = run_metadata.get("output_path")
     markdown_path = run_metadata.get("markdown_path")
     html_path = run_metadata.get("html_path")
+    dispersion_markdown_path = run_metadata.get("dispersion_markdown_path")
+    dispersion_html_path = run_metadata.get("dispersion_html_path")
     if output_path:
         lines.append(f"- JSON Output: {output_path}")
     if markdown_path:
         lines.append(f"- Markdown Output: {markdown_path}")
     if html_path:
         lines.append(f"- HTML Output: {html_path}")
+    if dispersion_markdown_path:
+        lines.append(f"- Dispersion Markdown Output: {dispersion_markdown_path}")
+    if dispersion_html_path:
+        lines.append(f"- Dispersion HTML Output: {dispersion_html_path}")
     storage_usage = payload.get("storage_usage")
     if isinstance(storage_usage, dict):
         scan_db = _format_bytes(storage_usage.get("scan_db_bytes"))

@@ -52,3 +52,31 @@ For the html report (and markdown report) from src/backend/app/security_scan, we
 for qrs_consist_excess:
 * ma1 crosses above or below 0
 * main indicator crosses above 0 after having been <= 0 for >= 3 days (or vice versa)
+
+In the html report from src/backend/app/security_scan, in the Summary (Breadth) table, the t-1, t-2 and 10d avg columns are not poplulating. Please fix this.
+Also remove all the "Signal Density" sections and the "Top Tickers by Signal Count" sections from the report
+
+For the html report (and markdown report) from src/backend/app/security_scan, we'd like to do the following:
+* For all indicator rollups:
+  - Remove latest day highlights table since the information is already in the recent window table
+  - Remove per-criteria grouping
+  - Remove direction streaks
+* Remove indicator signals appendix entirely
+* Improve html table formatting to add zebra striping (both row and column in a way that is easy to read and where the two don't interfere with each other) and make it look more professional. The tables are currently difficult to read.
+* Also use a nicer font with easier to read text.
+
+For the html report (and markdown report) from src/backend/app/security_scan, we want to add a new dual-criteria scan to the scan report as follows:
+1. SCL_v4_x5 indicator (with lag settings 2, 3, 4, 5, 11 and cd_offset1 2, cd_offset2 3, ma_period1 5, ma_period2 11) has MA2 > it's previous bar's N-day high (or MA2 < it's previous bar's N-day low) - N default can be 12
+AND
+2. qrs_consist_excess indicator has MA1 > it's previous bar's N-day high (or MA1 < it's previous bar's N-day low) - N default here can be 5
+
+
+- `--intraday`: Enable intraday nowcast mode (disabled by default).
+- `--intraday-interval`: Override intraday interval (`1m`, `5m`, `15m`, `60m`).
+- `--intraday-min-bars`: Minimum intraday bars required to build the synthetic bar.
+
+uv run python -m app.security_scan.cli --backfill-aggregates --intraday --intraday-interval 5m --intraday-min-bars 3
+
+In the security scan html report, for the NASDAQ aggregate chart plots, we want to add them to the existing chart groups so that we don't need to duplicate the one-day and three-day percentage changes. 
+
+In the security scan html report, For the breadth tables, we want the rows to be grouped by metric rather than by universe, so that it's easy to compare the same metric across universes.

@@ -48,6 +48,8 @@ class FakeMarketDataService:
 def _build_config() -> SecurityScanConfig:
     return SecurityScanConfig(
         tickers=["AAPL"],
+        nasdaq_tickers=["AAPL"],
+        sp100_tickers=["AAPL"],
         lookback_days=30,
         interval="day",
         intraday_interval="1m",
@@ -63,6 +65,7 @@ def _build_config() -> SecurityScanConfig:
         report_net_advances_secondary_ma_days=8,
         report_advance_pct_avg_smoothing_days=3,
         report_roc_breadth_avg_smoothing_days=3,
+        report_chart_universes=["all"],
         config_dir=Path("."),
     )
 
@@ -163,6 +166,12 @@ def test_intraday_disabled_by_default(monkeypatch) -> None:
     assert summary["last_close"] == 101.0
     assert summary["uses_intraday_synthetic_bar"] is False
     assert payload["run_metadata"]["intraday_requested"] is False
+    assert sorted(payload["aggregate_universes"].keys()) == ["all", "nasdaq", "sp100"]
+    assert payload["run_metadata"]["aggregate_set_hashes"] == {
+        "all": "test-set-hash",
+        "nasdaq": "test-set-hash",
+        "sp100": "test-set-hash",
+    }
     assert metric_upserts
     assert aggregate_upserts
 

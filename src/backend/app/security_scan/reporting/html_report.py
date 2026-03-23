@@ -7,18 +7,20 @@ from markdown_it import MarkdownIt
 from app.security_scan.reporting.markdown_report import render_markdown_report
 
 
-def render_html_report(
-    payload: dict[str, Any],
+def render_markdown_html_document(
+    *,
+    markdown_report: str,
+    report_title: str,
     charts_html: str | None = None,
+    charts_heading: str = "Aggregate Timeseries",
 ) -> str:
-    markdown_report = render_markdown_report(payload)
     renderer = MarkdownIt("commonmark").enable("table")
     body_html = renderer.render(markdown_report)
 
     if charts_html:
         charts_section = (
             "\n<section class=\"charts\">\n"
-            "<h2>Aggregate Timeseries</h2>\n"
+            f"<h2>{charts_heading}</h2>\n"
             f"{charts_html}\n"
             "</section>\n"
         )
@@ -35,7 +37,7 @@ def render_html_report(
         "<head>\n"
         "  <meta charset=\"utf-8\" />\n"
         "  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\" />\n"
-        "  <title>Security Scan Report</title>\n"
+        f"  <title>{report_title}</title>\n"
         "  <style>\n"
         "    :root {\n"
         "      color-scheme: light;\n"
@@ -167,4 +169,17 @@ def render_html_report(
         "  </article>\n"
         "</body>\n"
         "</html>\n"
+    )
+
+
+def render_html_report(
+    payload: dict[str, Any],
+    charts_html: str | None = None,
+) -> str:
+    markdown_report = render_markdown_report(payload)
+    return render_markdown_html_document(
+        markdown_report=markdown_report,
+        report_title="Security Scan Report",
+        charts_html=charts_html,
+        charts_heading="Aggregate Timeseries",
     )

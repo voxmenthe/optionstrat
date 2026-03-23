@@ -54,6 +54,7 @@ uv run python -m app.security_scan.cli \
 - `--intraday-interval`: Override intraday interval (`1m`, `5m`, `15m`, `60m`).
 - `--intraday-min-bars`: Minimum intraday bars required to build the synthetic bar.
 - `--no-html`: Disable HTML report output.
+- `--no-dispersion-html`: Disable dispersion HTML/markdown report output.
 - `--backfill-aggregates`: Compute and store daily aggregates for the date range.
 - `--backfill-start-date`, `--backfill-end-date`: Override the backfill date range
   (defaults to `--start-date`/`--end-date`).
@@ -88,9 +89,21 @@ instances = [
 [aggregates]
 advance_decline_lookbacks = [1, 5, 10]
 
+[aggregates.dispersion]
+enabled = true
+return_horizons = [1]
+windows = [5, 21, 63]
+window_weights = { w5 = 0.45, w21 = 0.35, w63 = 0.20 }
+method_weights = { corr = 0.40, xs = 0.25, pca = 0.25, sign = 0.10 }
+min_tickers = 20
+min_observations = 15
+min_pair_coverage = 0.60
+
 [report]
 html = true
+dispersion_html = true
 # aggregate_lookback_days = 120
+# dispersion_lookback_days = 252
 # plot_lookbacks = [1, 5, 10]
 # max_points = 120
 # net_advances_ma_days = 18
@@ -113,8 +126,10 @@ Without that flag, scans use the latest available daily bars only.
 
 By default, output is written to `scan-reports/` at the repo root with filenames
 like `security_scan_<run_id>.json`, `security_scan_<run_id>.md`, and
-`security_scan_<run_id>.html`, and JSON is also printed to stdout. Use `--output`
-to specify a file path or a directory.
+`security_scan_<run_id>.html`. When dispersion reporting is enabled, additional
+artifacts are written: `security_scan_<run_id>_dispersion.md` and
+`security_scan_<run_id>_dispersion.html`. JSON is also printed to stdout.
+Use `--output` to specify a file path or a directory.
 
 Top-level JSON fields include:
 - `run_metadata`

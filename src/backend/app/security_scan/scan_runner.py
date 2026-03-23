@@ -10,6 +10,13 @@ from zoneinfo import ZoneInfo
 from app.security_scan.aggregates import compute_breadth
 from app.security_scan.config_loader import IndicatorInstanceConfig, SecurityScanConfig
 from app.security_scan.data_fetcher import MarketDataFetcher
+from app.security_scan.dispersion import (
+    DEFAULT_DISPERSION_WINDOWS,
+    DispersionConfig,
+    build_dispersion_metric_keys,
+    build_dispersion_state,
+    compute_dispersion_snapshot,
+)
 from app.security_scan.indicators import load_indicator_registry
 from app.security_scan.indicators.scl_v4_x5 import (
     compute_countdown_series as compute_scl_countdown_series,
@@ -47,6 +54,21 @@ AGGREGATE_GROUP_PREFIXES = [
     "roc_17_vs_5",
     "roc_27_vs_4",
 ]
+AGGREGATE_UNIVERSE_ORDER = ("all", "nasdaq", "sp100")
+AGGREGATE_UNIVERSE_LABELS = {
+    "all": "All Tickers",
+    "nasdaq": "NASDAQ Tickers",
+    "sp100": "S&P 100 Tickers",
+}
+BREADTH_HISTORY_METRICS = [
+    "advances",
+    "declines",
+    "unchanged",
+    "net_advances",
+    "advance_decline_ratio",
+    "advance_pct",
+]
+DISPERSION_HISTORY_METRICS = build_dispersion_metric_keys(DEFAULT_DISPERSION_WINDOWS)
 MARKET_SNAPSHOT_TICKERS = ["SPY", "QQQ", "IWM"]
 MARKET_TIMEZONE = ZoneInfo("America/New_York")
 REGULAR_SESSION_START = time_module(9, 30)
@@ -405,6 +427,7 @@ def _build_aggregate_records(
     as_of_date: str,
     interval: str,
     aggregate_group_prefixes: list[str],
+    universe_ticker_count: int | None = None,
 ) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for key, value in aggregates.items():
@@ -423,6 +446,19 @@ def _build_aggregate_records(
                 record["valid_count"] = aggregates.get(f"{prefix}_valid_count")
                 record["missing_count"] = aggregates.get(f"{prefix}_missing_count")
                 break
+        if key.startswith("disp_"):
+            valid_count_raw = aggregates.get("disp_valid_ticker_count")
+            if valid_count_raw is not None:
+                try:
+                    valid_count = max(0, int(valid_count_raw))
+                except (TypeError, ValueError):
+                    valid_count = None
+                if valid_count is not None:
+                    record["valid_count"] = valid_count
+                    if universe_ticker_count is not None:
+                        record["missing_count"] = max(
+                            0, int(universe_ticker_count) - valid_count
+                        )
         records.append(record)
     return records
 
@@ -439,6 +475,75 @@ def _normalize_lookbacks(advance_decline_lookbacks: list[int] | None) -> list[in
         seen.add(lookback)
         normalized.append(lookback)
     return normalized or [1]
+
+
+def _dedupe_tickers(tickers: list[str]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for ticker in tickers:
+        normalized = str(ticker).strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(normalized)
+    return deduped
+
+
+def _aggregate_group_prefixes(lookbacks: list[int] | None) -> list[str]:
+    normalized_lookbacks = _normalize_lookbacks(lookbacks)
+    return AGGREGATE_GROUP_PREFIXES + [
+        f"ad_{lookback}" for lookback in normalized_lookbacks if lookback != 1
+    ]
+
+
+def _build_aggregate_universe_tickers(
+    config: SecurityScanConfig,
+) -> dict[str, list[str]]:
+    all_tickers = _dedupe_tickers(config.tickers)
+    all_set = set(all_tickers)
+    nasdaq_tickers = [
+        ticker for ticker in _dedupe_tickers(config.nasdaq_tickers) if ticker in all_set
+    ]
+    sp100_tickers = [
+        ticker for ticker in _dedupe_tickers(config.sp100_tickers) if ticker in all_set
+    ]
+    return {
+        "all": all_tickers,
+        "nasdaq": nasdaq_tickers,
+        "sp100": sp100_tickers,
+    }
+
+
+def _select_ticker_summaries(
+    ticker_summaries: list[dict[str, Any]],
+    universe_tickers: list[str],
+) -> list[dict[str, Any]]:
+    if not universe_tickers:
+        return []
+    summary_by_ticker: dict[str, dict[str, Any]] = {}
+    for summary in ticker_summaries:
+        ticker = summary.get("ticker")
+        if not isinstance(ticker, str) or not ticker:
+            continue
+        summary_by_ticker[ticker] = summary
+    return [
+        summary_by_ticker[ticker]
+        for ticker in universe_tickers
+        if ticker in summary_by_ticker
+    ]
+
+
+def _serialize_history(
+    rows: list[Any],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "as_of_date": row.as_of_date,
+            "metric_key": row.metric_key,
+            "value": row.value,
+        }
+        for row in rows
+    ]
 
 
 def _build_daily_ticker_summaries(
@@ -501,6 +606,7 @@ def build_backfill_aggregate_records(
     tickers: list[str],
     price_series_by_ticker: dict[str, list[dict[str, Any]]],
     advance_decline_lookbacks: list[int] | None,
+    dispersion_config: DispersionConfig | None = None,
     set_hash: str,
     interval: str,
 ) -> list[dict[str, Any]]:
@@ -522,9 +628,19 @@ def build_backfill_aggregate_records(
         return []
 
     lookbacks = _normalize_lookbacks(advance_decline_lookbacks)
-    aggregate_group_prefixes = AGGREGATE_GROUP_PREFIXES + [
-        f"ad_{lookback}" for lookback in lookbacks if lookback != 1
-    ]
+    aggregate_group_prefixes = _aggregate_group_prefixes(lookbacks)
+    dispersion_state = None
+    if dispersion_config and dispersion_config.enabled:
+        return_horizon = (
+            dispersion_config.return_horizons[0]
+            if dispersion_config.return_horizons
+            else 1
+        )
+        dispersion_state = build_dispersion_state(
+            price_series_by_ticker,
+            tickers,
+            return_horizon=return_horizon,
+        )
     records: list[dict[str, Any]] = []
     for as_of_date in sorted(all_dates):
         ticker_summaries = []
@@ -540,6 +656,13 @@ def build_backfill_aggregate_records(
             ticker_summaries,
             advance_decline_lookbacks=lookbacks,
         )
+        if dispersion_state is not None and dispersion_config is not None:
+            dispersion_metrics = compute_dispersion_snapshot(
+                dispersion_state,
+                as_of_date=as_of_date,
+                config=dispersion_config,
+            )
+            aggregates.update(dispersion_metrics)
         records.extend(
             _build_aggregate_records(
                 aggregates=aggregates,
@@ -547,6 +670,7 @@ def build_backfill_aggregate_records(
                 as_of_date=as_of_date,
                 interval=interval,
                 aggregate_group_prefixes=aggregate_group_prefixes,
+                universe_ticker_count=len(tickers),
             )
         )
     return records
@@ -587,33 +711,69 @@ def backfill_security_aggregates(
             issues.append({"ticker": ticker, "issue": "empty_prices"})
         price_series_by_ticker[ticker] = prices
 
-    set_hash = get_or_create_security_set(config.tickers)
-    records = build_backfill_aggregate_records(
-        tickers=config.tickers,
-        price_series_by_ticker=price_series_by_ticker,
-        advance_decline_lookbacks=config.advance_decline_lookbacks,
-        set_hash=set_hash,
-        interval=config.interval,
-    )
-    if records:
-        upsert_security_aggregate_values(records)
+    universe_tickers_map = _build_aggregate_universe_tickers(config)
+    set_hashes: dict[str, str] = {}
+    date_count_by_universe: dict[str, int] = {}
+    records_written_by_universe: dict[str, int] = {}
+    total_records_written = 0
+    for universe_key in AGGREGATE_UNIVERSE_ORDER:
+        universe_tickers = universe_tickers_map.get(universe_key, [])
+        if not universe_tickers:
+            date_count_by_universe[universe_key] = 0
+            records_written_by_universe[universe_key] = 0
+            continue
+        try:
+            set_hash = get_or_create_security_set(universe_tickers)
+            set_hashes[universe_key] = set_hash
+            records = build_backfill_aggregate_records(
+                tickers=universe_tickers,
+                price_series_by_ticker=price_series_by_ticker,
+                advance_decline_lookbacks=config.advance_decline_lookbacks,
+                dispersion_config=config.dispersion,
+                set_hash=set_hash,
+                interval=config.interval,
+            )
+            if records:
+                upsert_security_aggregate_values(records)
+            records_written = len(records)
+            date_count = len({record["as_of_date"] for record in records})
+            records_written_by_universe[universe_key] = records_written
+            date_count_by_universe[universe_key] = date_count
+            total_records_written += records_written
+        except Exception as exc:
+            issues.append(
+                {
+                    "universe": universe_key,
+                    "issue": "aggregate_backfill_storage_error",
+                    "detail": str(exc),
+                }
+            )
+            records_written_by_universe[universe_key] = 0
+            date_count_by_universe[universe_key] = 0
 
-    date_count = len({record["as_of_date"] for record in records})
+    all_set_hash = set_hashes.get("all")
+    all_date_count = date_count_by_universe.get("all", 0)
+    all_records_written = records_written_by_universe.get("all", 0)
     logger.info(
         "security_scan.aggregate_backfill.finish",
         extra={
             "start_date": resolved_start.isoformat(),
             "end_date": resolved_end.isoformat(),
-            "dates": date_count,
-            "records_written": len(records),
+            "dates": all_date_count,
+            "records_written": all_records_written,
+            "total_records_written": total_records_written,
         },
     )
     return {
-        "set_hash": set_hash,
+        "set_hash": all_set_hash,
+        "set_hashes": set_hashes,
         "start_date": resolved_start.isoformat(),
         "end_date": resolved_end.isoformat(),
-        "date_count": date_count,
-        "records_written": len(records),
+        "date_count": all_date_count,
+        "date_count_by_universe": date_count_by_universe,
+        "records_written": all_records_written,
+        "records_written_by_universe": records_written_by_universe,
+        "total_records_written": total_records_written,
         "issues": issues,
     }
 
@@ -722,6 +882,7 @@ def run_security_scan(
 
     resolved_indicators = _resolve_indicator_instances(config.indicator_instances)
     indicator_instances_metadata: list[dict[str, Any]] = []
+    price_series_by_ticker: dict[str, list[dict[str, Any]]] = {}
     for resolved in resolved_indicators:
         indicator_instances_metadata.append(
             {
@@ -795,6 +956,7 @@ def run_security_scan(
                     }
                 )
 
+        price_series_by_ticker[ticker] = effective_prices
         ordered_prices = _ordered_prices(effective_prices)
         close_series = _extract_close_series(ordered_prices)
         summary, summary_issues = _summarize_prices_from_series(
@@ -943,6 +1105,9 @@ def run_security_scan(
         "intraday_aggregate_persistence_skipped": bool(
             intraday_synthetic_scan_tickers
         ),
+        "dispersion_enabled": config.dispersion.enabled,
+        "dispersion_windows": config.dispersion.windows,
+        "dispersion_return_horizons": config.dispersion.return_horizons,
     }
 
     market_stats: dict[str, Any] = {}
@@ -957,68 +1122,129 @@ def run_security_scan(
     except Exception as exc:
         issues.append({"issue": "market_stats_error", "detail": str(exc)})
 
-    aggregates = compute_breadth(
-        ticker_summaries,
-        advance_decline_lookbacks=config.advance_decline_lookbacks,
+    aggregate_universe_tickers = _build_aggregate_universe_tickers(config)
+    aggregate_universes: dict[str, dict[str, Any]] = {}
+    dispersion_return_horizon = (
+        config.dispersion.return_horizons[0]
+        if config.dispersion.return_horizons
+        else 1
     )
-    should_persist_aggregates = not intraday_synthetic_scan_tickers
-    set_hash: str | None = None
-    try:
-        set_hash = get_or_create_security_set(config.tickers)
-        run_metadata["set_hash"] = set_hash
-        lookbacks = _normalize_lookbacks(config.advance_decline_lookbacks)
-        aggregate_group_prefixes = AGGREGATE_GROUP_PREFIXES + [
-            f"ad_{lookback}" for lookback in lookbacks if lookback != 1
-        ]
-        aggregate_records = _build_aggregate_records(
-            aggregates=aggregates,
-            set_hash=set_hash,
-            as_of_date=resolved_end.isoformat(),
-            interval=config.interval,
-            aggregate_group_prefixes=aggregate_group_prefixes,
+    for universe_key in AGGREGATE_UNIVERSE_ORDER:
+        universe_tickers = aggregate_universe_tickers.get(universe_key, [])
+        universe_summaries = _select_ticker_summaries(ticker_summaries, universe_tickers)
+        universe_aggregates = compute_breadth(
+            universe_summaries,
+            advance_decline_lookbacks=config.advance_decline_lookbacks,
         )
-        if aggregate_records and should_persist_aggregates:
-            upsert_security_aggregate_values(aggregate_records)
-        if aggregate_records and not should_persist_aggregates:
+        if config.dispersion.enabled and universe_tickers:
+            try:
+                dispersion_state = build_dispersion_state(
+                    price_series_by_ticker,
+                    universe_tickers,
+                    return_horizon=dispersion_return_horizon,
+                )
+                dispersion_metrics = compute_dispersion_snapshot(
+                    dispersion_state,
+                    as_of_date=resolved_end.isoformat(),
+                    config=config.dispersion,
+                )
+                universe_aggregates.update(dispersion_metrics)
+            except Exception as exc:
+                issues.append(
+                    {
+                        "universe": universe_key,
+                        "issue": "dispersion_compute_error",
+                        "detail": str(exc),
+                    }
+                )
+        aggregate_universes[universe_key] = {
+            "label": AGGREGATE_UNIVERSE_LABELS[universe_key],
+            "ticker_count": len(universe_tickers),
+            "aggregates": universe_aggregates,
+            "aggregates_history": [],
+        }
+
+    should_persist_aggregates = not intraday_synthetic_scan_tickers
+    aggregate_group_prefixes = _aggregate_group_prefixes(
+        config.advance_decline_lookbacks
+    )
+    aggregate_set_hashes: dict[str, str] = {}
+    skipped_aggregate_persistence = False
+    for universe_key in AGGREGATE_UNIVERSE_ORDER:
+        universe_tickers = aggregate_universe_tickers.get(universe_key, [])
+        universe_entry = aggregate_universes[universe_key]
+        if not universe_tickers:
+            continue
+        try:
+            set_hash = get_or_create_security_set(universe_tickers)
+            aggregate_set_hashes[universe_key] = set_hash
+            universe_entry["set_hash"] = set_hash
+            aggregate_records = _build_aggregate_records(
+                aggregates=universe_entry["aggregates"],
+                set_hash=set_hash,
+                as_of_date=resolved_end.isoformat(),
+                interval=config.interval,
+                aggregate_group_prefixes=aggregate_group_prefixes,
+                universe_ticker_count=len(universe_tickers),
+            )
+            if aggregate_records and should_persist_aggregates:
+                upsert_security_aggregate_values(aggregate_records)
+            elif aggregate_records:
+                skipped_aggregate_persistence = True
+        except Exception as exc:
             issues.append(
                 {
-                    "issue": "intraday_synthetic_skipped",
-                    "detail": "aggregate_persistence_skipped_for_intraday_synthetic_data",
+                    "universe": universe_key,
+                    "issue": "aggregate_storage_error",
+                    "detail": str(exc),
                 }
             )
-    except Exception as exc:
-        issues.append({"issue": "aggregate_storage_error", "detail": str(exc)})
-
-    historical_aggregates = []
-    try:
-        if not set_hash:
-            raise RuntimeError("missing_set_hash")
-        hist_start = (resolved_end - timedelta(days=30)).isoformat()
-        breadth_metrics = [
-            "advances",
-            "declines",
-            "unchanged",
-            "net_advances",
-            "advance_decline_ratio",
-            "advance_pct",
-        ]
-        hist_data = fetch_security_aggregate_series(
-            set_hash=set_hash,
-            metric_keys=breadth_metrics,
-            start_date=hist_start,
-            end_date=resolved_end.isoformat(),
-            interval=config.interval,
-        )
-        historical_aggregates = [
+    if skipped_aggregate_persistence:
+        issues.append(
             {
-                "as_of_date": rec.as_of_date,
-                "metric_key": rec.metric_key,
-                "value": rec.value,
+                "issue": "intraday_synthetic_skipped",
+                "detail": "aggregate_persistence_skipped_for_intraday_synthetic_data",
             }
-            for rec in hist_data
-        ]
-    except Exception as exc:
-        issues.append({"issue": "historical_aggregates_error", "detail": str(exc)})
+        )
+
+    run_metadata["set_hash"] = aggregate_set_hashes.get("all")
+    run_metadata["aggregate_set_hashes"] = aggregate_set_hashes
+
+    hist_start = (resolved_end - timedelta(days=30)).isoformat()
+    for universe_key in AGGREGATE_UNIVERSE_ORDER:
+        universe_entry = aggregate_universes[universe_key]
+        set_hash = universe_entry.get("set_hash")
+        if not set_hash:
+            continue
+        try:
+            hist_data = fetch_security_aggregate_series(
+                set_hash=set_hash,
+                metric_keys=BREADTH_HISTORY_METRICS,
+                start_date=hist_start,
+                end_date=resolved_end.isoformat(),
+                interval=config.interval,
+            )
+            universe_entry["aggregates_history"] = _serialize_history(hist_data)
+        except Exception as exc:
+            issues.append(
+                {
+                    "universe": universe_key,
+                    "issue": "historical_aggregates_error",
+                    "detail": str(exc),
+                }
+            )
+
+    all_universe = aggregate_universes.get("all", {})
+    aggregates = (
+        all_universe.get("aggregates")
+        if isinstance(all_universe.get("aggregates"), dict)
+        else {}
+    )
+    historical_aggregates = (
+        all_universe.get("aggregates_history")
+        if isinstance(all_universe.get("aggregates_history"), list)
+        else []
+    )
 
     return {
         "run_metadata": run_metadata,
@@ -1027,5 +1253,6 @@ def run_security_scan(
         "signals": [asdict(signal) for signal in signals],
         "aggregates": aggregates,
         "aggregates_history": historical_aggregates,
+        "aggregate_universes": aggregate_universes,
         "issues": issues,
     }

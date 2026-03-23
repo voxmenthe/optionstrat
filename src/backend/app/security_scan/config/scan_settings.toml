@@ -7,20 +7,6 @@
 # - Additional keys are passed as settings to the indicator
 
 # -----------------------------------------------------------------------------
-# ROC (Rate of Change) Indicator
-# -----------------------------------------------------------------------------
-[[indicators.instances]]
-id = "roc"
-instance_id = "roc_1"
-roc_lookback = 12
-
-[[indicators.instances.criteria]]
-type = "crossover"
-series = "roc"
-level = 0
-direction = "both"
-
-# -----------------------------------------------------------------------------
 # ROC Aggregate Indicator
 # -----------------------------------------------------------------------------
 [[indicators.instances]]
@@ -37,6 +23,23 @@ ma_long = 20
 [[indicators.instances]]
 id = "qrs_consist_excess"
 instance_id = "qrs_consist_excess_1"
+lookback = 84
+map1 = 7
+map2 = 27
+map3 = 56
+
+[[indicators.instances]]
+id = "qrs_consist_excess"
+instance_id = "qrs_consist_excess_lb24"
+lookback = 24
+map1 = 7
+map2 = 27
+map3 = 56
+
+[[indicators.instances]]
+id = "qrs_consist_excess"
+instance_id = "qrs_consist_excess_lb42"
+lookback = 42
 map1 = 7
 map2 = 27
 map3 = 56
@@ -62,6 +65,53 @@ ma_period2 = 11
 
 # Compare MA1 (QRS) to prior N-bar extremes (excludes current bar).
 qrs_ma1_window = 5
+lookback = 84
+map1 = 7
+map2 = 27
+map3 = 56
+
+[[indicators.instances]]
+id = "scl_ma2_qrs_ma1_breakout"
+instance_id = "scl_ma2_qrs_ma1_breakout_lb24"
+
+# Compare MA2 (SCL) to prior N-bar extremes (excludes current bar).
+scl_ma2_window = 12
+lag1 = 2
+lag2 = 3
+lag3 = 4
+lag4 = 5
+lag5 = 11
+cd_offset1 = 2
+cd_offset2 = 3
+ma_period1 = 5
+ma_period2 = 11
+
+# Compare MA1 (QRS) to prior N-bar extremes (excludes current bar).
+qrs_ma1_window = 5
+lookback = 24
+map1 = 7
+map2 = 27
+map3 = 56
+
+[[indicators.instances]]
+id = "scl_ma2_qrs_ma1_breakout"
+instance_id = "scl_ma2_qrs_ma1_breakout_lb42"
+
+# Compare MA2 (SCL) to prior N-bar extremes (excludes current bar).
+scl_ma2_window = 12
+lag1 = 2
+lag2 = 3
+lag3 = 4
+lag4 = 5
+lag5 = 11
+cd_offset1 = 2
+cd_offset2 = 3
+ma_period1 = 5
+ma_period2 = 11
+
+# Compare MA1 (QRS) to prior N-bar extremes (excludes current bar).
+qrs_ma1_window = 5
+lookback = 42
 map1 = 7
 map2 = 27
 map3 = 56
@@ -72,6 +122,24 @@ map3 = 56
 [aggregates]
 advance_decline_lookbacks = [1, 5, 10]
 
+[aggregates.dispersion]
+enabled = true
+return_horizons = [1]
+windows = [5, 21, 63]
+window_weights = { w5 = 0.45, w21 = 0.35, w63 = 0.20 }
+method_weights = { corr = 0.40, xs = 0.25, pca = 0.25, sign = 0.10 }
+min_tickers = 20
+min_observations = 15
+min_pair_coverage = 0.60
+use_robust_xs_dispersion = true
+xs_lockstep_decay = 1.0
+volatility_gate_enabled = false
+volatility_gate_lookback = 20
+volatility_gate_percentile = 0.60
+segment_up_down = false
+segment_threshold_sigma = 0.0
+segment_min_events = 8
+
 # -----------------------------------------------------------------------------
 # Report Configuration
 # -----------------------------------------------------------------------------
@@ -79,8 +147,14 @@ advance_decline_lookbacks = [1, 5, 10]
 html = true
 aggregate_lookback_days = 90
 # plot_lookbacks = [1, 5, 10]
+chart_universes = ["all", "nasdaq", "sp100"]
 # max_points = 120
 net_advances_ma_days = 26
 net_advances_secondary_ma_days = 8
 advance_pct_avg_smoothing_days = 4
 roc_breadth_avg_smoothing_days = 4
+dispersion_html = true
+dispersion_lookback_days = 252
+dispersion_show_components = true
+dispersion_show_diagnostics = true
+dispersion_smoothing_days = 3

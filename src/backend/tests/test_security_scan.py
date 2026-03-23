@@ -2,14 +2,31 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from app.security_scan.aggregates import compute_breadth
 from app.security_scan.config_loader import load_security_scan_config
 from app.security_scan.db import SecurityAggregateValue
+from app.security_scan.dispersion import (
+    DispersionConfig,
+    build_dispersion_state,
+    compute_dispersion_snapshot,
+)
 from app.security_scan.indicators.roc_aggregate import evaluate as evaluate_roc_aggregate
 from app.security_scan.indicators.roc import evaluate as evaluate_roc
 from app.security_scan.reporting.aggregate_charts import (
     build_timeseries_figure,
     render_aggregate_charts_html,
+    render_multi_universe_aggregate_charts_html,
+)
+from app.security_scan.reporting.dispersion_html_report import (
+    render_dispersion_html_report,
+)
+from app.security_scan.reporting.dispersion_charts import (
+    render_multi_universe_dispersion_charts_html,
+)
+from app.security_scan.reporting.dispersion_markdown_report import (
+    render_dispersion_markdown_report,
 )
 from app.security_scan.reporting.aggregate_series import (
     assemble_aggregate_series,
@@ -25,6 +42,12 @@ def test_load_security_scan_config_instances(tmp_path: Path) -> None:
         """
 [tickers]
 list = ["AAPL"]
+
+[nasdaq_tickers]
+list = ["AAPL", "MSFT"]
+
+[sp100_tickers]
+list = ["AAPL", "ABBV"]
 
 [scan_defaults]
 lookback_days = 30
@@ -51,6 +74,8 @@ max_points = 120
 
     config = load_security_scan_config(tmp_path)
     assert config.tickers == ["AAPL"]
+    assert config.nasdaq_tickers == ["AAPL", "MSFT"]
+    assert config.sp100_tickers == ["AAPL", "ABBV"]
     assert len(config.indicator_instances) == 1
     instance = config.indicator_instances[0]
     assert instance.id == "roc"
@@ -65,6 +90,49 @@ max_points = 120
     assert config.report_net_advances_secondary_ma_days == 8
     assert config.report_advance_pct_avg_smoothing_days == 3
     assert config.report_roc_breadth_avg_smoothing_days == 3
+    assert config.report_chart_universes == ["all"]
+    assert config.dispersion.enabled is True
+    assert config.dispersion.windows == [5, 21, 63]
+    assert config.report_dispersion_html is True
+    assert config.report_dispersion_lookback_days == 252
+
+
+def test_load_security_scan_config_report_chart_universes(tmp_path: Path) -> None:
+    (tmp_path / "securities.toml").write_text(
+        """
+[tickers]
+list = ["AAPL"]
+""".strip()
+    )
+    (tmp_path / "scan_settings.toml").write_text(
+        """
+[report]
+chart_universes = ["all", "nasdaq", "all", "sp100"]
+""".strip()
+    )
+
+    config = load_security_scan_config(tmp_path)
+    assert config.report_chart_universes == ["all", "nasdaq", "sp100"]
+
+
+def test_load_security_scan_config_invalid_report_chart_universe(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "securities.toml").write_text(
+        """
+[tickers]
+list = ["AAPL"]
+""".strip()
+    )
+    (tmp_path / "scan_settings.toml").write_text(
+        """
+[report]
+chart_universes = ["all", "unknown"]
+""".strip()
+    )
+
+    with pytest.raises(ValueError, match=r"report\.chart_universes\[1\]"):
+        load_security_scan_config(tmp_path)
 
 
 def test_compute_breadth_counts() -> None:
@@ -258,6 +326,50 @@ def test_build_timeseries_figure_vertical_grid_spans_all_rows() -> None:
     assert len(vertical_shapes) == 2
 
 
+def test_build_timeseries_figure_multi_panel_vertical_grid_uses_last_axis() -> None:
+    figure = build_timeseries_figure(
+        title="Advance %",
+        panels=[
+            {
+                "label": "All Tickers Percent",
+                "series": [
+                    {
+                        "metric_key": "advance_pct",
+                        "label": "Advance %",
+                        "points": [
+                            {"date": "2025-01-01", "value": 0.5},
+                            {"date": "2025-01-02", "value": 0.6},
+                        ],
+                    }
+                ],
+            },
+            {
+                "label": "NASDAQ Tickers Percent",
+                "series": [
+                    {
+                        "metric_key": "advance_pct",
+                        "label": "Advance %",
+                        "points": [
+                            {"date": "2025-01-01", "value": 0.45},
+                            {"date": "2025-01-02", "value": 0.55},
+                        ],
+                    }
+                ],
+            },
+        ],
+        y_tickformat=".0%",
+        x_categories=["2025-01-01", "2025-01-02"],
+    )
+    shapes = list(figure.layout.shapes) if figure.layout.shapes else []
+    vertical_shapes = [
+        shape
+        for shape in shapes
+        if getattr(shape, "yref", None) == "paper"
+        and getattr(shape, "xref", None) == "x4"
+    ]
+    assert len(vertical_shapes) == 2
+
+
 def test_render_aggregate_charts_html_includes_average_series() -> None:
     series_payloads = [
         {
@@ -312,6 +424,65 @@ def test_render_aggregate_charts_html_includes_average_series() -> None:
     assert "ROC Breadth Avg (MA 3)" in html
 
 
+def test_render_multi_universe_aggregate_charts_html_merges_group_headings() -> None:
+    universe_series_payloads = [
+        {
+            "universe_key": "all",
+            "universe_label": "All Tickers",
+            "series_payloads": [
+                {
+                    "metric_key": "advance_pct",
+                    "label": "Advance %",
+                    "points": [
+                        {"date": "2025-01-01", "value": 0.55},
+                        {"date": "2025-01-02", "value": 0.45},
+                    ],
+                },
+                {
+                    "metric_key": "net_advances",
+                    "label": "Net Advances",
+                    "points": [
+                        {"date": "2025-01-01", "value": 10},
+                        {"date": "2025-01-02", "value": -5},
+                    ],
+                },
+            ],
+        },
+        {
+            "universe_key": "nasdaq",
+            "universe_label": "NASDAQ Tickers",
+            "series_payloads": [
+                {
+                    "metric_key": "advance_pct",
+                    "label": "Advance %",
+                    "points": [
+                        {"date": "2025-01-01", "value": 0.6},
+                        {"date": "2025-01-02", "value": 0.5},
+                    ],
+                },
+                {
+                    "metric_key": "net_advances",
+                    "label": "Net Advances",
+                    "points": [
+                        {"date": "2025-01-01", "value": 8},
+                        {"date": "2025-01-02", "value": -3},
+                    ],
+                },
+            ],
+        },
+    ]
+    html = render_multi_universe_aggregate_charts_html(
+        universe_series_payloads,
+        benchmark_pct_maps={},
+        benchmark_trading_dates=set(),
+    )
+    assert html.count("Advance % (t-1 + lookbacks)") == 1
+    assert "All Tickers Percent" in html
+    assert "NASDAQ Tickers Percent" in html
+    assert "<h3>All Tickers</h3>" not in html
+    assert "<h3>NASDAQ Tickers</h3>" not in html
+
+
 def test_build_backfill_aggregate_records_daily_advances() -> None:
     price_series_by_ticker = {
         "AAA": [
@@ -337,6 +508,73 @@ def test_build_backfill_aggregate_records_daily_advances() -> None:
         and record["metric_key"] == "advance_pct"
     )
     assert target["value"] == 0.5
+
+
+def test_compute_dispersion_snapshot_perfect_lockstep() -> None:
+    shared_prices = [
+        {"date": "2025-01-01", "close": 100.0},
+        {"date": "2025-01-02", "close": 102.0},
+        {"date": "2025-01-03", "close": 101.0},
+        {"date": "2025-01-06", "close": 104.0},
+        {"date": "2025-01-07", "close": 103.0},
+        {"date": "2025-01-08", "close": 106.0},
+    ]
+    state = build_dispersion_state(
+        {
+            "AAA": shared_prices,
+            "BBB": shared_prices,
+            "CCC": shared_prices,
+        },
+        ["AAA", "BBB", "CCC"],
+        return_horizon=1,
+    )
+    metrics = compute_dispersion_snapshot(
+        state,
+        as_of_date="2025-01-08",
+        config=DispersionConfig(
+            windows=[5],
+            window_weights={5: 1.0},
+            min_tickers=2,
+            min_observations=3,
+            min_pair_coverage=0.0,
+        ),
+    )
+    lockstep_score = metrics.get("disp_lockstep_score")
+    dispersion_score = metrics.get("disp_dispersion_score")
+    assert isinstance(lockstep_score, float)
+    assert lockstep_score >= 95.0
+    assert dispersion_score == pytest.approx(100.0 - lockstep_score)
+
+
+def test_compute_dispersion_snapshot_handles_insufficient_data() -> None:
+    state = build_dispersion_state(
+        {
+            "AAA": [
+                {"date": "2025-01-01", "close": 100.0},
+                {"date": "2025-01-02", "close": 101.0},
+            ],
+            "BBB": [
+                {"date": "2025-01-01", "close": 50.0},
+                {"date": "2025-01-02", "close": 49.0},
+            ],
+        },
+        ["AAA", "BBB"],
+        return_horizon=1,
+    )
+    metrics = compute_dispersion_snapshot(
+        state,
+        as_of_date="2025-01-02",
+        config=DispersionConfig(
+            windows=[5],
+            window_weights={5: 1.0},
+            min_tickers=3,
+            min_observations=5,
+            min_pair_coverage=0.75,
+        ),
+    )
+    assert metrics["disp_lockstep_score"] is None
+    assert metrics["disp_dispersion_score"] is None
+    assert metrics["disp_valid_ticker_count"] == 0
 
 
 def test_roc_crossover_up_signal() -> None:
@@ -589,3 +827,96 @@ def test_render_html_report_includes_charts_section() -> None:
     html_report = render_html_report(payload, charts_html=charts_html)
     assert "Aggregate Timeseries" in html_report
     assert charts_html in html_report
+
+
+def test_render_dispersion_reports_include_headline() -> None:
+    payload = {
+        "run_metadata": {
+            "run_id": "disp-test",
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-08",
+            "dispersion_windows": [5, 21, 63],
+            "dispersion_markdown_path": "/tmp/disp.md",
+            "dispersion_html_path": "/tmp/disp.html",
+        },
+        "aggregate_universes": {
+            "all": {
+                "label": "All Tickers",
+                "aggregates": {
+                    "disp_lockstep_score": 64.0,
+                    "disp_dispersion_score": 36.0,
+                    "disp_valid_ticker_count": 120,
+                    "disp_observation_count": 21,
+                    "disp_corr_mean_21d": 0.35,
+                    "disp_pca_pc1_share_21d": 0.47,
+                    "disp_sign_consensus_21d": 0.59,
+                    "disp_xs_mad_z_21d": 0.82,
+                    "disp_lockstep_5d": 71.0,
+                    "disp_lockstep_21d": 64.0,
+                    "disp_lockstep_63d": 55.0,
+                    "disp_reliability_5d": 0.92,
+                    "disp_reliability_21d": 1.0,
+                    "disp_reliability_63d": 0.88,
+                },
+            }
+        },
+    }
+
+    markdown = render_dispersion_markdown_report(payload)
+    assert "Security Scan Dispersion Report" in markdown
+    assert "Lockstep Score" in markdown
+    assert "Dispersion HTML Output" in markdown
+
+    html = render_dispersion_html_report(payload, charts_html="<div>disp-chart</div>")
+    assert "Security Scan Dispersion Report" in html
+    assert "Dispersion Timeseries" in html
+
+
+def test_render_multi_universe_dispersion_charts_html_merges_headings() -> None:
+    universe_series_payloads = [
+        {
+            "universe_key": "all",
+            "universe_label": "All Tickers",
+            "series_payloads": [
+                {
+                    "metric_key": "disp_lockstep_score",
+                    "label": "Lockstep Score",
+                    "points": [
+                        {"date": "2025-01-01", "value": 61.0},
+                        {"date": "2025-01-02", "value": 64.0},
+                    ],
+                }
+            ],
+        },
+        {
+            "universe_key": "nasdaq",
+            "universe_label": "NASDAQ Tickers",
+            "series_payloads": [
+                {
+                    "metric_key": "disp_lockstep_score",
+                    "label": "Lockstep Score",
+                    "points": [
+                        {"date": "2025-01-01", "value": 58.0},
+                        {"date": "2025-01-02", "value": 60.0},
+                    ],
+                }
+            ],
+        },
+    ]
+    group_definitions = [
+        {
+            "key": "lockstep_score",
+            "title": "Lockstep Score",
+            "y_label": "Score",
+            "tickformat": ".0f",
+            "reference_lines": [50.0],
+            "metric_keys": ["disp_lockstep_score"],
+        }
+    ]
+    html = render_multi_universe_dispersion_charts_html(
+        universe_series_payloads,
+        group_definitions=group_definitions,
+    )
+    assert html.count("<h3>Lockstep Score</h3>") == 1
+    assert "All Tickers Score" in html
+    assert "NASDAQ Tickers Score" in html
