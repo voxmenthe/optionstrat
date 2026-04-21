@@ -9,6 +9,7 @@ export { default as greeksApi } from './greeksApi';
 export { default as marketDataApi } from './marketDataApi';
 export { default as scenariosApi } from './scenariosApi';
 export { optionsApi } from './optionsApi';
+export { default as securityScanApi } from './securityScanApi';
 
 // Re-export types
 export type { 
@@ -37,3 +38,17 @@ export type {
   PnLScenarioPoint,
   ScenarioResult
 } from './scenariosApi'; 
+
+export type {
+  IndicatorDashboardComputeRequest,
+  IndicatorDashboardComputeResponse,
+  IndicatorDashboardDiagnostics,
+  IndicatorDashboardSignal,
+  IndicatorMetadata,
+  IndicatorMetadataListResponse,
+  IndicatorParameterMetadata,
+  IndicatorPanel,
+  IndicatorTrace,
+  PriceSeries,
+  SeriesPoint,
+} from './securityScanApi';

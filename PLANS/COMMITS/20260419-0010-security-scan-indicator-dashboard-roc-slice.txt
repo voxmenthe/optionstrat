@@ -1,0 +1,65 @@
+fluent-dreaming: roc indicator dashboard contract and first workbench page
+
+This session turned the security-scan indicator dashboard plan from a contract sketch into a narrow but real end-to-end workbench path. The important design choice was to keep the load-bearing scan contract intact. Production indicators still expose `evaluate(prices, settings) -> list[IndicatorSignal]`, and the new dashboard behavior lives beside that path in a separate workbench layer.
+
+On the backend, the new `src/backend/app/security_scan/indicator_adapters.py` file introduces the first dashboard adapter contract. It defines small dataclasses for indicator metadata, parameter schemas, trace points, panels, signal markers, and adapter compute functions. The initial adapter supports `roc` only, which is intentional: the plan called for the contract to earn its shape one concrete indicator at a time. The adapter reuses the existing `roc` close-series and ROC-series helpers, validates `roc_lookback` strictly, rejects unknown settings, and emits visualization-level zero-cross markers for the ROC trace. Those zero-cross markers are dashboard-owned defaults; they do not change the existing scan criteria behavior.
+
+The new `src/backend/app/security_scan/indicator_workbench.py` file is the service boundary for this workbench. It owns the Pydantic request and response models, ticker and date normalization, adapter lookup, market-data fetching, response assembly, and workbench-specific exceptions. The workbench uses `MarketDataFetcher.fetch_historical_prices()` with an injected `MarketDataService`, so dashboard computations pass through the same normalized daily price path as the security scan runner. That was the key blast-radius decision: the dashboard gets the same data shape as production scans without changing the production scan runner or indicator registry.
+
+The new `src/backend/app/routes/security_scan.py` router exposes two endpoints: `GET /security-scan/indicators` for metadata and `POST /security-scan/indicator-dashboard/compute` for a single-ticker compute payload. `src/backend/app/main.py` now includes that router. The route uses `app.dependencies.get_market_data_service` rather than copying the older route-local market-data dependency pattern, so tests and future callers can override the dependency cleanly.
+
+The backend test coverage for this slice is in `src/backend/tests/security_scan/test_indicator_workbench.py` and `src/backend/tests/test_security_scan_api.py`. The service tests use a fake market data service to verify normalized fetch wiring, sorted price output, ROC trace dates, zero-cross signal payloads, diagnostics, strict setting validation, and no-data errors. The API tests verify metadata, a successful compute response, and `422` behavior for an invalid `roc_lookback`. This gives the first workbench contract real regression coverage without touching external market providers.
+
+On the frontend, `src/frontend/lib/api/securityScanApi.ts` defines the typed client wrapper and payload types for the new backend API. `src/frontend/lib/api/index.ts` re-exports those types and the service for the rest of the app, although the dashboard page itself imports directly from `securityScanApi.ts` and `apiClient.ts` to avoid pulling unrelated API modules into its scoped type check.
+
+The new page lives at `src/frontend/app/security-scan/indicators/page.tsx`. It is a client page with local state for ticker, date range, benchmark tickers, selected indicator, schema-driven parameter inputs, compute status, errors, diagnostics, result payloads, and MRU entries. Edits do not auto-run compute; the page uses an explicit `Recompute` action. That matches the plan's safer phase-1 default and keeps provider calls visible and user-controlled.
+
+The first version keeps the frontend generic enough for the next indicators. Parameter parsing and request serialization live in `src/frontend/lib/security-scan/indicatorParameterInputs.ts`, and browser MRU validation/storage lives in `src/frontend/lib/security-scan/indicatorMru.ts`. Chart shaping lives in `src/frontend/components/security-scan/IndicatorDashboardChart.tsx`, which builds one Plotly figure with a close-price panel on top and an indicator panel below. It plots reference lines, shared vertical signal markers, and trace-level marker symbols from the backend payload. Splitting those pieces kept the page near the repo's target file size instead of letting one file become a form, chart, storage, and serialization module all at once.
+
+The UI exposes benchmark tickers now even though `roc` does not consume them. The backend only fetches benchmark data when an adapter declares `requires_benchmarks`, so the request shape is ready for QRS-style indicators without spending provider calls on phase 1.
+
+The project plan at `PLANS/current-project-plans/security-scan-indicator-dashboard-plan.md` was updated with the completed Phase 0 and initial Phase 1 status, implementation notes, validation results, and a more detailed Phase 2 path. The plan now records the route decision, the explicit recompute decision, the zero-cross marker question, and the fact that tracked runtime artifacts such as `.coverage`, `src/backend/logs/backend.log`, and `src/backend/options.db` are modified by normal local runs.
+
+Validation performed:
+
+`uv run pytest src/backend/tests/security_scan/test_indicator_workbench.py src/backend/tests/test_security_scan_api.py` passed.
+
+`npx tsc --noEmit --pretty false --jsx preserve --module esnext --moduleResolution bundler --target es5 --lib dom,dom.iterable,esnext --strict --esModuleInterop --skipLibCheck app/security-scan/indicators/page.tsx components/security-scan/IndicatorDashboardChart.tsx lib/api/securityScanApi.ts lib/security-scan/indicatorMru.ts lib/security-scan/indicatorParameterInputs.ts` passed.
+
+`GET http://localhost:8003/security-scan/indicators` returned the `roc` metadata schema.
+
+`POST http://localhost:8003/security-scan/indicator-dashboard/compute` returned a real `AAPL` ROC dashboard payload for `2025-01-01` through `2025-01-10`, including price points, ROC points, zero-cross signals, and diagnostics.
+
+`HEAD http://localhost:3003/security-scan/indicators` returned `200 OK`.
+
+Full `npm run build` compiled the frontend bundle but failed during type checking on an existing unrelated issue in `src/frontend/app/options/page.tsx`: `OptionContract.last` is referenced but not defined on the type. I left that out of this commit because it is not part of the dashboard slice and would widen the review surface.
+
+Direct `npx eslint ...` could not run because the frontend uses ESLint 9 but has no `eslint.config.(js|mjs|cjs)` file. That is an environment/tooling issue rather than a dashboard implementation issue.
+
+Upcoming decisions, issues, and notable findings:
+
+The first decision is whether dashboard `roc` should keep adapter-owned zero-cross markers by default. They are useful for visual inspection and do not affect production scans, but they are not currently driven by `criteria` metadata. If the dashboard should represent only explicitly configured signal rules, then `roc` should expose criteria editing or criteria presets rather than implicit zero-cross markers.
+
+The second decision is how quickly to promote private indicator helpers into public pure compute helpers. The `roc` adapter currently imports underscore-prefixed helpers because this was the narrowest low-blast-radius contract spike. That is acceptable once. If `roc_aggregate` and `scl_v4_x5` force more private imports or duplicate validation and alignment logic, the right move is to expose shared pure series functions from the indicator modules or a nearby `series_math` layer rather than letting adapters reach deeper into internals.
+
+The third decision is whether to fix the frontend type/build baseline before adding more dashboard UI. `npm run build` is currently blocked by an unrelated options-page type mismatch. The dashboard files pass a scoped type check, but the project still cannot produce a clean full frontend build until the existing `OptionContract.last` mismatch is resolved.
+
+The fourth decision is whether to migrate or pin lint tooling. ESLint 9 expects a flat config, but this frontend does not have one. Either add `eslint.config.js`, pin ESLint to the version expected by `next lint`, or adjust the script to use a supported Next.js lint flow. Without this, lint cannot serve as a reliable validation gate for dashboard work.
+
+The fifth decision is what to do with tracked runtime artifacts. Running tests and the backend modifies `.coverage`, `src/backend/logs/backend.log`, and `src/backend/options.db`. I restored them after validation in this session, but this will keep recurring. These files probably belong outside version control or behind ignored local paths unless there is a deliberate reason to track them.
+
+The sixth decision is whether to add the dashboard to global navigation now or wait until `roc_aggregate` and `scl_v4_x5` are usable. The route exists at `/security-scan/indicators`, but it is not linked from the root layout yet. Leaving it unlinked keeps the first slice clearly experimental; adding navigation would make it easier to reach during development.
+
+Next best steps:
+
+The next implementation slice should add the `roc_aggregate` adapter before touching benchmark-aware indicators. It is the best second case because it validates multi-trace output, list parameters, moving-average overlays, and signal marker readability without adding benchmark alignment or provider fan-out.
+
+For `roc_aggregate`, add adapter metadata for `roc_lookbacks`, `roc_change_lookbacks`, `ma_short`, and `ma_long`. The frontend already has basic `integer_list` support, but this will be the first real test of whether the schema is expressive enough without indicator-specific React branches. If it is not, evolve the schema once at the parameter contract boundary rather than adding bespoke page logic.
+
+Backend tests for `roc_aggregate` should assert the score trace, both MA traces, cross-above and cross-below signals, resolved settings, diagnostics, and validation failures for empty or malformed integer lists. The tests should stay synthetic and deterministic, just like the `roc` workbench tests.
+
+After `roc_aggregate`, add `scl_v4_x5` as the structurally different third case. It should force the adapter contract to handle OHLC requirements, countdown-style traces, MA traces, and high/low signal context. That is the point where the current one-file backend adapter module may need to split into a small adapter package, but only if the file starts losing cohesion.
+
+Before benchmark-aware indicators, define the benchmark alignment contract in `indicator_workbench.py`: exactly which tickers are required, how missing data fails, how date losses are reported, and whether partial benchmark output is ever allowed. QRS-style indicators should fail clearly when benchmark context is incomplete; they should not produce quiet partial charts.
+
+In parallel with the next adapter slice, fix the unrelated frontend build blocker in `src/frontend/app/options/page.tsx` and decide on the ESLint 9 configuration. Those are not dashboard logic, but they are now blocking full-project validation and will keep creating uncertainty after each frontend change.

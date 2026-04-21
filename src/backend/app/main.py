@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 logger.info(f"Backend logging initialized. Log file: {backend_log_path}")
 
 # Import routers
-from app.routes import positions, greeks, scenarios, market_data, options, debug
+from app.routes import positions, greeks, scenarios, market_data, options, debug, security_scan
 
 # Create FastAPI app
 app = FastAPI(
@@ -116,6 +116,7 @@ app.include_router(scenarios.router)
 app.include_router(market_data.router)
 app.include_router(options.router)
 app.include_router(debug.router)
+app.include_router(security_scan.router)
 
 if __name__ == "__main__":
     uvicorn.run(
