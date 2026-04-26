@@ -51,10 +51,33 @@ def _roc_request(
     )
 
 
-def test_list_indicator_metadata_returns_roc_schema() -> None:
+def _roc_aggregate_request(
+    settings: dict[str, Any] | None = None,
+) -> IndicatorDashboardComputeRequest:
+    return IndicatorDashboardComputeRequest(
+        ticker="msft",
+        indicator_id="roc_aggregate",
+        settings=settings
+        or {
+            "roc_lookbacks": [1],
+            "roc_change_lookbacks": [1],
+            "ma_short": 2,
+            "ma_long": 2,
+        },
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 6),
+        interval="day",
+        benchmark_tickers=["spy", "qqq", "iwm"],
+    )
+
+
+def test_list_indicator_metadata_returns_dashboard_indicator_schemas() -> None:
     metadata = list_indicator_metadata()
 
-    assert [indicator.id for indicator in metadata.indicators] == ["roc"]
+    assert [indicator.id for indicator in metadata.indicators] == [
+        "roc",
+        "roc_aggregate",
+    ]
     roc_metadata = metadata.indicators[0]
     assert roc_metadata.default_settings == {"roc_lookback": 12}
     assert roc_metadata.requires_benchmarks is False
@@ -64,6 +87,28 @@ def test_list_indicator_metadata_returns_roc_schema() -> None:
         for parameter in roc_metadata.parameters
     ] == [
         ("roc_lookback", "integer", 1),
+    ]
+
+    roc_aggregate_metadata = metadata.indicators[1]
+    assert roc_aggregate_metadata.default_settings == {
+        "roc_lookbacks": [5, 10, 20],
+        "roc_change_lookbacks": [1, 3, 5],
+        "ma_short": 5,
+        "ma_long": 20,
+    }
+    assert [
+        (
+            parameter.key,
+            parameter.type,
+            parameter.min,
+            parameter.item_type,
+        )
+        for parameter in roc_aggregate_metadata.parameters
+    ] == [
+        ("roc_lookbacks", "integer_list", 1, "integer"),
+        ("roc_change_lookbacks", "integer_list", 1, "integer"),
+        ("ma_short", "integer", 1, None),
+        ("ma_long", "integer", 1, None),
     ]
 
 
@@ -123,6 +168,107 @@ def test_compute_roc_dashboard_rejects_unknown_settings() -> None:
         )
 
 
+def test_compute_roc_aggregate_dashboard_returns_multi_trace_payload() -> None:
+    service = FakeMarketDataService(
+        [
+            {"date": "2025-01-01", "close": 100.0},
+            {"date": "2025-01-02", "close": 110.0},
+            {"date": "2025-01-03", "close": 125.0},
+            {"date": "2025-01-04", "close": 130.0},
+            {"date": "2025-01-05", "close": 140.0},
+            {"date": "2025-01-06", "close": 141.0},
+        ]
+    )
+
+    response = compute_indicator_dashboard(
+        _roc_aggregate_request(),
+        service,  # type: ignore[arg-type]
+    )
+
+    assert response.ticker == "MSFT"
+    assert response.indicator_id == "roc_aggregate"
+    assert response.resolved_settings == {
+        "roc_lookbacks": [1],
+        "roc_change_lookbacks": [1],
+        "ma_short": 2,
+        "ma_long": 2,
+    }
+    assert [trace.key for trace in response.indicator.panels[0].traces] == [
+        "score",
+        "ma_short",
+        "ma_long",
+    ]
+    assert [
+        point.date for point in response.indicator.panels[0].traces[0].points
+    ] == [
+        "2025-01-03",
+        "2025-01-04",
+        "2025-01-05",
+        "2025-01-06",
+    ]
+    assert [
+        point.date for point in response.indicator.panels[0].traces[1].points
+    ] == [
+        "2025-01-04",
+        "2025-01-05",
+        "2025-01-06",
+    ]
+    assert [
+        point.date for point in response.indicator.panels[0].traces[2].points
+    ] == [
+        "2025-01-04",
+        "2025-01-05",
+        "2025-01-06",
+    ]
+    assert [signal.type for signal in response.signals] == [
+        "cross_above_both",
+        "cross_below_both",
+    ]
+    assert [signal.date for signal in response.signals] == [
+        "2025-01-05",
+        "2025-01-06",
+    ]
+    assert all(signal.target_trace == "score" for signal in response.signals)
+    assert response.diagnostics.price_points == 6
+    assert response.diagnostics.indicator_points == 4
+    assert response.diagnostics.benchmark_tickers_used == []
+    assert response.diagnostics.warnings == []
+
+
+def test_compute_roc_aggregate_dashboard_returns_warning_for_insufficient_history() -> None:
+    service = FakeMarketDataService(
+        [
+            {"date": "2025-01-01", "close": 100.0},
+            {"date": "2025-01-02", "close": 110.0},
+            {"date": "2025-01-03", "close": 105.0},
+        ]
+    )
+
+    response = compute_indicator_dashboard(
+        _roc_aggregate_request(
+            {
+                "roc_lookbacks": [2],
+                "roc_change_lookbacks": [2],
+                "ma_short": 3,
+                "ma_long": 3,
+            }
+        ),
+        service,  # type: ignore[arg-type]
+    )
+
+    assert [len(trace.points) for trace in response.indicator.panels[0].traces] == [
+        0,
+        0,
+        0,
+    ]
+    assert response.signals == []
+    assert response.diagnostics.price_points == 3
+    assert response.diagnostics.indicator_points == 0
+    assert response.diagnostics.warnings == [
+        "Need at least 5 valid close prices to compute ROC Aggregate score."
+    ]
+
+
 def test_compute_roc_dashboard_rejects_invalid_lookback() -> None:
     service = FakeMarketDataService(
         [{"date": "2025-01-01", "close": 100.0}, {"date": "2025-01-02", "close": 101.0}]
@@ -133,6 +279,32 @@ def test_compute_roc_dashboard_rejects_invalid_lookback() -> None:
     ):
         compute_indicator_dashboard(
             _roc_request({"roc_lookback": 0}),
+            service,  # type: ignore[arg-type]
+        )
+
+
+def test_compute_roc_aggregate_dashboard_rejects_non_list_lookbacks() -> None:
+    service = FakeMarketDataService(
+        [
+            {"date": "2025-01-01", "close": 100.0},
+            {"date": "2025-01-02", "close": 101.0},
+            {"date": "2025-01-03", "close": 102.0},
+        ]
+    )
+
+    with pytest.raises(
+        IndicatorSettingsValidationError,
+        match="roc_lookbacks must be a list of integers",
+    ):
+        compute_indicator_dashboard(
+            _roc_aggregate_request(
+                {
+                    "roc_lookbacks": 1,
+                    "roc_change_lookbacks": [1],
+                    "ma_short": 2,
+                    "ma_long": 2,
+                }
+            ),
             service,  # type: ignore[arg-type]
         )
 

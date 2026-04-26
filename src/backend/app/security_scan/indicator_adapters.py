@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from math import isfinite
 from typing import Any, Callable
 
+from app.security_scan.indicators import roc_aggregate as roc_aggregate_indicator
 from app.security_scan.indicators import roc as roc_indicator
 
 
@@ -213,6 +214,10 @@ def _build_zero_cross_signals(
     return signals
 
 
+def _signal_type_label(signal_type: str) -> str:
+    return signal_type.replace("_", " ").title()
+
+
 def _compute_roc_dashboard(
     dashboard_input: IndicatorDashboardInput,
 ) -> IndicatorDashboardOutput:
@@ -256,6 +261,89 @@ def _compute_roc_dashboard(
     )
 
 
+def _compute_roc_aggregate_dashboard(
+    dashboard_input: IndicatorDashboardInput,
+) -> IndicatorDashboardOutput:
+    resolved_settings = resolve_adapter_settings(
+        ROC_AGGREGATE_DASHBOARD_ADAPTER,
+        dashboard_input.settings,
+    )
+    computation = roc_aggregate_indicator.compute_roc_aggregate_computation(
+        dashboard_input.prices,
+        resolved_settings,
+    )
+    resolved_settings = computation.resolved_settings
+    score_points = _trace_points_from_series(computation.score_series)
+    short_ma_points = _trace_points_from_series(computation.short_ma_series)
+    long_ma_points = _trace_points_from_series(computation.long_ma_series)
+
+    warnings: list[str] = []
+    if not score_points:
+        required_points = (
+            max(resolved_settings["roc_lookbacks"])
+            + max(resolved_settings["roc_change_lookbacks"])
+            + 1
+        )
+        warnings.append(
+            f"Need at least {required_points} valid close prices to compute ROC Aggregate score."
+        )
+    if score_points and not short_ma_points:
+        warnings.append(
+            f"Need at least {resolved_settings['ma_short']} score points to compute the short moving average."
+        )
+    if score_points and not long_ma_points:
+        warnings.append(
+            f"Need at least {resolved_settings['ma_long']} score points to compute the long moving average."
+        )
+
+    return IndicatorDashboardOutput(
+        resolved_settings=resolved_settings,
+        panels=[
+            IndicatorPanel(
+                id="main",
+                label="ROC Aggregate",
+                traces=[
+                    IndicatorTrace(
+                        key="score",
+                        label="ROC Aggregate Score",
+                        points=score_points,
+                        color="#0f766e",
+                    ),
+                    IndicatorTrace(
+                        key="ma_short",
+                        label=f"Short MA {resolved_settings['ma_short']}",
+                        points=short_ma_points,
+                        color="#b45309",
+                    ),
+                    IndicatorTrace(
+                        key="ma_long",
+                        label=f"Long MA {resolved_settings['ma_long']}",
+                        points=long_ma_points,
+                        color="#1d4ed8",
+                    ),
+                ],
+                reference_lines=[0.0],
+            )
+        ],
+        signals=[
+            IndicatorDashboardSignal(
+                date=signal.signal_date,
+                type=signal.signal_type,
+                label=_signal_type_label(signal.signal_type),
+                target_trace="score",
+                metadata=dict(signal.metadata),
+            )
+            for signal in computation.signals
+        ],
+        diagnostics={
+            "price_points": len(computation.close_series),
+            "indicator_points": len(score_points),
+            "benchmark_tickers_used": [],
+            "warnings": warnings,
+        },
+    )
+
+
 ROC_DASHBOARD_ADAPTER = IndicatorDashboardAdapter(
     id="roc",
     label="Rate of Change",
@@ -277,9 +365,65 @@ ROC_DASHBOARD_ADAPTER = IndicatorDashboardAdapter(
     compute=_compute_roc_dashboard,
 )
 
+ROC_AGGREGATE_DASHBOARD_ADAPTER = IndicatorDashboardAdapter(
+    id="roc_aggregate",
+    label="ROC Aggregate",
+    description="Aggregate ROC trend score with short and long moving-average overlays.",
+    parameters=[
+        IndicatorParameter(
+            key="roc_lookbacks",
+            label="ROC Lookbacks",
+            type="integer_list",
+            default=[5, 10, 20],
+            min=1,
+            required=True,
+            description="Comma-separated ROC lookback windows used to build the aggregate score.",
+            item_type="integer",
+        ),
+        IndicatorParameter(
+            key="roc_change_lookbacks",
+            label="ROC Change Lookbacks",
+            type="integer_list",
+            default=[1, 3, 5],
+            min=1,
+            required=True,
+            description="Comma-separated score-comparison windows used to measure ROC acceleration or decay.",
+            item_type="integer",
+        ),
+        IndicatorParameter(
+            key="ma_short",
+            label="Short MA Window",
+            type="integer",
+            default=5,
+            min=1,
+            required=True,
+            description="Window for the short moving-average overlay on the aggregate score.",
+        ),
+        IndicatorParameter(
+            key="ma_long",
+            label="Long MA Window",
+            type="integer",
+            default=20,
+            min=1,
+            required=True,
+            description="Window for the long moving-average overlay on the aggregate score.",
+        ),
+    ],
+    default_settings={
+        "roc_lookbacks": [5, 10, 20],
+        "roc_change_lookbacks": [1, 3, 5],
+        "ma_short": 5,
+        "ma_long": 20,
+    },
+    requires_benchmarks=False,
+    supported_intervals=["day"],
+    compute=_compute_roc_aggregate_dashboard,
+)
+
 
 DASHBOARD_ADAPTERS: dict[str, IndicatorDashboardAdapter] = {
     ROC_DASHBOARD_ADAPTER.id: ROC_DASHBOARD_ADAPTER,
+    ROC_AGGREGATE_DASHBOARD_ADAPTER.id: ROC_AGGREGATE_DASHBOARD_ADAPTER,
 }
 
 

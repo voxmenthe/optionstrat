@@ -1,11 +1,22 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from app.security_scan.criteria import SeriesPoint
 from app.security_scan.signals import IndicatorSignal
 
 INDICATOR_ID = "roc_aggregate"
+
+
+@dataclass(frozen=True)
+class RocAggregateComputation:
+    resolved_settings: dict[str, Any]
+    close_series: list[SeriesPoint]
+    score_series: list[SeriesPoint]
+    short_ma_series: list[SeriesPoint]
+    long_ma_series: list[SeriesPoint]
+    signals: list[IndicatorSignal]
 
 
 def _extract_close_series(prices: list[dict[str, Any]]) -> list[SeriesPoint]:
@@ -124,48 +135,39 @@ def _compute_sma_series(series: list[SeriesPoint], window: int) -> list[SeriesPo
     return sma_series
 
 
-def evaluate(
-    prices: list[dict[str, Any]],
-    settings: dict[str, Any],
-) -> list[IndicatorSignal]:
-    roc_lookbacks = _to_positive_int_list(
-        settings.get("roc_lookbacks"),
-        "roc_lookbacks",
-        [5, 10, 20],
-    )
-    change_lookbacks = _to_positive_int_list(
-        settings.get("roc_change_lookbacks"),
-        "roc_change_lookbacks",
-        [1, 3, 5],
-    )
-    ma_short = _to_positive_int(settings.get("ma_short", 5), "ma_short")
-    ma_long = _to_positive_int(settings.get("ma_long", 20), "ma_long")
-
-    close_series = _extract_close_series(prices)
-    if not close_series:
-        return []
-
-    required_points = max(roc_lookbacks) + max(change_lookbacks) + 1
-    if len(close_series) < required_points:
-        return []
-
-    roc_by_index = {
-        lookback: _compute_roc_by_index(close_series, lookback)
-        for lookback in roc_lookbacks
+def _resolve_settings(settings: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "roc_lookbacks": _to_positive_int_list(
+            settings.get("roc_lookbacks"),
+            "roc_lookbacks",
+            [5, 10, 20],
+        ),
+        "roc_change_lookbacks": _to_positive_int_list(
+            settings.get("roc_change_lookbacks"),
+            "roc_change_lookbacks",
+            [1, 3, 5],
+        ),
+        "ma_short": _to_positive_int(settings.get("ma_short", 5), "ma_short"),
+        "ma_long": _to_positive_int(settings.get("ma_long", 20), "ma_long"),
     }
-    indicator_series = _compute_indicator_series(
-        close_series, roc_by_index, roc_lookbacks, change_lookbacks
-    )
-    if len(indicator_series) < 2:
-        return []
 
-    sma_short_series = _compute_sma_series(indicator_series, ma_short)
-    sma_long_series = _compute_sma_series(indicator_series, ma_long)
-    if not sma_short_series or not sma_long_series:
+
+def _build_cross_signals(
+    indicator_series: list[SeriesPoint],
+    sma_short_series: list[SeriesPoint],
+    sma_long_series: list[SeriesPoint],
+    resolved_settings: dict[str, Any],
+) -> list[IndicatorSignal]:
+    if len(indicator_series) < 2 or not sma_short_series or not sma_long_series:
         return []
 
     sma_short_by_date = {point.date: point.value for point in sma_short_series}
     sma_long_by_date = {point.date: point.value for point in sma_long_series}
+
+    ma_short = resolved_settings["ma_short"]
+    ma_long = resolved_settings["ma_long"]
+    roc_lookbacks = resolved_settings["roc_lookbacks"]
+    change_lookbacks = resolved_settings["roc_change_lookbacks"]
 
     signals: list[IndicatorSignal] = []
     for index in range(1, len(indicator_series)):
@@ -216,3 +218,67 @@ def evaluate(
             )
 
     return signals
+
+
+def compute_roc_aggregate_computation(
+    prices: list[dict[str, Any]],
+    settings: dict[str, Any],
+) -> RocAggregateComputation:
+    resolved_settings = _resolve_settings(settings)
+    roc_lookbacks = resolved_settings["roc_lookbacks"]
+    change_lookbacks = resolved_settings["roc_change_lookbacks"]
+    ma_short = resolved_settings["ma_short"]
+    ma_long = resolved_settings["ma_long"]
+
+    close_series = _extract_close_series(prices)
+    if not close_series:
+        return RocAggregateComputation(
+            resolved_settings=resolved_settings,
+            close_series=[],
+            score_series=[],
+            short_ma_series=[],
+            long_ma_series=[],
+            signals=[],
+        )
+
+    required_points = max(roc_lookbacks) + max(change_lookbacks) + 1
+    if len(close_series) < required_points:
+        return RocAggregateComputation(
+            resolved_settings=resolved_settings,
+            close_series=close_series,
+            score_series=[],
+            short_ma_series=[],
+            long_ma_series=[],
+            signals=[],
+        )
+
+    roc_by_index = {
+        lookback: _compute_roc_by_index(close_series, lookback)
+        for lookback in roc_lookbacks
+    }
+    indicator_series = _compute_indicator_series(
+        close_series, roc_by_index, roc_lookbacks, change_lookbacks
+    )
+    sma_short_series = _compute_sma_series(indicator_series, ma_short)
+    sma_long_series = _compute_sma_series(indicator_series, ma_long)
+
+    return RocAggregateComputation(
+        resolved_settings=resolved_settings,
+        close_series=close_series,
+        score_series=indicator_series,
+        short_ma_series=sma_short_series,
+        long_ma_series=sma_long_series,
+        signals=_build_cross_signals(
+            indicator_series=indicator_series,
+            sma_short_series=sma_short_series,
+            sma_long_series=sma_long_series,
+            resolved_settings=resolved_settings,
+        ),
+    )
+
+
+def evaluate(
+    prices: list[dict[str, Any]],
+    settings: dict[str, Any],
+) -> list[IndicatorSignal]:
+    return compute_roc_aggregate_computation(prices, settings).signals

@@ -432,8 +432,10 @@ Implementation notes:
 ### Phase 2 - Add Multi-Trace Indicators
 Purpose: validate the adapter shape across multiple indicator forms.
 
+Status: in progress as of 2026-04-25 23:48 PDT. `roc_aggregate` is now supported end-to-end; `scl_v4_x5` remains the next structural test case.
+
 Tasks:
-1. Add `roc_aggregate` adapter:
+1. Complete - add `roc_aggregate` adapter:
    - score trace
    - short MA trace
    - long MA trace
@@ -444,21 +446,37 @@ Tasks:
    - `MA2`
    - zero/reference line
    - seven-bar high/low signal markers
-3. Add tests for metadata schemas and compute payloads for each adapter.
-4. Improve frontend parameter rendering for integer lists and grouped controls.
+3. In progress - add tests for metadata schemas and compute payloads for each adapter.
+4. In progress - improve frontend parameter rendering for integer lists and grouped controls.
 
 Exit criteria:
 - Dashboard can switch among `roc`, `roc_aggregate`, and `scl_v4_x5`.
 - Each indicator can be recomputed with edited parameters.
 - Multi-trace legends and marker overlays remain readable.
 
+Implementation notes:
+- `roc_aggregate` now uses a public pure-compute helper in `src/backend/app/security_scan/indicators/roc_aggregate.py` so the production `evaluate()` path and the dashboard adapter share one source of truth for resolved settings, score series, moving averages, and crossover signals.
+- This avoided adding another dashboard adapter that reaches deep into underscore-prefixed indicator helpers. The notebook tooling still uses those private helpers, which is now a visible follow-up candidate rather than a reason to keep expanding private imports.
+- The dashboard adapter keeps the external workbench contract strict: `roc_lookbacks` and `roc_change_lookbacks` must arrive as JSON lists in dashboard requests even though the production indicator internals still tolerate a single integer in non-dashboard contexts.
+- The frontend page remains schema-driven. `roc_aggregate` did not require indicator-specific React branches. The only frontend additions in this slice were generic parameter descriptions and a visible warnings strip so list-input expectations and insufficient-history diagnostics are obvious without opening debug JSON.
+
 Next detailed slice:
-1. Add a backend `roc_aggregate` dashboard adapter before `scl_v4_x5`; it is the closest structural extension from `roc` because it adds multiple traces without benchmark context.
-2. Promote only the helper functions needed for `roc_aggregate` if private imports start to pile up. The friction signal to watch is adapter code duplicating `_to_positive_int_list`, score construction, or SMA alignment logic.
-3. Extend the adapter metadata with `integer_list` parameters for `roc_lookbacks` and `roc_change_lookbacks`, plus integer parameters for `ma_short` and `ma_long`.
-4. Add tests that assert score, short MA, long MA, signal markers, diagnostics, and strict validation for list inputs.
-5. Re-run the existing dashboard page against `roc_aggregate` without adding indicator-specific React branches. If the generic form cannot render this cleanly, fix the parameter schema/rendering contract rather than special-casing the page.
-6. Add `scl_v4_x5` only after `roc_aggregate` proves the multi-trace shape; it will validate structurally different OHLC requirements and countdown/MA naming.
+1. Add a public pure-compute helper for `scl_v4_x5` if the dashboard adapter would otherwise need to reach into several underscore helpers or duplicate the indicator math. The same rule that paid off for `roc_aggregate` should be applied here: keep visualization assembly in the adapter, keep indicator math in the indicator module.
+2. Define the `scl_v4_x5` dashboard traces explicitly before coding:
+   - one primary countdown trace
+   - `MA1`
+   - `MA2`
+   - zero/reference line
+   - signal markers for seven-bar highs/lows
+3. Decide how the adapter will label the countdown trace. The label should match the indicator's own vocabulary closely enough that future screener reuse does not need a translation layer.
+4. Add focused backend tests for the first `scl_v4_x5` dashboard payload:
+   - metadata schema and defaults
+   - non-empty OHLC trace output on synthetic rows
+   - reference line handling
+   - signal marker dates and target trace keys
+   - failure or warning behavior when OHLC fields are missing
+5. Re-run the existing page against `scl_v4_x5` before adding any UI-specific branching. If grouped controls or richer field hints become necessary, evolve the schema/rendering contract once in the generic form helpers instead of encoding indicator names in the page.
+6. After `scl_v4_x5` lands, revisit the notebook/private-helper situation. If both the dashboard and notebooks want the same pure series outputs, move notebook callers onto the new public compute helpers instead of letting a parallel helper ecosystem grow.
 
 ### Phase 3 - Benchmark-Aware Indicators
 Purpose: support QRS and composite indicators without special-casing in the frontend.
@@ -541,10 +559,9 @@ If the project has or adds frontend test tooling:
 
 Latest validation:
 - Passed: `uv run pytest src/backend/tests/security_scan/test_indicator_workbench.py src/backend/tests/test_security_scan_api.py`.
-- Passed: scoped TypeScript check for the new dashboard frontend files with `npx tsc --noEmit ...`.
-- Passed: `GET http://localhost:8003/security-scan/indicators`.
-- Passed: `POST http://localhost:8003/security-scan/indicator-dashboard/compute` for `AAPL`, `roc`, `roc_lookback=1`, `2025-01-01` through `2025-01-10`.
-- Passed: `HEAD http://localhost:3003/security-scan/indicators` returned `200 OK`.
+- Passed: `uv run pytest src/backend/tests/test_security_scan.py -k roc_aggregate`.
+- Passed: scoped TypeScript check for the dashboard frontend files with `src/frontend/node_modules/.bin/tsc --noEmit ...` from `src/frontend`.
+- Not re-run in this session: direct HTTP smoke calls against a live backend/frontend process.
 - Blocked: full `npm run build` currently fails on an existing unrelated type error in `src/frontend/app/options/page.tsx` where `OptionContract.last` is referenced but not defined on the type.
 - Blocked: direct `npx eslint ...` cannot run because the frontend uses ESLint 9 but has no `eslint.config.(js|mjs|cjs)` file.
 
@@ -567,9 +584,11 @@ Reversibility:
 - Resolved for this slice: the frontend route is `/security-scan/indicators`, with backend metadata at `GET /security-scan/indicators` and compute at `POST /security-scan/indicator-dashboard/compute`.
 - Should the first supported set include `scl_v4_x5`, even though it is not currently configured as a top-level scan instance in `scan_settings.toml`?
 - Resolved for this slice: parameter edits require an explicit recompute button.
+- Should the dashboard `integer_list` contract stay stricter than the production indicator helpers? It currently requires JSON arrays for list settings even though some indicator internals still accept a scalar integer and coerce it to a one-item list.
 - Should the frontend support saving named parameter presets in `localStorage`, separate from MRU indicator types?
 - Should future multi-panel support be per-indicator-defined or user-configurable?
 - Should `roc` zero-cross visualization markers remain dashboard-owned defaults, or should future `roc` signal markers come only from explicit criteria metadata?
+- Should notebook callers that currently reach into private indicator helpers move onto the new public pure-compute functions as those functions appear, or should notebook-only series builders remain intentionally separate?
 - Should the tracked runtime artifacts `.coverage`, `src/backend/logs/backend.log`, and `src/backend/options.db` be removed from version control or moved to ignored local paths? Tests and local smoke runs modify them.
 
 ## Initial File Targets

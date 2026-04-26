@@ -35,8 +35,12 @@ def test_security_scan_indicator_metadata_endpoint(client) -> None:
 
     assert response.status_code == 200
     payload = response.json()
-    assert [indicator["id"] for indicator in payload["indicators"]] == ["roc"]
+    assert [indicator["id"] for indicator in payload["indicators"]] == [
+        "roc",
+        "roc_aggregate",
+    ]
     assert payload["indicators"][0]["parameters"][0]["key"] == "roc_lookback"
+    assert payload["indicators"][1]["parameters"][0]["key"] == "roc_lookbacks"
 
 
 def test_security_scan_indicator_dashboard_compute_endpoint(client) -> None:
@@ -76,6 +80,57 @@ def test_security_scan_indicator_dashboard_compute_endpoint(client) -> None:
     assert fake_service.calls[0]["ticker"] == "AAPL"
 
 
+def test_security_scan_roc_aggregate_dashboard_compute_endpoint(client) -> None:
+    fake_service = FakeMarketDataService(
+        [
+            {"date": "2025-01-01", "close": 100.0},
+            {"date": "2025-01-02", "close": 110.0},
+            {"date": "2025-01-03", "close": 125.0},
+            {"date": "2025-01-04", "close": 130.0},
+            {"date": "2025-01-05", "close": 140.0},
+            {"date": "2025-01-06", "close": 141.0},
+        ]
+    )
+
+    def override_market_data_service() -> FakeMarketDataService:
+        return fake_service
+
+    app.dependency_overrides[get_market_data_service] = override_market_data_service
+
+    response = client.post(
+        "/security-scan/indicator-dashboard/compute",
+        json={
+            "ticker": "msft",
+            "indicator_id": "roc_aggregate",
+            "settings": {
+                "roc_lookbacks": [1],
+                "roc_change_lookbacks": [1],
+                "ma_short": 2,
+                "ma_long": 2,
+            },
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-06",
+            "interval": "day",
+            "benchmark_tickers": ["spy", "qqq", "iwm"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ticker"] == "MSFT"
+    assert [trace["key"] for trace in payload["indicator"]["panels"][0]["traces"]] == [
+        "score",
+        "ma_short",
+        "ma_long",
+    ]
+    assert [signal["date"] for signal in payload["signals"]] == [
+        "2025-01-05",
+        "2025-01-06",
+    ]
+    assert payload["diagnostics"]["indicator_points"] == 4
+    assert fake_service.calls[0]["ticker"] == "MSFT"
+
+
 def test_security_scan_indicator_dashboard_rejects_bad_settings(client) -> None:
     fake_service = FakeMarketDataService(
         [
@@ -103,3 +158,38 @@ def test_security_scan_indicator_dashboard_rejects_bad_settings(client) -> None:
 
     assert response.status_code == 422
     assert "roc_lookback must be >= 1" in response.json()["detail"]
+
+
+def test_security_scan_roc_aggregate_dashboard_rejects_bad_list_settings(client) -> None:
+    fake_service = FakeMarketDataService(
+        [
+            {"date": "2025-01-01", "close": 100.0},
+            {"date": "2025-01-02", "close": 101.0},
+            {"date": "2025-01-03", "close": 102.0},
+        ]
+    )
+
+    def override_market_data_service() -> FakeMarketDataService:
+        return fake_service
+
+    app.dependency_overrides[get_market_data_service] = override_market_data_service
+
+    response = client.post(
+        "/security-scan/indicator-dashboard/compute",
+        json={
+            "ticker": "MSFT",
+            "indicator_id": "roc_aggregate",
+            "settings": {
+                "roc_lookbacks": 1,
+                "roc_change_lookbacks": [1],
+                "ma_short": 2,
+                "ma_long": 2,
+            },
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-03",
+            "interval": "day",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "roc_lookbacks must be a list of integers" in response.json()["detail"]

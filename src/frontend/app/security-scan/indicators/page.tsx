@@ -332,6 +332,11 @@ export default function SecurityScanIndicatorsPage() {
                     }
                   />
                 )}
+                {parameter.description && (
+                  <span className="mt-1 block text-xs text-gray-500">
+                    {parameter.description}
+                  </span>
+                )}
               </label>
             ))}
           </div>
@@ -376,18 +381,27 @@ export default function SecurityScanIndicatorsPage() {
       </div>
 
       {result && (
-        <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
-          <div className="rounded-md border border-gray-200 bg-white p-3">
-            <div className="font-semibold text-gray-900">Resolved Settings</div>
-            <pre className="mt-2 max-h-48 overflow-auto rounded bg-gray-950 p-3 text-xs text-gray-100">
-              {JSON.stringify(result.resolved_settings, null, 2)}
-            </pre>
-          </div>
-          <div className="rounded-md border border-gray-200 bg-white p-3">
-            <div className="font-semibold text-gray-900">Diagnostics</div>
-            <pre className="mt-2 max-h-48 overflow-auto rounded bg-gray-950 p-3 text-xs text-gray-100">
-              {JSON.stringify(result.diagnostics, null, 2)}
-            </pre>
+        <div className="space-y-3">
+          {result.diagnostics.warnings.length > 0 && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              {result.diagnostics.warnings.map((warning) => (
+                <div key={warning}>{warning}</div>
+              ))}
+            </div>
+          )}
+          <div className="grid grid-cols-1 gap-3 text-sm md:grid-cols-2">
+            <div className="rounded-md border border-gray-200 bg-white p-3">
+              <div className="font-semibold text-gray-900">Resolved Settings</div>
+              <pre className="mt-2 max-h-48 overflow-auto rounded bg-gray-950 p-3 text-xs text-gray-100">
+                {JSON.stringify(result.resolved_settings, null, 2)}
+              </pre>
+            </div>
+            <div className="rounded-md border border-gray-200 bg-white p-3">
+              <div className="font-semibold text-gray-900">Diagnostics</div>
+              <pre className="mt-2 max-h-48 overflow-auto rounded bg-gray-950 p-3 text-xs text-gray-100">
+                {JSON.stringify(result.diagnostics, null, 2)}
+              </pre>
+            </div>
           </div>
         </div>
       )}
