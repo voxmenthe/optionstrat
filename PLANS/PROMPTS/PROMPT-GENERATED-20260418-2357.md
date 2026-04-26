@@ -1,6 +1,7 @@
 We're working on our plans here: PLANS/current-project-plans/security-scan-indicator-dashboard-plan.md
 
 Our most recent commit messages are here for reference:
+PLANS/COMMITS/20260425-2349-security-scan-indicator-dashboard-roc-aggregate-slice.txt
 PLANS/COMMITS/20260419-0010-security-scan-indicator-dashboard-roc-slice.txt
 
 Fully read and understand the contents of the plan before proceeding.

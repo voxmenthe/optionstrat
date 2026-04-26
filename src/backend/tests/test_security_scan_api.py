@@ -38,9 +38,11 @@ def test_security_scan_indicator_metadata_endpoint(client) -> None:
     assert [indicator["id"] for indicator in payload["indicators"]] == [
         "roc",
         "roc_aggregate",
+        "scl_v4_x5",
     ]
     assert payload["indicators"][0]["parameters"][0]["key"] == "roc_lookback"
     assert payload["indicators"][1]["parameters"][0]["key"] == "roc_lookbacks"
+    assert payload["indicators"][2]["parameters"][0]["key"] == "lag1"
 
 
 def test_security_scan_indicator_dashboard_compute_endpoint(client) -> None:
@@ -131,6 +133,56 @@ def test_security_scan_roc_aggregate_dashboard_compute_endpoint(client) -> None:
     assert fake_service.calls[0]["ticker"] == "MSFT"
 
 
+def test_security_scan_scl_v4_x5_dashboard_compute_endpoint(client) -> None:
+    fake_service = FakeMarketDataService(
+        [
+            {
+                "date": f"2025-01-{index:02d}",
+                "close": float(close),
+                "high": float(close + 1),
+                "low": float(close - 1),
+            }
+            for index, close in enumerate(range(10, 22), start=1)
+        ]
+    )
+
+    def override_market_data_service() -> FakeMarketDataService:
+        return fake_service
+
+    app.dependency_overrides[get_market_data_service] = override_market_data_service
+
+    response = client.post(
+        "/security-scan/indicator-dashboard/compute",
+        json={
+            "ticker": "nvda",
+            "indicator_id": "scl_v4_x5",
+            "settings": {},
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-12",
+            "interval": "day",
+            "benchmark_tickers": ["spy", "qqq", "iwm"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ticker"] == "NVDA"
+    assert [trace["key"] for trace in payload["indicator"]["panels"][0]["traces"]] == [
+        "countdown",
+        "ma1",
+        "ma2",
+    ]
+    assert [signal["date"] for signal in payload["signals"]] == [
+        "2025-01-08",
+        "2025-01-09",
+        "2025-01-10",
+        "2025-01-11",
+        "2025-01-12",
+    ]
+    assert payload["diagnostics"]["indicator_points"] == 12
+    assert fake_service.calls[0]["ticker"] == "NVDA"
+
+
 def test_security_scan_indicator_dashboard_rejects_bad_settings(client) -> None:
     fake_service = FakeMarketDataService(
         [
@@ -193,3 +245,32 @@ def test_security_scan_roc_aggregate_dashboard_rejects_bad_list_settings(client)
 
     assert response.status_code == 422
     assert "roc_lookbacks must be a list of integers" in response.json()["detail"]
+
+
+def test_security_scan_scl_v4_x5_dashboard_rejects_bad_settings(client) -> None:
+    fake_service = FakeMarketDataService(
+        [
+            {"date": "2025-01-01", "close": 10.0, "high": 11.0, "low": 9.0},
+            {"date": "2025-01-02", "close": 11.0, "high": 12.0, "low": 10.0},
+        ]
+    )
+
+    def override_market_data_service() -> FakeMarketDataService:
+        return fake_service
+
+    app.dependency_overrides[get_market_data_service] = override_market_data_service
+
+    response = client.post(
+        "/security-scan/indicator-dashboard/compute",
+        json={
+            "ticker": "NVDA",
+            "indicator_id": "scl_v4_x5",
+            "settings": {"lag1": 0},
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-02",
+            "interval": "day",
+        },
+    )
+
+    assert response.status_code == 422
+    assert "lag1 must be >= 1" in response.json()["detail"]

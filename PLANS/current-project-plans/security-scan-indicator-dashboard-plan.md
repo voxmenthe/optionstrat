@@ -432,7 +432,7 @@ Implementation notes:
 ### Phase 2 - Add Multi-Trace Indicators
 Purpose: validate the adapter shape across multiple indicator forms.
 
-Status: in progress as of 2026-04-25 23:48 PDT. `roc_aggregate` is now supported end-to-end; `scl_v4_x5` remains the next structural test case.
+Status: complete as of 2026-04-26 00:04 PDT. `roc_aggregate` and `scl_v4_x5` are both supported end-to-end, which means the workbench contract has now held across a single-trace indicator, a multi-trace close-only indicator, and a multi-trace OHLC-dependent indicator.
 
 Tasks:
 1. Complete - add `roc_aggregate` adapter:
@@ -440,14 +440,14 @@ Tasks:
    - short MA trace
    - long MA trace
    - signal markers for crosses
-2. Add `scl_v4_x5` adapter:
+2. Complete - add `scl_v4_x5` adapter:
    - `CountdownDisplay`
    - `MA1`
    - `MA2`
    - zero/reference line
    - seven-bar high/low signal markers
-3. In progress - add tests for metadata schemas and compute payloads for each adapter.
-4. In progress - improve frontend parameter rendering for integer lists and grouped controls.
+3. Complete - add tests for metadata schemas and compute payloads for each adapter.
+4. Complete - extend generic chart signal styling so non-cross signal types such as `seven_bar_high` and `seven_bar_low` render with meaningful directional markers.
 
 Exit criteria:
 - Dashboard can switch among `roc`, `roc_aggregate`, and `scl_v4_x5`.
@@ -459,24 +459,33 @@ Implementation notes:
 - This avoided adding another dashboard adapter that reaches deep into underscore-prefixed indicator helpers. The notebook tooling still uses those private helpers, which is now a visible follow-up candidate rather than a reason to keep expanding private imports.
 - The dashboard adapter keeps the external workbench contract strict: `roc_lookbacks` and `roc_change_lookbacks` must arrive as JSON lists in dashboard requests even though the production indicator internals still tolerate a single integer in non-dashboard contexts.
 - The frontend page remains schema-driven. `roc_aggregate` did not require indicator-specific React branches. The only frontend additions in this slice were generic parameter descriptions and a visible warnings strip so list-input expectations and insufficient-history diagnostics are obvious without opening debug JSON.
+- `scl_v4_x5` now follows the same additive pattern. `src/backend/app/security_scan/indicators/scl_v4_x5.py` exposes a public `compute_scl_v4_x5_computation()` helper that resolves settings once, returns dated countdown and moving-average series, carries seven-bar signals, and preserves the existing raw `scl_v4_x5()` dict contract for callers such as `scl_ma2_qrs_ma1_breakout`.
+- The `scl_v4_x5` dashboard adapter uses one indicator panel with `countdown`, `ma1`, and `ma2` traces plus a zero reference line. It intentionally visualizes the indicator's own seven-bar signals from `evaluate()`, not the scan runner's separate five-bar summary flags.
+- OHLC-sensitive diagnostics stay explicit without changing the top-panel price semantics. The adapter warns when price rows are skipped because `high`/`low` fields are missing, but `diagnostics.price_points` still reflects the visible close-price series used in the top chart panel.
+- No frontend form refactor was needed for `scl_v4_x5`. The existing schema-driven page already handled nine integer parameters cleanly enough for this slice, which is good evidence that the metadata contract is still holding.
 
 Next detailed slice:
-1. Add a public pure-compute helper for `scl_v4_x5` if the dashboard adapter would otherwise need to reach into several underscore helpers or duplicate the indicator math. The same rule that paid off for `roc_aggregate` should be applied here: keep visualization assembly in the adapter, keep indicator math in the indicator module.
-2. Define the `scl_v4_x5` dashboard traces explicitly before coding:
-   - one primary countdown trace
+1. Start Phase 3 with `qrs_consist_excess`, not the composite breakout indicator. It is the smallest benchmark-aware case and will force the workbench to define date-alignment and benchmark-failure behavior before a composite adapter compounds the problem.
+2. Add a public pure-compute helper for `qrs_consist_excess` if the dashboard adapter would otherwise need multiple private helpers or duplicated alignment logic. The same rule from `roc_aggregate` and `scl_v4_x5` should apply again: keep indicator math in the indicator module and keep dashboard visualization assembly in the adapter layer.
+3. Define the benchmark alignment contract in `indicator_workbench.py` before coding the adapter:
+   - require exactly three benchmark tickers for current QRS logic
+   - intersect ticker and benchmark dates explicitly
+   - fail clearly when any benchmark series is missing or no common date set remains
+   - report alignment losses in diagnostics rather than silently shortening output
+4. Build the `qrs_consist_excess` dashboard payload as one panel first:
+   - main QRS trace
    - `MA1`
    - `MA2`
+   - `MA3`
    - zero/reference line
-   - signal markers for seven-bar highs/lows
-3. Decide how the adapter will label the countdown trace. The label should match the indicator's own vocabulary closely enough that future screener reuse does not need a translation layer.
-4. Add focused backend tests for the first `scl_v4_x5` dashboard payload:
+   - existing QRS signal types with trace-targeted markers
+5. Add focused backend tests for the benchmark-aware path:
    - metadata schema and defaults
-   - non-empty OHLC trace output on synthetic rows
-   - reference line handling
-   - signal marker dates and target trace keys
-   - failure or warning behavior when OHLC fields are missing
-5. Re-run the existing page against `scl_v4_x5` before adding any UI-specific branching. If grouped controls or richer field hints become necessary, evolve the schema/rendering contract once in the generic form helpers instead of encoding indicator names in the page.
-6. After `scl_v4_x5` lands, revisit the notebook/private-helper situation. If both the dashboard and notebooks want the same pure series outputs, move notebook callers onto the new public compute helpers instead of letting a parallel helper ecosystem grow.
+   - aligned synthetic benchmark data producing non-empty traces
+   - missing benchmark series producing clear errors
+   - partial date overlap producing explicit diagnostics or a hard failure, whichever contract is chosen
+6. Reuse the existing frontend benchmark controls and avoid page branching until the backend contract proves they are insufficient. If benchmark-specific UX hints become necessary, add them generically from metadata or diagnostics rather than by indicator id.
+7. After the first benchmark-aware adapter lands, reassess `src/backend/app/security_scan/indicator_adapters.py`. Three concrete adapters plus QRS alignment logic may be the point where splitting into an adapter package reduces change blast radius rather than increasing it.
 
 ### Phase 3 - Benchmark-Aware Indicators
 Purpose: support QRS and composite indicators without special-casing in the frontend.
@@ -558,8 +567,7 @@ If the project has or adds frontend test tooling:
 - Reload page and verify MRU persists.
 
 Latest validation:
-- Passed: `uv run pytest src/backend/tests/security_scan/test_indicator_workbench.py src/backend/tests/test_security_scan_api.py`.
-- Passed: `uv run pytest src/backend/tests/test_security_scan.py -k roc_aggregate`.
+- Passed: `uv run pytest tests/test_scl_v4_x5.py tests/test_scl_ma2_qrs_ma1_breakout.py tests/security_scan/test_indicator_workbench.py tests/test_security_scan_api.py` from `src/backend`.
 - Passed: scoped TypeScript check for the dashboard frontend files with `src/frontend/node_modules/.bin/tsc --noEmit ...` from `src/frontend`.
 - Not re-run in this session: direct HTTP smoke calls against a live backend/frontend process.
 - Blocked: full `npm run build` currently fails on an existing unrelated type error in `src/frontend/app/options/page.tsx` where `OptionContract.last` is referenced but not defined on the type.
@@ -582,7 +590,7 @@ Reversibility:
 
 ## Open Questions
 - Resolved for this slice: the frontend route is `/security-scan/indicators`, with backend metadata at `GET /security-scan/indicators` and compute at `POST /security-scan/indicator-dashboard/compute`.
-- Should the first supported set include `scl_v4_x5`, even though it is not currently configured as a top-level scan instance in `scan_settings.toml`?
+- Resolved for this slice: the first supported set now includes `scl_v4_x5` even though it is not currently configured as a top-level scan instance in `scan_settings.toml`. That was the right structural test because it exercises OHLC requirements and non-cross signal markers without bringing benchmark alignment into the same slice.
 - Resolved for this slice: parameter edits require an explicit recompute button.
 - Should the dashboard `integer_list` contract stay stricter than the production indicator helpers? It currently requires JSON arrays for list settings even though some indicator internals still accept a scalar integer and coerce it to a one-item list.
 - Should the frontend support saving named parameter presets in `localStorage`, separate from MRU indicator types?

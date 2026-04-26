@@ -1,12 +1,24 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence
 
 from app.security_scan.criteria import SeriesPoint
 from app.security_scan.signals import IndicatorSignal
 
 INDICATOR_ID = "scl_v4_x5"
+
+
+@dataclass(frozen=True)
+class SclV4X5Computation:
+    resolved_settings: dict[str, int]
+    countdown_series: list[SeriesPoint]
+    ma1_series: list[SeriesPoint]
+    ma2_series: list[SeriesPoint]
+    signals: list[IndicatorSignal]
+    usable_ohlc_points: int
+    skipped_price_rows: int
 
 
 def _is_nan(value: float) -> bool:
@@ -172,6 +184,33 @@ def _to_int_setting(settings: dict[str, Any], key: str, default: int) -> int:
     return parsed
 
 
+def _resolve_settings(settings: dict[str, Any] | None) -> dict[str, int]:
+    normalized = settings or {}
+    return {
+        "lag1": _to_int_setting(normalized, "lag1", 2),
+        "lag2": _to_int_setting(normalized, "lag2", 3),
+        "lag3": _to_int_setting(normalized, "lag3", 4),
+        "lag4": _to_int_setting(normalized, "lag4", 5),
+        "lag5": _to_int_setting(normalized, "lag5", 11),
+        "cd_offset1": _to_int_setting(normalized, "cd_offset1", 2),
+        "cd_offset2": _to_int_setting(normalized, "cd_offset2", 3),
+        "ma_period1": _to_int_setting(normalized, "ma_period1", 5),
+        "ma_period2": _to_int_setting(normalized, "ma_period2", 11),
+    }
+
+
+def _series_points_from_values(
+    dates: Sequence[str],
+    values: Sequence[float],
+) -> list[SeriesPoint]:
+    if len(dates) != len(values):
+        return []
+    return [
+        SeriesPoint(date=dates[index], value=float(value))
+        for index, value in enumerate(values)
+    ]
+
+
 def scl_v4_x5(
     close: Sequence[float],
     high: Sequence[float],
@@ -282,34 +321,7 @@ def compute_countdown_series(
     prices: list[dict[str, Any]],
     settings: dict[str, Any] | None = None,
 ) -> list[SeriesPoint]:
-    settings = settings or {}
-    dates, closes, highs, lows = _extract_ohlc_series(prices)
-    if not dates:
-        return []
-
-    outputs = scl_v4_x5(
-        closes,
-        highs,
-        lows,
-        lag1=_to_int_setting(settings, "lag1", 2),
-        lag2=_to_int_setting(settings, "lag2", 3),
-        lag3=_to_int_setting(settings, "lag3", 4),
-        lag4=_to_int_setting(settings, "lag4", 5),
-        lag5=_to_int_setting(settings, "lag5", 11),
-        cd_offset1=_to_int_setting(settings, "cd_offset1", 2),
-        cd_offset2=_to_int_setting(settings, "cd_offset2", 3),
-        ma_period1=_to_int_setting(settings, "ma_period1", 5),
-        ma_period2=_to_int_setting(settings, "ma_period2", 11),
-    )
-
-    countdown = outputs.get("CountdownDisplay", [])
-    if len(countdown) != len(dates):
-        return []
-
-    return [
-        SeriesPoint(date=dates[index], value=float(value))
-        for index, value in enumerate(countdown)
-    ]
+    return compute_scl_v4_x5_computation(prices, settings).countdown_series
 
 
 def compute_prior_window_flags(
@@ -341,17 +353,13 @@ def compute_prior_window_flags(
     return flags
 
 
-def evaluate(
-    prices: list[dict[str, Any]],
-    settings: dict[str, Any],
-) -> list[IndicatorSignal]:
-    series = compute_countdown_series(prices, settings)
-    if len(series) < 8:
+def _build_signals(countdown_series: list[SeriesPoint]) -> list[IndicatorSignal]:
+    if len(countdown_series) < 8:
         return []
 
-    flags = compute_prior_window_flags(series, lookback=7)
+    flags = compute_prior_window_flags(countdown_series, lookback=7)
     signals: list[IndicatorSignal] = []
-    for point in series:
+    for point in countdown_series:
         info = flags.get(point.date)
         if not info:
             continue
@@ -389,8 +397,84 @@ def evaluate(
     return signals
 
 
+def compute_scl_v4_x5_computation(
+    prices: list[dict[str, Any]],
+    settings: dict[str, Any] | None = None,
+) -> SclV4X5Computation:
+    resolved_settings = _resolve_settings(settings)
+    source_price_points = sum(
+        1
+        for row in prices
+        if row.get("date") and row.get("close") is not None
+    )
+    dates, closes, highs, lows = _extract_ohlc_series(prices)
+    usable_ohlc_points = len(dates)
+    skipped_price_rows = max(0, source_price_points - usable_ohlc_points)
+    if not dates:
+        return SclV4X5Computation(
+            resolved_settings=resolved_settings,
+            countdown_series=[],
+            ma1_series=[],
+            ma2_series=[],
+            signals=[],
+            usable_ohlc_points=0,
+            skipped_price_rows=skipped_price_rows,
+        )
+
+    outputs = scl_v4_x5(
+        closes,
+        highs,
+        lows,
+        lag1=resolved_settings["lag1"],
+        lag2=resolved_settings["lag2"],
+        lag3=resolved_settings["lag3"],
+        lag4=resolved_settings["lag4"],
+        lag5=resolved_settings["lag5"],
+        cd_offset1=resolved_settings["cd_offset1"],
+        cd_offset2=resolved_settings["cd_offset2"],
+        ma_period1=resolved_settings["ma_period1"],
+        ma_period2=resolved_settings["ma_period2"],
+    )
+
+    countdown_series = _series_points_from_values(
+        dates,
+        outputs.get("CountdownDisplay", []),
+    )
+    ma1_series = _series_points_from_values(dates, outputs.get("MA1", []))
+    ma2_series = _series_points_from_values(dates, outputs.get("MA2", []))
+    if not countdown_series or not ma1_series or not ma2_series:
+        return SclV4X5Computation(
+            resolved_settings=resolved_settings,
+            countdown_series=[],
+            ma1_series=[],
+            ma2_series=[],
+            signals=[],
+            usable_ohlc_points=usable_ohlc_points,
+            skipped_price_rows=skipped_price_rows,
+        )
+
+    return SclV4X5Computation(
+        resolved_settings=resolved_settings,
+        countdown_series=countdown_series,
+        ma1_series=ma1_series,
+        ma2_series=ma2_series,
+        signals=_build_signals(countdown_series),
+        usable_ohlc_points=usable_ohlc_points,
+        skipped_price_rows=skipped_price_rows,
+    )
+
+
+def evaluate(
+    prices: list[dict[str, Any]],
+    settings: dict[str, Any],
+) -> list[IndicatorSignal]:
+    return compute_scl_v4_x5_computation(prices, settings).signals
+
+
 __all__ = [
+    "SclV4X5Computation",
     "compute_countdown_series",
+    "compute_scl_v4_x5_computation",
     "compute_prior_window_flags",
     "evaluate",
     "scl_v4_x5",

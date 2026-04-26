@@ -7,20 +7,38 @@ import type { IndicatorDashboardComputeResponse } from '../../lib/api/securitySc
 const Plot = dynamic(() => import('react-plotly.js'), { ssr: false });
 
 function signalColor(signalType: string): string {
-  if (signalType.includes('down') || signalType.includes('below')) {
+  const normalized = signalType.toLowerCase();
+  if (
+    normalized.includes('down') ||
+    normalized.includes('below') ||
+    normalized.includes('low')
+  ) {
     return '#dc2626';
   }
-  if (signalType.includes('up') || signalType.includes('above')) {
+  if (
+    normalized.includes('up') ||
+    normalized.includes('above') ||
+    normalized.includes('high')
+  ) {
     return '#16a34a';
   }
   return '#2563eb';
 }
 
 function signalSymbol(signalType: string): string {
-  if (signalType.includes('down') || signalType.includes('below')) {
+  const normalized = signalType.toLowerCase();
+  if (
+    normalized.includes('down') ||
+    normalized.includes('below') ||
+    normalized.includes('low')
+  ) {
     return 'triangle-down';
   }
-  if (signalType.includes('up') || signalType.includes('above')) {
+  if (
+    normalized.includes('up') ||
+    normalized.includes('above') ||
+    normalized.includes('high')
+  ) {
     return 'triangle-up';
   }
   return 'circle';
