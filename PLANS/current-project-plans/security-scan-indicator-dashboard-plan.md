@@ -464,51 +464,75 @@ Implementation notes:
 - OHLC-sensitive diagnostics stay explicit without changing the top-panel price semantics. The adapter warns when price rows are skipped because `high`/`low` fields are missing, but `diagnostics.price_points` still reflects the visible close-price series used in the top chart panel.
 - No frontend form refactor was needed for `scl_v4_x5`. The existing schema-driven page already handled nine integer parameters cleanly enough for this slice, which is good evidence that the metadata contract is still holding.
 
-Next detailed slice:
-1. Start Phase 3 with `qrs_consist_excess`, not the composite breakout indicator. It is the smallest benchmark-aware case and will force the workbench to define date-alignment and benchmark-failure behavior before a composite adapter compounds the problem.
-2. Add a public pure-compute helper for `qrs_consist_excess` if the dashboard adapter would otherwise need multiple private helpers or duplicated alignment logic. The same rule from `roc_aggregate` and `scl_v4_x5` should apply again: keep indicator math in the indicator module and keep dashboard visualization assembly in the adapter layer.
-3. Define the benchmark alignment contract in `indicator_workbench.py` before coding the adapter:
-   - require exactly three benchmark tickers for current QRS logic
-   - intersect ticker and benchmark dates explicitly
-   - fail clearly when any benchmark series is missing or no common date set remains
-   - report alignment losses in diagnostics rather than silently shortening output
-4. Build the `qrs_consist_excess` dashboard payload as one panel first:
+Delivered in this session:
+1. Complete as of 2026-04-26 00:40 PDT - add `qrs_consist_excess` as the first benchmark-aware dashboard adapter.
+2. Complete - add a public QRS helper seam in `src/backend/app/security_scan/indicators/qrs_consist_excess.py`:
+   - `align_qrs_consist_excess_inputs()`
+   - `compute_qrs_consist_excess_computation()`
+   - `evaluate()` now delegates through the shared helper path after benchmark alignment
+3. Complete - make the workbench benchmark contract explicit before adapter compute:
+   - require exactly three unique benchmark tickers for current QRS logic
+   - use adapter defaults (`SPY`, `QQQ`, `IWM`) when benchmark-aware requests omit tickers
+   - fail clearly when a benchmark series has no usable close prices
+   - fail clearly when no common aligned date set remains
+   - surface partial date overlap as diagnostics warnings instead of silently shortening output without explanation
+4. Complete - build the `qrs_consist_excess` dashboard payload as one panel with:
    - main QRS trace
    - `MA1`
    - `MA2`
    - `MA3`
    - zero/reference line
-   - existing QRS signal types with trace-targeted markers
-5. Add focused backend tests for the benchmark-aware path:
-   - metadata schema and defaults
-   - aligned synthetic benchmark data producing non-empty traces
-   - missing benchmark series producing clear errors
-   - partial date overlap producing explicit diagnostics or a hard failure, whichever contract is chosen
-6. Reuse the existing frontend benchmark controls and avoid page branching until the backend contract proves they are insufficient. If benchmark-specific UX hints become necessary, add them generically from metadata or diagnostics rather than by indicator id.
-7. After the first benchmark-aware adapter lands, reassess `src/backend/app/security_scan/indicator_adapters.py`. Three concrete adapters plus QRS alignment logic may be the point where splitting into an adapter package reduces change blast radius rather than increasing it.
+   - existing QRS signal types mapped onto `qrs` or `ma1` trace markers
+5. Complete - keep the frontend generic:
+   - no indicator-id branch was required
+   - add a small benchmark hint when the selected indicator requires benchmark context
+   - use signal labels rather than raw signal ids in the Plotly marker legend
+6. Complete - add focused backend coverage for metadata, aligned synthetic benchmark input, wrong benchmark counts, missing benchmark series, no-common-date failures, and QRS route responses.
+
+Upcoming detailed slice:
+1. Add the `scl_ma2_qrs_ma1_breakout` dashboard adapter using the public compute seams now available on both sides:
+   - `compute_scl_v4_x5_computation()` for SCL `MA2`
+   - `align_qrs_consist_excess_inputs()` plus `compute_qrs_consist_excess_computation()` for QRS `MA1`
+2. Remove the remaining duplicate benchmark/date-alignment logic from `src/backend/app/security_scan/indicators/scl_ma2_qrs_ma1_breakout.py` instead of teaching the adapter or the indicator a second private alignment path.
+3. Decide how much prior-window breakout context should be visualized in the dashboard:
+   - marker metadata only
+   - additional reference traces
+   - or lightweight diagnostics fields
+4. Reassess `src/backend/app/security_scan/indicator_adapters.py` after the composite slice lands. QRS was still cohesive in one file, but a fourth adapter with composite-specific context may be the point where a package split reduces change blast radius.
 
 ### Phase 3 - Benchmark-Aware Indicators
 Purpose: support QRS and composite indicators without special-casing in the frontend.
 
+Status: in progress as of 2026-04-26 00:40 PDT. `qrs_consist_excess` is now supported end-to-end as the first benchmark-aware indicator. The remaining Phase 3 work is the composite `scl_ma2_qrs_ma1_breakout` adapter and any resulting adapter-module packaging decision.
+
 Tasks:
-1. Add benchmark ticker controls in the frontend.
-2. Add backend benchmark fetch/alignment support in `indicator_workbench.py`.
-3. Add `qrs_consist_excess` adapter:
+1. Complete - benchmark ticker controls already exist in the frontend, and the page now shows a generic hint when the selected indicator requires benchmarks.
+2. Complete - add backend benchmark fetch/alignment support in `indicator_workbench.py`.
+3. Complete - add `qrs_consist_excess` adapter:
    - main QRS trace
    - `MA1`, `MA2`, `MA3`
    - zero line
    - existing signal types
-4. Add `scl_ma2_qrs_ma1_breakout` adapter:
+4. Pending - add `scl_ma2_qrs_ma1_breakout` adapter:
    - SCL `MA2`
    - QRS `MA1`
    - prior high/low context where useful
    - dual breakout markers
-5. Add diagnostics for missing benchmark data and date alignment losses.
+5. Complete - add diagnostics for missing benchmark data and date alignment losses.
 
 Exit criteria:
-- QRS-based indicators compute with default benchmarks.
+- `qrs_consist_excess` computes with default benchmarks and optional overrides.
+- `scl_ma2_qrs_ma1_breakout` computes from the same benchmark-aware helper path instead of a duplicate alignment implementation.
 - Users can override benchmark tickers.
 - Missing benchmark data fails clearly without silent partial output.
+
+Implementation notes:
+- Metadata order now follows dashboard adapter registration order rather than alphabetical sorting. This preserves the existing first-load default selection on `roc` even after `qrs_consist_excess` was added.
+- Benchmark resolution is now explicit at the workbench boundary. Benchmark-aware adapters can declare default benchmark tickers and an exact required count, and the workbench validates that contract before compute starts.
+- `qrs_consist_excess` now has the same additive shape that worked for `roc_aggregate` and `scl_v4_x5`: the indicator module owns aligned-series computation and signal assembly, the adapter owns chart payload assembly, and the production scan contract remains `evaluate(...) -> list[IndicatorSignal]`.
+- Partial benchmark overlap is no longer a silent truncation in the dashboard path. The adapter emits a warning when source price rows are dropped because one or more benchmark closes are missing, and it raises a clear no-data error when no aligned date set remains.
+- The frontend remained generic through this slice. No indicator-specific React branch was needed for QRS. The only UI adjustments were a generic benchmark-required hint and better marker legend labels for multi-signal indicators.
+- One real follow-up decision remains around defaults: the new QRS dashboard metadata currently follows the indicator-module default `map2 = 21`, while the live scan instances in `src/backend/app/security_scan/config/scan_settings.toml` currently use `map2 = 27`. Decide deliberately whether workbench defaults should represent indicator-type defaults or the most common configured scan-instance defaults before treating that value as stable across tooling.
 
 ### Phase 4 - Screener Dashboard Foundation
 Purpose: make the indicator workbench reusable for a future dynamic screener page.
@@ -533,7 +557,7 @@ Exit criteria:
 - Integer parameters must be whole numbers and satisfy min/max rules.
 - Float parameters must be finite numbers.
 - List parameters must validate each element and reject empty lists when the indicator requires non-empty input.
-- Benchmark tickers must be exactly three symbols for current QRS logic.
+- Benchmark-aware dashboard adapters currently require exactly three unique symbols for QRS logic.
 - If fetched prices are empty, return a clear no-data response or `422`/`404` style error; do not emit a blank chart as success.
 - If indicator output length does not align with dates, return diagnostics or fail fast depending on the adapter.
 
@@ -548,6 +572,7 @@ Exit criteria:
 - `roc` compute returns expected ROC values for synthetic prices.
 - `roc_aggregate` compute returns score and MA traces for synthetic prices.
 - `scl_v4_x5` compute returns countdown and MA traces for synthetic OHLC prices.
+- `qrs_consist_excess` compute returns aligned benchmark-aware traces and clear overlap diagnostics for synthetic prices.
 - Benchmark-aware adapters report missing benchmark data clearly.
 
 ### Frontend Tests
@@ -563,6 +588,8 @@ If the project has or adds frontend test tooling:
 - Open the new dashboard page.
 - Test `AAPL` over a recent 1-year range.
 - Change `roc_lookback` and verify the chart changes.
+- Switch to `qrs_consist_excess` and verify the chart shows `QRS`, `MA1`, `MA2`, and `MA3` on one indicator panel.
+- Remove one benchmark ticker or replace it with a symbol that has no data and verify the page surfaces a clear error rather than a blank success state.
 - Switch to `roc_aggregate` and verify multiple traces render.
 - Reload page and verify MRU persists.
 

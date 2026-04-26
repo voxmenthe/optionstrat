@@ -103,6 +103,7 @@ function buildPlotData(result: IndicatorDashboardComputeResponse): Data[] {
     const markerX: string[] = [];
     const markerY: number[] = [];
     const markerText: string[] = [];
+    const legendLabel = signals[0]?.label || signalType;
     for (const signal of signals) {
       const yValue = traceValueIndex.get(signal.target_trace)?.get(signal.date);
       if (yValue === undefined) {
@@ -118,7 +119,7 @@ function buildPlotData(result: IndicatorDashboardComputeResponse): Data[] {
     data.push({
       type: 'scatter',
       mode: 'markers',
-      name: signalType,
+      name: legendLabel,
       x: markerX,
       y: markerY,
       text: markerText,

@@ -5,6 +5,7 @@ from typing import Any
 
 import pytest
 
+from app.security_scan.indicators import qrs_consist_excess as qrs_indicator
 from app.security_scan.indicator_workbench import (
     IndicatorDashboardComputeRequest,
     IndicatorNoDataError,
@@ -15,8 +16,16 @@ from app.security_scan.indicator_workbench import (
 
 
 class FakeMarketDataService:
-    def __init__(self, prices: list[dict[str, Any]]) -> None:
-        self.prices = prices
+    def __init__(
+        self,
+        prices: list[dict[str, Any]] | None = None,
+        prices_by_ticker: dict[str, list[dict[str, Any]]] | None = None,
+    ) -> None:
+        self.prices = prices or []
+        self.prices_by_ticker = {
+            ticker.upper(): values
+            for ticker, values in (prices_by_ticker or {}).items()
+        }
         self.calls: list[dict[str, Any]] = []
 
     def get_historical_prices(
@@ -34,7 +43,7 @@ class FakeMarketDataService:
                 "interval": interval,
             }
         )
-        return self.prices
+        return self.prices_by_ticker.get(ticker, self.prices)
 
 
 def _roc_request(
@@ -85,6 +94,21 @@ def _scl_v4_x5_request(
     )
 
 
+def _qrs_request(
+    settings: dict[str, Any] | None = None,
+    benchmark_tickers: list[str] | None = None,
+) -> IndicatorDashboardComputeRequest:
+    return IndicatorDashboardComputeRequest(
+        ticker="amd",
+        indicator_id="qrs_consist_excess",
+        settings=settings or {},
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 5),
+        interval="day",
+        benchmark_tickers=benchmark_tickers or ["spy", "qqq", "iwm"],
+    )
+
+
 def test_list_indicator_metadata_returns_dashboard_indicator_schemas() -> None:
     metadata = list_indicator_metadata()
 
@@ -92,8 +116,11 @@ def test_list_indicator_metadata_returns_dashboard_indicator_schemas() -> None:
         "roc",
         "roc_aggregate",
         "scl_v4_x5",
+        "qrs_consist_excess",
     ]
-    roc_metadata = metadata.indicators[0]
+    metadata_by_id = {indicator.id: indicator for indicator in metadata.indicators}
+
+    roc_metadata = metadata_by_id["roc"]
     assert roc_metadata.default_settings == {"roc_lookback": 12}
     assert roc_metadata.requires_benchmarks is False
     assert roc_metadata.supported_intervals == ["day"]
@@ -104,7 +131,7 @@ def test_list_indicator_metadata_returns_dashboard_indicator_schemas() -> None:
         ("roc_lookback", "integer", 1),
     ]
 
-    roc_aggregate_metadata = metadata.indicators[1]
+    roc_aggregate_metadata = metadata_by_id["roc_aggregate"]
     assert roc_aggregate_metadata.default_settings == {
         "roc_lookbacks": [5, 10, 20],
         "roc_change_lookbacks": [1, 3, 5],
@@ -126,7 +153,7 @@ def test_list_indicator_metadata_returns_dashboard_indicator_schemas() -> None:
         ("ma_long", "integer", 1, None),
     ]
 
-    scl_metadata = metadata.indicators[2]
+    scl_metadata = metadata_by_id["scl_v4_x5"]
     assert scl_metadata.default_settings == {
         "lag1": 2,
         "lag2": 3,
@@ -151,6 +178,34 @@ def test_list_indicator_metadata_returns_dashboard_indicator_schemas() -> None:
         ("cd_offset2", "integer", 1),
         ("ma_period1", "integer", 1),
         ("ma_period2", "integer", 1),
+    ]
+
+    qrs_metadata = metadata_by_id["qrs_consist_excess"]
+    assert qrs_metadata.default_settings == {
+        "lookback": 84,
+        "deadband_period": 20,
+        "deadband_mult": 0.25,
+        "map1": 7,
+        "map2": 21,
+        "map3": 56,
+        "cons_weight": 0.6,
+        "excess_weight": 0.4,
+        "ma_shift": 3,
+    }
+    assert qrs_metadata.requires_benchmarks is True
+    assert [
+        (parameter.key, parameter.type, parameter.min)
+        for parameter in qrs_metadata.parameters
+    ] == [
+        ("lookback", "integer", 1),
+        ("deadband_period", "integer", 1),
+        ("deadband_mult", "float", 0),
+        ("map1", "integer", 1),
+        ("map2", "integer", 1),
+        ("map3", "integer", 1),
+        ("cons_weight", "float", 0),
+        ("excess_weight", "float", 0),
+        ("ma_shift", "integer", 0),
     ]
 
 
@@ -398,6 +453,129 @@ def test_compute_scl_v4_x5_dashboard_warns_when_price_rows_missing_ohlc() -> Non
     assert response.diagnostics.warnings == [
         "Skipped 1 price rows missing high/low fields for SCL V4 X5."
     ]
+
+
+def test_compute_qrs_dashboard_returns_benchmark_aligned_multi_trace_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = FakeMarketDataService(
+        prices_by_ticker={
+            "AMD": [
+                {"date": "2025-01-01", "close": 10.0},
+                {"date": "2025-01-02", "close": 11.0},
+                {"date": "2025-01-03", "close": 12.0},
+                {"date": "2025-01-04", "close": 13.0},
+                {"date": "2025-01-05", "close": 14.0},
+            ],
+            "SPY": [
+                {"date": "2025-01-01", "close": 100.0},
+                {"date": "2025-01-03", "close": 101.0},
+                {"date": "2025-01-04", "close": 102.0},
+                {"date": "2025-01-05", "close": 103.0},
+            ],
+            "QQQ": [
+                {"date": "2025-01-01", "close": 200.0},
+                {"date": "2025-01-03", "close": 201.0},
+                {"date": "2025-01-04", "close": 202.0},
+                {"date": "2025-01-05", "close": 203.0},
+            ],
+            "IWM": [
+                {"date": "2025-01-01", "close": 300.0},
+                {"date": "2025-01-03", "close": 301.0},
+                {"date": "2025-01-04", "close": 302.0},
+                {"date": "2025-01-05", "close": 303.0},
+            ],
+        }
+    )
+
+    def fake_qrs_consist_excess(
+        close: list[float],
+        *_args: Any,
+        **_kwargs: Any,
+    ) -> dict[str, list[float]]:
+        assert len(close) == 4
+        return {
+            "QRSConsistExcess": [-1.0, -0.5, -0.25, 0.5],
+            "QRSConsistExcessV2": [-1.0, -0.5, -0.25, 0.5],
+            "CrossoverLine": [0.0, 0.0, 0.0, 0.0],
+            "MA1": [-0.5, -0.25, 0.0, 0.8],
+            "MA2": [0.1, 0.1, 0.1, 0.2],
+            "MA3": [0.2, 0.2, 0.2, 0.2],
+        }
+
+    monkeypatch.setattr(qrs_indicator, "qrs_consist_excess", fake_qrs_consist_excess)
+
+    response = compute_indicator_dashboard(
+        _qrs_request(),
+        service,  # type: ignore[arg-type]
+    )
+
+    assert response.ticker == "AMD"
+    assert response.indicator_id == "qrs_consist_excess"
+    assert [trace.key for trace in response.indicator.panels[0].traces] == [
+        "qrs",
+        "ma1",
+        "ma2",
+        "ma3",
+    ]
+    assert [point.date for point in response.indicator.panels[0].traces[0].points] == [
+        "2025-01-01",
+        "2025-01-03",
+        "2025-01-04",
+        "2025-01-05",
+    ]
+    assert [signal.type for signal in response.signals] == [
+        "main_cross_above_zero_3d",
+        "ma1_cross_above_ma2",
+        "ma1_cross_above_zero",
+    ]
+    assert [signal.target_trace for signal in response.signals] == [
+        "qrs",
+        "ma1",
+        "ma1",
+    ]
+    assert response.diagnostics.price_points == 5
+    assert response.diagnostics.indicator_points == 4
+    assert response.diagnostics.benchmark_tickers_used == ["SPY", "QQQ", "IWM"]
+    assert response.diagnostics.warnings == [
+        "Dropped 1 price rows without full benchmark coverage across SPY, QQQ, IWM."
+    ]
+    assert [call["ticker"] for call in service.calls] == ["AMD", "SPY", "QQQ", "IWM"]
+
+
+def test_compute_qrs_dashboard_rejects_wrong_benchmark_count() -> None:
+    service = FakeMarketDataService(
+        prices=[{"date": "2025-01-01", "close": 10.0}]
+    )
+
+    with pytest.raises(
+        IndicatorSettingsValidationError,
+        match="requires exactly 3 benchmark tickers",
+    ):
+        compute_indicator_dashboard(
+            _qrs_request(benchmark_tickers=["SPY", "QQQ"]),
+            service,  # type: ignore[arg-type]
+        )
+
+
+def test_compute_qrs_dashboard_raises_when_no_common_benchmark_dates_remain() -> None:
+    service = FakeMarketDataService(
+        prices_by_ticker={
+            "AMD": [
+                {"date": "2025-01-01", "close": 10.0},
+                {"date": "2025-01-02", "close": 11.0},
+            ],
+            "SPY": [{"date": "2025-01-03", "close": 100.0}],
+            "QQQ": [{"date": "2025-01-03", "close": 200.0}],
+            "IWM": [{"date": "2025-01-03", "close": 300.0}],
+        }
+    )
+
+    with pytest.raises(IndicatorNoDataError, match="No common dates remain"):
+        compute_indicator_dashboard(
+            _qrs_request(),
+            service,  # type: ignore[arg-type]
+        )
 
 
 def test_compute_roc_dashboard_rejects_invalid_lookback() -> None:

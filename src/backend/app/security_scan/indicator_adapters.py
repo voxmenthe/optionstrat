@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from math import isfinite
 from typing import Any, Callable
 
+from app.security_scan.indicators import qrs_consist_excess as qrs_consist_excess_indicator
 from app.security_scan.indicators import roc_aggregate as roc_aggregate_indicator
 from app.security_scan.indicators import roc as roc_indicator
 from app.security_scan.indicators import scl_v4_x5 as scl_v4_x5_indicator
@@ -11,6 +12,10 @@ from app.security_scan.indicators import scl_v4_x5 as scl_v4_x5_indicator
 
 class IndicatorSettingsError(ValueError):
     """Raised when dashboard indicator settings fail adapter validation."""
+
+
+class IndicatorDataError(ValueError):
+    """Raised when dashboard indicator input data is unusable for compute."""
 
 
 @dataclass(frozen=True)
@@ -62,6 +67,7 @@ class IndicatorDashboardInput:
     ticker: str
     prices: list[dict[str, Any]]
     settings: dict[str, Any]
+    benchmark_tickers: list[str] = field(default_factory=list)
     benchmark_prices_by_ticker: dict[str, list[dict[str, Any]]] = field(
         default_factory=dict
     )
@@ -88,6 +94,8 @@ class IndicatorDashboardAdapter:
     requires_benchmarks: bool
     supported_intervals: list[str]
     compute: IndicatorCompute
+    default_benchmark_tickers: list[str] = field(default_factory=list)
+    required_benchmark_count: int | None = None
 
 
 def _parse_integer(value: Any, label: str) -> int:
@@ -225,6 +233,26 @@ def _scl_signal_label(signal_type: str) -> str:
         "seven_bar_low": "7-Bar Low",
     }
     return labels.get(signal_type, _signal_type_label(signal_type))
+
+
+def _qrs_signal_label(signal_type: str) -> str:
+    labels = {
+        "main_cross_above_zero_3d": "Main Crossed Above Zero",
+        "main_cross_below_zero_3d": "Main Crossed Below Zero",
+        "ma1_cross_above_ma2": "MA1 Crossed Above MA2",
+        "ma1_cross_below_ma2": "MA1 Crossed Below MA2",
+        "main_above_all_mas_pos_regime": "Main Above All MAs in Positive Regime",
+        "main_below_all_mas_neg_regime": "Main Below All MAs in Negative Regime",
+        "ma1_cross_above_zero": "MA1 Crossed Above Zero",
+        "ma1_cross_below_zero": "MA1 Crossed Below Zero",
+    }
+    return labels.get(signal_type, _signal_type_label(signal_type))
+
+
+def _qrs_signal_target_trace(signal_type: str) -> str:
+    if signal_type.startswith("ma1_"):
+        return "ma1"
+    return "qrs"
 
 
 def _compute_roc_dashboard(
@@ -425,6 +453,96 @@ def _compute_scl_v4_x5_dashboard(
     )
 
 
+def _compute_qrs_consist_excess_dashboard(
+    dashboard_input: IndicatorDashboardInput,
+) -> IndicatorDashboardOutput:
+    resolved_settings = resolve_adapter_settings(
+        QRS_CONSIST_EXCESS_DASHBOARD_ADAPTER,
+        dashboard_input.settings,
+    )
+    aligned_inputs = qrs_consist_excess_indicator.align_qrs_consist_excess_inputs(
+        prices=dashboard_input.prices,
+        benchmark_prices_by_ticker=dashboard_input.benchmark_prices_by_ticker,
+        benchmark_tickers=dashboard_input.benchmark_tickers,
+    )
+    if aligned_inputs.aligned_price_points == 0:
+        benchmarks = ", ".join(aligned_inputs.benchmark_tickers)
+        raise IndicatorDataError(
+            f"No common dates remain after aligning {dashboard_input.ticker} with benchmark prices for {benchmarks}."
+        )
+
+    computation = qrs_consist_excess_indicator.compute_qrs_consist_excess_computation(
+        aligned_inputs=aligned_inputs,
+        settings=resolved_settings,
+    )
+    main_points = _trace_points_from_series(computation.main_series)
+    ma1_points = _trace_points_from_series(computation.ma1_series)
+    ma2_points = _trace_points_from_series(computation.ma2_series)
+    ma3_points = _trace_points_from_series(computation.ma3_series)
+
+    warnings: list[str] = []
+    if aligned_inputs.dropped_price_points > 0:
+        benchmarks = ", ".join(aligned_inputs.benchmark_tickers)
+        warnings.append(
+            "Dropped "
+            f"{aligned_inputs.dropped_price_points} price rows without full benchmark coverage across {benchmarks}."
+        )
+    if not main_points:
+        warnings.append("QRS Consistency + Excess returned no usable dashboard series.")
+
+    return IndicatorDashboardOutput(
+        resolved_settings=computation.resolved_settings,
+        panels=[
+            IndicatorPanel(
+                id="main",
+                label="QRS Consistency + Excess",
+                traces=[
+                    IndicatorTrace(
+                        key="qrs",
+                        label="QRS Consistency + Excess",
+                        points=main_points,
+                        color="#0f766e",
+                    ),
+                    IndicatorTrace(
+                        key="ma1",
+                        label=f"MA1 {int(computation.resolved_settings['map1'])}",
+                        points=ma1_points,
+                        color="#b45309",
+                    ),
+                    IndicatorTrace(
+                        key="ma2",
+                        label=f"MA2 {int(computation.resolved_settings['map2'])}",
+                        points=ma2_points,
+                        color="#1d4ed8",
+                    ),
+                    IndicatorTrace(
+                        key="ma3",
+                        label=f"MA3 {int(computation.resolved_settings['map3'])}",
+                        points=ma3_points,
+                        color="#7c3aed",
+                    ),
+                ],
+                reference_lines=[0.0],
+            )
+        ],
+        signals=[
+            IndicatorDashboardSignal(
+                date=signal.signal_date,
+                type=signal.signal_type,
+                label=_qrs_signal_label(signal.signal_type),
+                target_trace=_qrs_signal_target_trace(signal.signal_type),
+                metadata=dict(signal.metadata),
+            )
+            for signal in computation.signals
+        ],
+        diagnostics={
+            "indicator_points": len(main_points),
+            "benchmark_tickers_used": list(aligned_inputs.benchmark_tickers),
+            "warnings": warnings,
+        },
+    )
+
+
 ROC_DASHBOARD_ADAPTER = IndicatorDashboardAdapter(
     id="roc",
     label="Rate of Change",
@@ -604,11 +722,117 @@ SCL_V4_X5_DASHBOARD_ADAPTER = IndicatorDashboardAdapter(
     compute=_compute_scl_v4_x5_dashboard,
 )
 
+QRS_CONSIST_EXCESS_DASHBOARD_ADAPTER = IndicatorDashboardAdapter(
+    id="qrs_consist_excess",
+    label="QRS Consistency + Excess",
+    description="Benchmark-relative QRS score with MA1, MA2, and MA3 overlays plus regime and crossover markers.",
+    parameters=[
+        IndicatorParameter(
+            key="lookback",
+            label="Lookback",
+            type="integer",
+            default=84,
+            min=1,
+            required=True,
+            description="Rolling window used to score benchmark-relative consistency and excess return.",
+        ),
+        IndicatorParameter(
+            key="deadband_period",
+            label="Deadband Period",
+            type="integer",
+            default=20,
+            min=1,
+            required=True,
+            description="Rolling window used to estimate benchmark volatility for the deadband gate.",
+        ),
+        IndicatorParameter(
+            key="deadband_mult",
+            label="Deadband Multiplier",
+            type="float",
+            default=0.25,
+            min=0,
+            required=True,
+            description="Multiplier applied to benchmark volatility when deciding whether a day is directionally active.",
+        ),
+        IndicatorParameter(
+            key="map1",
+            label="MA1 Period",
+            type="integer",
+            default=7,
+            min=1,
+            required=True,
+            description="Window for the fastest QRS moving-average overlay.",
+        ),
+        IndicatorParameter(
+            key="map2",
+            label="MA2 Period",
+            type="integer",
+            default=21,
+            min=1,
+            required=True,
+            description="Window for the middle QRS moving-average overlay.",
+        ),
+        IndicatorParameter(
+            key="map3",
+            label="MA3 Period",
+            type="integer",
+            default=56,
+            min=1,
+            required=True,
+            description="Window for the slowest QRS moving-average overlay.",
+        ),
+        IndicatorParameter(
+            key="cons_weight",
+            label="Consistency Weight",
+            type="float",
+            default=0.6,
+            min=0,
+            required=True,
+            description="Weight applied to the directional consistency component in the combined QRS score.",
+        ),
+        IndicatorParameter(
+            key="excess_weight",
+            label="Excess Weight",
+            type="float",
+            default=0.4,
+            min=0,
+            required=True,
+            description="Weight applied to the normalized excess-return component in the combined QRS score.",
+        ),
+        IndicatorParameter(
+            key="ma_shift",
+            label="MA Shift",
+            type="integer",
+            default=3,
+            min=0,
+            required=True,
+            description="Forward offset applied to the moving-average overlays after smoothing.",
+        ),
+    ],
+    default_settings={
+        "lookback": 84,
+        "deadband_period": 20,
+        "deadband_mult": 0.25,
+        "map1": 7,
+        "map2": 21,
+        "map3": 56,
+        "cons_weight": 0.6,
+        "excess_weight": 0.4,
+        "ma_shift": 3,
+    },
+    requires_benchmarks=True,
+    supported_intervals=["day"],
+    default_benchmark_tickers=list(qrs_consist_excess_indicator.BENCHMARK_TICKERS),
+    required_benchmark_count=3,
+    compute=_compute_qrs_consist_excess_dashboard,
+)
+
 
 DASHBOARD_ADAPTERS: dict[str, IndicatorDashboardAdapter] = {
     ROC_DASHBOARD_ADAPTER.id: ROC_DASHBOARD_ADAPTER,
     ROC_AGGREGATE_DASHBOARD_ADAPTER.id: ROC_AGGREGATE_DASHBOARD_ADAPTER,
     SCL_V4_X5_DASHBOARD_ADAPTER.id: SCL_V4_X5_DASHBOARD_ADAPTER,
+    QRS_CONSIST_EXCESS_DASHBOARD_ADAPTER.id: QRS_CONSIST_EXCESS_DASHBOARD_ADAPTER,
 }
 
 
@@ -618,6 +842,7 @@ def get_dashboard_adapters() -> dict[str, IndicatorDashboardAdapter]:
 
 __all__ = [
     "IndicatorDashboardAdapter",
+    "IndicatorDataError",
     "IndicatorDashboardInput",
     "IndicatorDashboardOutput",
     "IndicatorDashboardSignal",

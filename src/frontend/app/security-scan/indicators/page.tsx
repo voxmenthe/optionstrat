@@ -266,6 +266,12 @@ export default function SecurityScanIndicatorsPage() {
               value={benchmarkTickers}
               onChange={(event) => setBenchmarkTickers(event.target.value)}
             />
+            {selectedIndicator?.requires_benchmarks && (
+              <span className="mt-1 block text-xs text-gray-500">
+                Required for benchmark-relative indicators. Separate tickers with
+                commas.
+              </span>
+            )}
           </label>
         </div>
 

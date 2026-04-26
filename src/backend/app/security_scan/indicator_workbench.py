@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from app.security_scan.data_fetcher import MarketDataFetcher
 from app.security_scan.indicator_adapters import (
     IndicatorDashboardAdapter,
+    IndicatorDataError,
     IndicatorDashboardInput,
     IndicatorPanel,
     IndicatorParameter,
@@ -200,10 +201,7 @@ def _adapter_to_metadata(
 def list_indicator_metadata() -> IndicatorMetadataListResponse:
     adapters = get_dashboard_adapters()
     return IndicatorMetadataListResponse(
-        indicators=[
-            _adapter_to_metadata(adapter)
-            for adapter in sorted(adapters.values(), key=lambda item: item.id)
-        ]
+        indicators=[_adapter_to_metadata(adapter) for adapter in adapters.values()]
     )
 
 
@@ -218,6 +216,32 @@ def _date_range_to_datetimes(start: date, end: date) -> tuple[datetime, datetime
     start_dt = datetime.combine(start, time.min)
     end_dt = datetime.combine(end + timedelta(days=1), time.min)
     return start_dt, end_dt
+
+
+def _resolve_requested_benchmark_tickers(
+    adapter: IndicatorDashboardAdapter,
+    request_benchmark_tickers: list[str],
+) -> list[str]:
+    if not adapter.requires_benchmarks:
+        return []
+
+    tickers = request_benchmark_tickers or list(adapter.default_benchmark_tickers)
+    if adapter.required_benchmark_count is not None and len(tickers) != adapter.required_benchmark_count:
+        raise IndicatorSettingsValidationError(
+            f"{adapter.id} requires exactly {adapter.required_benchmark_count} benchmark tickers."
+        )
+
+    unique_tickers: list[str] = []
+    for ticker in tickers:
+        if ticker not in unique_tickers:
+            unique_tickers.append(ticker)
+
+    if adapter.required_benchmark_count is not None and len(unique_tickers) != adapter.required_benchmark_count:
+        raise IndicatorSettingsValidationError(
+            f"{adapter.id} requires {adapter.required_benchmark_count} unique benchmark tickers."
+        )
+
+    return unique_tickers
 
 
 def _price_points_from_prices(
@@ -280,17 +304,24 @@ def compute_indicator_dashboard(
             f"No usable historical close prices found for {request.ticker}."
         )
 
+    resolved_benchmark_tickers = _resolve_requested_benchmark_tickers(
+        adapter,
+        request.benchmark_tickers,
+    )
     benchmark_prices_by_ticker: dict[str, list[dict[str, Any]]] = {}
     if adapter.requires_benchmarks:
-        for benchmark_ticker in request.benchmark_tickers:
-            benchmark_prices_by_ticker[benchmark_ticker] = (
-                fetcher.fetch_historical_prices(
-                    ticker=benchmark_ticker,
-                    start_date=start_dt,
-                    end_date=end_dt,
-                    interval=request.interval,
-                )
+        for benchmark_ticker in resolved_benchmark_tickers:
+            benchmark_prices = fetcher.fetch_historical_prices(
+                ticker=benchmark_ticker,
+                start_date=start_dt,
+                end_date=end_dt,
+                interval=request.interval,
             )
+            if not _price_points_from_prices(benchmark_prices):
+                raise IndicatorNoDataError(
+                    f"No usable historical close prices found for benchmark {benchmark_ticker}."
+                )
+            benchmark_prices_by_ticker[benchmark_ticker] = benchmark_prices
 
     try:
         adapter_output = adapter.compute(
@@ -298,16 +329,19 @@ def compute_indicator_dashboard(
                 ticker=request.ticker,
                 prices=prices,
                 settings=request.settings,
+                benchmark_tickers=resolved_benchmark_tickers,
                 benchmark_prices_by_ticker=benchmark_prices_by_ticker,
             )
         )
     except IndicatorSettingsError as exc:
         raise IndicatorSettingsValidationError(str(exc)) from exc
+    except IndicatorDataError as exc:
+        raise IndicatorNoDataError(str(exc)) from exc
 
     diagnostics = dict(adapter_output.diagnostics)
     diagnostics.setdefault("price_points", len(price_points))
     diagnostics.setdefault("indicator_points", 0)
-    diagnostics.setdefault("benchmark_tickers_used", sorted(benchmark_prices_by_ticker))
+    diagnostics.setdefault("benchmark_tickers_used", list(resolved_benchmark_tickers))
     diagnostics.setdefault("warnings", [])
 
     return IndicatorDashboardComputeResponse(

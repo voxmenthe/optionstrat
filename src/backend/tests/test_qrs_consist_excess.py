@@ -4,6 +4,7 @@ from app.security_scan.indicators.qrs_consist_excess import (
     _build_main_zero_cross_signals,
     _build_ma1_ma2_cross_signals,
     _build_main_vs_all_mas_regime_signals,
+    align_qrs_consist_excess_inputs,
     qrs_consist_excess,
 )
 
@@ -22,6 +23,63 @@ def test_qrs_main_cross_above_zero_requires_three_days() -> None:
     assert signal.metadata["prev_1"] == 0.0
     assert signal.metadata["prev_2"] == -0.5
     assert signal.metadata["prev_3"] == -1.0
+
+
+def test_align_qrs_consist_excess_inputs_tracks_shared_dates_and_dropped_rows() -> None:
+    prices = [
+        {"date": "2025-01-03", "close": 12.0},
+        {"date": "2025-01-01", "close": 10.0},
+        {"date": "2025-01-02", "close": 11.0},
+    ]
+    benchmark_prices_by_ticker = {
+        "SPY": [
+            {"date": "2025-01-01", "close": 100.0},
+            {"date": "2025-01-03", "close": 101.0},
+        ],
+        "QQQ": [
+            {"date": "2025-01-01", "close": 200.0},
+            {"date": "2025-01-03", "close": 201.0},
+        ],
+        "IWM": [
+            {"date": "2025-01-01", "close": 300.0},
+            {"date": "2025-01-03", "close": 301.0},
+        ],
+    }
+
+    aligned = align_qrs_consist_excess_inputs(
+        prices=prices,
+        benchmark_prices_by_ticker=benchmark_prices_by_ticker,
+        benchmark_tickers=["spy", "qqq", "iwm"],
+    )
+
+    assert aligned.benchmark_tickers == ["SPY", "QQQ", "IWM"]
+    assert aligned.dates == ["2025-01-01", "2025-01-03"]
+    assert aligned.close_values == [10.0, 12.0]
+    assert aligned.source_price_points == 3
+    assert aligned.aligned_price_points == 2
+    assert aligned.dropped_price_points == 1
+
+
+def test_align_qrs_consist_excess_inputs_rejects_missing_benchmark_series() -> None:
+    prices = [
+        {"date": "2025-01-01", "close": 10.0},
+        {"date": "2025-01-02", "close": 11.0},
+    ]
+
+    try:
+        align_qrs_consist_excess_inputs(
+            prices=prices,
+            benchmark_prices_by_ticker={
+                "SPY": [{"date": "2025-01-01", "close": 100.0}],
+                "QQQ": [{"date": "2025-01-01", "close": 200.0}],
+                "IWM": [],
+            },
+            benchmark_tickers=["SPY", "QQQ", "IWM"],
+        )
+    except ValueError as exc:
+        assert "Missing benchmark prices for: IWM" in str(exc)
+    else:
+        raise AssertionError("Expected missing benchmark prices to raise ValueError")
 
 
 def test_qrs_main_cross_below_zero_requires_three_days() -> None:

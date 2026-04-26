@@ -1,13 +1,36 @@
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence
 
+from app.security_scan.criteria import SeriesPoint
 from app.security_scan.signals import IndicatorSignal
 
 INDICATOR_ID = "qrs_consist_excess"
 
 BENCHMARK_TICKERS = ["SPY", "QQQ", "IWM"]
+
+
+@dataclass(frozen=True)
+class QrsConsistExcessAlignedInputs:
+    benchmark_tickers: list[str]
+    dates: list[str]
+    close_values: list[float]
+    benchmark_close_values: list[list[float]]
+    source_price_points: int
+    aligned_price_points: int
+    dropped_price_points: int
+
+
+@dataclass(frozen=True)
+class QrsConsistExcessComputation:
+    resolved_settings: dict[str, int | float]
+    main_series: list[SeriesPoint]
+    ma1_series: list[SeriesPoint]
+    ma2_series: list[SeriesPoint]
+    ma3_series: list[SeriesPoint]
+    signals: list[IndicatorSignal]
 
 
 def _is_nan(value: float) -> bool:
@@ -298,6 +321,213 @@ def _to_float_setting(settings: dict[str, Any], key: str, default: float) -> flo
         raise ValueError(f"{key} must be a number") from exc
 
 
+def _resolve_benchmark_tickers(benchmark_tickers: Any) -> list[str]:
+    if benchmark_tickers is None:
+        return list(BENCHMARK_TICKERS)
+    if not isinstance(benchmark_tickers, list):
+        raise ValueError("benchmark_tickers must be a list of 3 tickers")
+
+    normalized: list[str] = []
+    for value in benchmark_tickers:
+        if not isinstance(value, str):
+            raise ValueError("benchmark_tickers must be a list of 3 tickers")
+        ticker = value.strip().upper()
+        if not ticker:
+            raise ValueError("benchmark_tickers must be a list of 3 tickers")
+        normalized.append(ticker)
+
+    if len(normalized) != 3:
+        raise ValueError("benchmark_tickers must be a list of 3 tickers")
+    return normalized
+
+
+def _resolve_settings(settings: dict[str, Any] | None) -> dict[str, int | float]:
+    normalized = settings or {}
+    return {
+        "lookback": _to_int_setting(normalized, "lookback", 84),
+        "deadband_period": _to_int_setting(
+            normalized, "deadband_period", 20
+        ),
+        "deadband_mult": _to_float_setting(normalized, "deadband_mult", 0.25),
+        "map1": _to_int_setting(normalized, "map1", 7),
+        "map2": _to_int_setting(normalized, "map2", 21),
+        "map3": _to_int_setting(normalized, "map3", 56),
+        "cons_weight": _to_float_setting(normalized, "cons_weight", 0.6),
+        "excess_weight": _to_float_setting(normalized, "excess_weight", 0.4),
+        "ma_shift": _to_int_setting(normalized, "ma_shift", 3),
+    }
+
+
+def _series_points_from_values(
+    dates: Sequence[str],
+    values: Sequence[float],
+) -> list[SeriesPoint]:
+    if len(dates) != len(values):
+        return []
+    return [
+        SeriesPoint(date=dates[index], value=float(value))
+        for index, value in enumerate(values)
+    ]
+
+
+def align_qrs_consist_excess_inputs(
+    prices: list[dict[str, Any]],
+    benchmark_prices_by_ticker: dict[str, list[dict[str, Any]]],
+    benchmark_tickers: Sequence[str] | None = None,
+) -> QrsConsistExcessAlignedInputs:
+    resolved_benchmark_tickers = _resolve_benchmark_tickers(
+        list(benchmark_tickers) if benchmark_tickers is not None else None
+    )
+    ticker_series = _extract_close_series(prices)
+
+    bench_maps = {
+        ticker: _build_benchmark_map(benchmark_prices_by_ticker, ticker)
+        for ticker in resolved_benchmark_tickers
+    }
+    missing_benchmarks = [
+        ticker for ticker, mapping in bench_maps.items() if not mapping
+    ]
+    if missing_benchmarks:
+        missing_label = ", ".join(missing_benchmarks)
+        raise ValueError(f"Missing benchmark prices for: {missing_label}")
+
+    dates: list[str] = []
+    close_values: list[float] = []
+    benchmark_close_values = [[] for _ in resolved_benchmark_tickers]
+    for date, close in ticker_series:
+        if any(date not in bench_maps[ticker] for ticker in resolved_benchmark_tickers):
+            continue
+        dates.append(date)
+        close_values.append(close)
+        for index, ticker in enumerate(resolved_benchmark_tickers):
+            benchmark_close_values[index].append(bench_maps[ticker][date])
+
+    source_price_points = len(ticker_series)
+    aligned_price_points = len(dates)
+    return QrsConsistExcessAlignedInputs(
+        benchmark_tickers=resolved_benchmark_tickers,
+        dates=dates,
+        close_values=close_values,
+        benchmark_close_values=benchmark_close_values,
+        source_price_points=source_price_points,
+        aligned_price_points=aligned_price_points,
+        dropped_price_points=max(0, source_price_points - aligned_price_points),
+    )
+
+
+def compute_qrs_consist_excess_computation(
+    aligned_inputs: QrsConsistExcessAlignedInputs,
+    settings: dict[str, Any] | None = None,
+) -> QrsConsistExcessComputation:
+    resolved_settings = _resolve_settings(settings)
+    if aligned_inputs.aligned_price_points == 0:
+        return QrsConsistExcessComputation(
+            resolved_settings=resolved_settings,
+            main_series=[],
+            ma1_series=[],
+            ma2_series=[],
+            ma3_series=[],
+            signals=[],
+        )
+
+    if len(aligned_inputs.benchmark_close_values) != 3:
+        raise ValueError("QRS indicator requires exactly 3 benchmark series")
+
+    outputs = qrs_consist_excess(
+        aligned_inputs.close_values,
+        aligned_inputs.benchmark_close_values[0],
+        aligned_inputs.benchmark_close_values[1],
+        aligned_inputs.benchmark_close_values[2],
+        lookback=int(resolved_settings["lookback"]),
+        deadband_period=int(resolved_settings["deadband_period"]),
+        deadband_mult=float(resolved_settings["deadband_mult"]),
+        map1=int(resolved_settings["map1"]),
+        map2=int(resolved_settings["map2"]),
+        map3=int(resolved_settings["map3"]),
+        cons_weight=float(resolved_settings["cons_weight"]),
+        excess_weight=float(resolved_settings["excess_weight"]),
+        ma_shift=int(resolved_settings["ma_shift"]),
+    )
+
+    main_series = _series_points_from_values(
+        aligned_inputs.dates, outputs.get("QRSConsistExcess", [])
+    )
+    ma1_series = _series_points_from_values(aligned_inputs.dates, outputs.get("MA1", []))
+    ma2_series = _series_points_from_values(aligned_inputs.dates, outputs.get("MA2", []))
+    ma3_series = _series_points_from_values(aligned_inputs.dates, outputs.get("MA3", []))
+    if not main_series or not ma1_series or not ma2_series or not ma3_series:
+        return QrsConsistExcessComputation(
+            resolved_settings=resolved_settings,
+            main_series=[],
+            ma1_series=[],
+            ma2_series=[],
+            ma3_series=[],
+            signals=[],
+        )
+
+    signals: list[IndicatorSignal] = []
+    signals.extend(
+        _build_main_zero_cross_signals(
+            aligned_inputs.dates, [point.value for point in main_series]
+        )
+    )
+    signals.extend(
+        _build_ma1_ma2_cross_signals(
+            aligned_inputs.dates,
+            [point.value for point in ma1_series],
+            [point.value for point in ma2_series],
+        )
+    )
+    signals.extend(
+        _build_main_vs_all_mas_regime_signals(
+            aligned_inputs.dates,
+            [point.value for point in main_series],
+            [point.value for point in ma1_series],
+            [point.value for point in ma2_series],
+            [point.value for point in ma3_series],
+        )
+    )
+
+    for index in range(1, len(ma1_series)):
+        current = ma1_series[index].value
+        prev = ma1_series[index - 1].value
+        if prev <= 0 and current > 0:
+            signals.append(
+                IndicatorSignal(
+                    signal_date=ma1_series[index].date,
+                    signal_type="ma1_cross_above_zero",
+                    metadata={
+                        "indicator": "MA1",
+                        "current_value": current,
+                        "prev_value": prev,
+                        "label": "qrs_ma1_cross_up",
+                    },
+                )
+            )
+        if prev >= 0 and current < 0:
+            signals.append(
+                IndicatorSignal(
+                    signal_date=ma1_series[index].date,
+                    signal_type="ma1_cross_below_zero",
+                    metadata={
+                        "indicator": "MA1",
+                        "current_value": current,
+                        "prev_value": prev,
+                        "label": "qrs_ma1_cross_down",
+                    },
+                )
+            )
+
+    return QrsConsistExcessComputation(
+        resolved_settings=resolved_settings,
+        main_series=main_series,
+        ma1_series=ma1_series,
+        ma2_series=ma2_series,
+        ma3_series=ma3_series,
+        signals=signals,
+    )
+
+
 def evaluate(
     prices: list[dict[str, Any]],
     settings: dict[str, Any],
@@ -313,110 +543,17 @@ def evaluate(
     if not benchmark_tickers:
         if isinstance(context, dict):
             benchmark_tickers = context.get("benchmark_tickers")
-    if not benchmark_tickers:
-        benchmark_tickers = BENCHMARK_TICKERS
-    if not isinstance(benchmark_tickers, list) or len(benchmark_tickers) != 3:
-        raise ValueError("benchmark_tickers must be a list of 3 tickers")
-
-    ticker_series = _extract_close_series(prices)
-    if len(ticker_series) < 3:
-        return []
-
-    bench_maps = {
-        ticker: _build_benchmark_map(benchmark_prices_by_ticker, ticker)
-        for ticker in benchmark_tickers
-    }
-    missing_benchmarks = [ticker for ticker, mapping in bench_maps.items() if not mapping]
-    if missing_benchmarks:
-        missing_label = ", ".join(missing_benchmarks)
-        raise ValueError(f"Missing benchmark prices for: {missing_label}")
-
-    dates: list[str] = []
-    close_values: list[float] = []
-    bench_values: list[list[float]] = [[] for _ in benchmark_tickers]
-    for date, close in ticker_series:
-        if any(date not in bench_maps[ticker] for ticker in benchmark_tickers):
-            continue
-        dates.append(date)
-        close_values.append(close)
-        for index, ticker in enumerate(benchmark_tickers):
-            bench_values[index].append(bench_maps[ticker][date])
-
-    if len(dates) < 3:
-        return []
-
-    outputs = qrs_consist_excess(
-        close_values,
-        bench_values[0],
-        bench_values[1],
-        bench_values[2],
-        lookback=_to_int_setting(settings, "lookback", 84),
-        deadband_period=_to_int_setting(settings, "deadband_period", 20),
-        deadband_mult=_to_float_setting(settings, "deadband_mult", 0.25),
-        map1=_to_int_setting(settings, "map1", 7),
-        map2=_to_int_setting(settings, "map2", 21),
-        map3=_to_int_setting(settings, "map3", 56),
-        cons_weight=_to_float_setting(settings, "cons_weight", 0.6),
-        excess_weight=_to_float_setting(settings, "excess_weight", 0.4),
-        ma_shift=_to_int_setting(settings, "ma_shift", 3),
+    aligned_inputs = align_qrs_consist_excess_inputs(
+        prices=prices,
+        benchmark_prices_by_ticker=benchmark_prices_by_ticker,
+        benchmark_tickers=benchmark_tickers,
     )
-
-    qrs_series = outputs.get("QRSConsistExcess", [])
-    ma1_series = outputs.get("MA1", [])
-    ma2_series = outputs.get("MA2", [])
-    ma3_series = outputs.get("MA3", [])
-    if (
-        len(qrs_series) != len(dates)
-        or len(ma1_series) != len(dates)
-        or len(ma2_series) != len(dates)
-        or len(ma3_series) != len(dates)
-    ):
+    if aligned_inputs.aligned_price_points < 3:
         return []
-
-    signals: list[IndicatorSignal] = []
-    signals.extend(_build_main_zero_cross_signals(dates, qrs_series))
-    signals.extend(_build_ma1_ma2_cross_signals(dates, ma1_series, ma2_series))
-    signals.extend(
-        _build_main_vs_all_mas_regime_signals(
-            dates,
-            qrs_series,
-            ma1_series,
-            ma2_series,
-            ma3_series,
-        )
-    )
-
-    for index in range(1, len(ma1_series)):
-        current = ma1_series[index]
-        prev = ma1_series[index - 1]
-        if prev <= 0 and current > 0:
-            signals.append(
-                IndicatorSignal(
-                    signal_date=dates[index],
-                    signal_type="ma1_cross_above_zero",
-                    metadata={
-                        "indicator": "MA1",
-                        "current_value": current,
-                        "prev_value": prev,
-                        "label": "qrs_ma1_cross_up",
-                    },
-                )
-            )
-        if prev >= 0 and current < 0:
-            signals.append(
-                IndicatorSignal(
-                    signal_date=dates[index],
-                    signal_type="ma1_cross_below_zero",
-                    metadata={
-                        "indicator": "MA1",
-                        "current_value": current,
-                        "prev_value": prev,
-                        "label": "qrs_ma1_cross_down",
-                    },
-                )
-            )
-
-    return signals
+    return compute_qrs_consist_excess_computation(
+        aligned_inputs=aligned_inputs,
+        settings=settings,
+    ).signals
 
 
 def _build_ma1_ma2_cross_signals(
@@ -595,4 +732,12 @@ def _build_main_zero_cross_signals(
     return signals
 
 
-__all__ = ["evaluate", "qrs_consist_excess"]
+__all__ = [
+    "BENCHMARK_TICKERS",
+    "QrsConsistExcessAlignedInputs",
+    "QrsConsistExcessComputation",
+    "align_qrs_consist_excess_inputs",
+    "compute_qrs_consist_excess_computation",
+    "evaluate",
+    "qrs_consist_excess",
+]
