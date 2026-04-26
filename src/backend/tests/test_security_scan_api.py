@@ -5,7 +5,10 @@ from typing import Any
 
 from app.dependencies import get_market_data_service
 from app.main import app
+from app.security_scan.criteria import SeriesPoint
+from app.security_scan.indicators import scl_ma2_qrs_ma1_breakout as breakout_indicator
 from app.security_scan.indicators import qrs_consist_excess as qrs_indicator
+from app.security_scan.signals import IndicatorSignal
 
 
 class FakeMarketDataService:
@@ -49,11 +52,13 @@ def test_security_scan_indicator_metadata_endpoint(client) -> None:
         "roc_aggregate",
         "scl_v4_x5",
         "qrs_consist_excess",
+        "scl_ma2_qrs_ma1_breakout",
     ]
     assert payload["indicators"][0]["parameters"][0]["key"] == "roc_lookback"
     assert payload["indicators"][1]["parameters"][0]["key"] == "roc_lookbacks"
     assert payload["indicators"][2]["parameters"][0]["key"] == "lag1"
     assert payload["indicators"][3]["parameters"][0]["key"] == "lookback"
+    assert payload["indicators"][4]["parameters"][0]["key"] == "scl_ma2_window"
 
 
 def test_security_scan_indicator_dashboard_compute_endpoint(client) -> None:
@@ -286,6 +291,113 @@ def test_security_scan_qrs_dashboard_compute_endpoint(client, monkeypatch) -> No
     ]
 
 
+def test_security_scan_breakout_dashboard_compute_endpoint(
+    client,
+    monkeypatch,
+) -> None:
+    fake_service = FakeMarketDataService(
+        prices_by_ticker={
+            "TSLA": [
+                {"date": "2025-01-01", "close": 10.0, "high": 11.0, "low": 9.0},
+                {"date": "2025-01-02", "close": 11.0, "high": 12.0, "low": 10.0},
+                {"date": "2025-01-03", "close": 12.0, "high": 13.0, "low": 11.0},
+                {"date": "2025-01-04", "close": 13.0, "high": 14.0, "low": 12.0},
+                {"date": "2025-01-05", "close": 14.0, "high": 15.0, "low": 13.0},
+            ],
+            "SPY": [{"date": f"2025-01-0{index}", "close": 100.0 + index} for index in range(1, 6)],
+            "QQQ": [{"date": f"2025-01-0{index}", "close": 200.0 + index} for index in range(1, 6)],
+            "IWM": [{"date": f"2025-01-0{index}", "close": 300.0 + index} for index in range(1, 6)],
+        }
+    )
+
+    monkeypatch.setattr(
+        breakout_indicator,
+        "compute_scl_ma2_qrs_ma1_breakout_computation",
+        lambda *_args, **_kwargs: breakout_indicator.SclMa2QrsMa1BreakoutComputation(
+            resolved_settings={
+                "scl_ma2_window": 3,
+                "qrs_ma1_window": 3,
+                "ma_period2": 11,
+                "map1": 7,
+            },
+            benchmark_tickers=["SPY", "QQQ", "IWM"],
+            scl_ma2_series=[
+                SeriesPoint(date="2025-01-01", value=0.0),
+                SeriesPoint(date="2025-01-02", value=0.0),
+                SeriesPoint(date="2025-01-03", value=0.0),
+                SeriesPoint(date="2025-01-04", value=0.5),
+                SeriesPoint(date="2025-01-05", value=1.0),
+            ],
+            qrs_ma1_series=[
+                SeriesPoint(date="2025-01-01", value=0.0),
+                SeriesPoint(date="2025-01-02", value=0.0),
+                SeriesPoint(date="2025-01-03", value=0.0),
+                SeriesPoint(date="2025-01-04", value=0.75),
+                SeriesPoint(date="2025-01-05", value=2.0),
+            ],
+            signals=[
+                IndicatorSignal(
+                    signal_date="2025-01-05",
+                    signal_type="dual_breakout_up",
+                    metadata={
+                        "label": "scl_ma2_qrs_ma1_dual_breakout_up",
+                        "scl_series": "MA2",
+                        "scl_lookback": 3,
+                        "scl_current": 1.0,
+                        "scl_prior_high": 0.5,
+                        "qrs_series": "MA1",
+                        "qrs_lookback": 3,
+                        "qrs_current": 2.0,
+                        "qrs_prior_high": 0.75,
+                    },
+                )
+            ],
+            usable_ohlc_points=5,
+            scl_skipped_price_rows=0,
+            qrs_aligned_price_points=5,
+            qrs_dropped_price_points=0,
+            common_aligned_points=5,
+        ),
+    )
+
+    def override_market_data_service() -> FakeMarketDataService:
+        return fake_service
+
+    app.dependency_overrides[get_market_data_service] = override_market_data_service
+
+    response = client.post(
+        "/security-scan/indicator-dashboard/compute",
+        json={
+            "ticker": "tsla",
+            "indicator_id": "scl_ma2_qrs_ma1_breakout",
+            "settings": {"scl_ma2_window": 3, "qrs_ma1_window": 3},
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-05",
+            "interval": "day",
+            "benchmark_tickers": ["spy", "qqq", "iwm"],
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["ticker"] == "TSLA"
+    assert [trace["key"] for trace in payload["indicator"]["panels"][0]["traces"]] == [
+        "scl_ma2",
+        "qrs_ma1",
+    ]
+    assert [signal["target_trace"] for signal in payload["signals"]] == [
+        "scl_ma2",
+        "qrs_ma1",
+    ]
+    assert payload["diagnostics"]["benchmark_tickers_used"] == ["SPY", "QQQ", "IWM"]
+    assert [call["ticker"] for call in fake_service.calls] == [
+        "TSLA",
+        "SPY",
+        "QQQ",
+        "IWM",
+    ]
+
+
 def test_security_scan_indicator_dashboard_rejects_bad_settings(client) -> None:
     fake_service = FakeMarketDataService(
         [
@@ -441,3 +553,33 @@ def test_security_scan_qrs_dashboard_reports_missing_benchmark_prices(client) ->
     assert "No usable historical close prices found for benchmark IWM" in response.json()[
         "detail"
     ]
+
+
+def test_security_scan_breakout_dashboard_rejects_bad_settings(client) -> None:
+    fake_service = FakeMarketDataService(
+        [
+            {"date": "2025-01-01", "close": 10.0, "high": 11.0, "low": 9.0},
+            {"date": "2025-01-02", "close": 11.0, "high": 12.0, "low": 10.0},
+        ]
+    )
+
+    def override_market_data_service() -> FakeMarketDataService:
+        return fake_service
+
+    app.dependency_overrides[get_market_data_service] = override_market_data_service
+
+    response = client.post(
+        "/security-scan/indicator-dashboard/compute",
+        json={
+            "ticker": "TSLA",
+            "indicator_id": "scl_ma2_qrs_ma1_breakout",
+            "settings": {"scl_ma2_window": 0, "qrs_ma1_window": 3},
+            "start_date": "2025-01-01",
+            "end_date": "2025-01-02",
+            "interval": "day",
+            "benchmark_tickers": ["SPY", "QQQ", "IWM"],
+        },
+    )
+
+    assert response.status_code == 422
+    assert "scl_ma2_window must be >= 1" in response.json()["detail"]

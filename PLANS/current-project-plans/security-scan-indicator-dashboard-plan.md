@@ -464,7 +464,7 @@ Implementation notes:
 - OHLC-sensitive diagnostics stay explicit without changing the top-panel price semantics. The adapter warns when price rows are skipped because `high`/`low` fields are missing, but `diagnostics.price_points` still reflects the visible close-price series used in the top chart panel.
 - No frontend form refactor was needed for `scl_v4_x5`. The existing schema-driven page already handled nine integer parameters cleanly enough for this slice, which is good evidence that the metadata contract is still holding.
 
-Delivered in this session:
+Delivered in these benchmark-aware sessions:
 1. Complete as of 2026-04-26 00:40 PDT - add `qrs_consist_excess` as the first benchmark-aware dashboard adapter.
 2. Complete - add a public QRS helper seam in `src/backend/app/security_scan/indicators/qrs_consist_excess.py`:
    - `align_qrs_consist_excess_inputs()`
@@ -483,27 +483,41 @@ Delivered in this session:
    - `MA3`
    - zero/reference line
    - existing QRS signal types mapped onto `qrs` or `ma1` trace markers
-5. Complete - keep the frontend generic:
-   - no indicator-id branch was required
-   - add a small benchmark hint when the selected indicator requires benchmark context
-   - use signal labels rather than raw signal ids in the Plotly marker legend
-6. Complete - add focused backend coverage for metadata, aligned synthetic benchmark input, wrong benchmark counts, missing benchmark series, no-common-date failures, and QRS route responses.
+5. Complete as of 2026-04-26 10:31 PDT - add `scl_ma2_qrs_ma1_breakout` as the composite Phase 3 dashboard adapter.
+6. Complete - add a public composite helper seam in `src/backend/app/security_scan/indicators/scl_ma2_qrs_ma1_breakout.py`:
+   - `SclMa2QrsMa1BreakoutComputation`
+   - `compute_scl_ma2_qrs_ma1_breakout_computation()`
+   - production `evaluate()` now delegates through that helper after resolving the existing `_context` benchmark contract
+7. Complete - remove the remaining duplicate benchmark/date-alignment logic from the composite indicator:
+   - SCL `MA2` now comes from `compute_scl_v4_x5_computation()`
+   - QRS `MA1` now comes from `align_qrs_consist_excess_inputs()` plus `compute_qrs_consist_excess_computation()`
+   - the strict composite breakout rule stays local to the composite module instead of leaking into either child indicator
+8. Complete - build the composite dashboard payload as one lower panel with:
+   - `scl_ma2`
+   - `qrs_ma1`
+   - zero/reference line
+   - dual breakout markers placed on both traces
+9. Complete - choose the lightest useful breakout-context visualization for now:
+   - marker metadata only
+   - no extra prior-high/prior-low reference traces yet
+   - this keeps the chart readable while still surfacing the breakout basis in hover/debug payloads
+10. Complete - keep the frontend generic:
+   - no indicator-id branch was required for either QRS or the composite indicator
+   - the existing metadata-driven form now covers a 20-parameter benchmark-aware indicator without new React specialization
+11. Complete - add focused backend coverage for metadata, aligned synthetic benchmark input, wrong benchmark counts, missing benchmark series, no-common-date failures, composite helper behavior, and route responses.
 
 Upcoming detailed slice:
-1. Add the `scl_ma2_qrs_ma1_breakout` dashboard adapter using the public compute seams now available on both sides:
-   - `compute_scl_v4_x5_computation()` for SCL `MA2`
-   - `align_qrs_consist_excess_inputs()` plus `compute_qrs_consist_excess_computation()` for QRS `MA1`
-2. Remove the remaining duplicate benchmark/date-alignment logic from `src/backend/app/security_scan/indicators/scl_ma2_qrs_ma1_breakout.py` instead of teaching the adapter or the indicator a second private alignment path.
-3. Decide how much prior-window breakout context should be visualized in the dashboard:
-   - marker metadata only
-   - additional reference traces
-   - or lightweight diagnostics fields
-4. Reassess `src/backend/app/security_scan/indicator_adapters.py` after the composite slice lands. QRS was still cohesive in one file, but a fourth adapter with composite-specific context may be the point where a package split reduces change blast radius.
+1. Reassess `src/backend/app/security_scan/indicator_adapters.py` after the composite slice. It is still manageable, but the benchmark-aware and composite logic now makes a package split a live architectural option rather than a speculative cleanup.
+2. Decide whether the workbench should keep indicator-type defaults or move toward configured-instance defaults or presets for benchmark-aware indicators, especially around QRS `map2`.
+3. Add one small generic chart and hover improvement if the composite markers feel too opaque in live use:
+   - improve hover formatting for rich signal metadata
+   - or group identical signal types by both type and target trace if dual-trace legends become ambiguous
+4. Start Phase 4 with explicit indicator-instance or preset discovery rather than more one-off frontend branches, so the single-ticker workbench can evolve into a real screener foundation without redoing the contract.
 
 ### Phase 3 - Benchmark-Aware Indicators
 Purpose: support QRS and composite indicators without special-casing in the frontend.
 
-Status: in progress as of 2026-04-26 00:40 PDT. `qrs_consist_excess` is now supported end-to-end as the first benchmark-aware indicator. The remaining Phase 3 work is the composite `scl_ma2_qrs_ma1_breakout` adapter and any resulting adapter-module packaging decision.
+Status: complete as of 2026-04-26 10:31 PDT. `qrs_consist_excess` and `scl_ma2_qrs_ma1_breakout` are both now supported end-to-end, which means the workbench contract has held across a benchmark-aware single-indicator view and a benchmark-aware composite view without adding frontend special cases.
 
 Tasks:
 1. Complete - benchmark ticker controls already exist in the frontend, and the page now shows a generic hint when the selected indicator requires benchmarks.
@@ -513,12 +527,12 @@ Tasks:
    - `MA1`, `MA2`, `MA3`
    - zero line
    - existing signal types
-4. Pending - add `scl_ma2_qrs_ma1_breakout` adapter:
+4. Complete - add `scl_ma2_qrs_ma1_breakout` adapter:
    - SCL `MA2`
    - QRS `MA1`
-   - prior high/low context where useful
+   - prior high/low context through marker metadata
    - dual breakout markers
-5. Complete - add diagnostics for missing benchmark data and date alignment losses.
+5. Complete - add diagnostics for missing benchmark data, date alignment losses, and no-common-date failures across benchmark-aware adapters.
 
 Exit criteria:
 - `qrs_consist_excess` computes with default benchmarks and optional overrides.
@@ -532,6 +546,10 @@ Implementation notes:
 - `qrs_consist_excess` now has the same additive shape that worked for `roc_aggregate` and `scl_v4_x5`: the indicator module owns aligned-series computation and signal assembly, the adapter owns chart payload assembly, and the production scan contract remains `evaluate(...) -> list[IndicatorSignal]`.
 - Partial benchmark overlap is no longer a silent truncation in the dashboard path. The adapter emits a warning when source price rows are dropped because one or more benchmark closes are missing, and it raises a clear no-data error when no aligned date set remains.
 - The frontend remained generic through this slice. No indicator-specific React branch was needed for QRS. The only UI adjustments were a generic benchmark-required hint and better marker legend labels for multi-signal indicators.
+- `scl_ma2_qrs_ma1_breakout` now follows that same additive pattern instead of maintaining a one-off private integration path. The composite module owns the strict dual-breakout rule, but it now reuses `compute_scl_v4_x5_computation()` for SCL `MA2` and the public QRS alignment/computation seam for QRS `MA1`.
+- The composite helper keeps the production `_context` contract intact for scan-runner callers while exposing an explicit benchmark-aware compute path for dashboard adapters. That reduces change blast radius because the dashboard no longer needs to smuggle benchmark context through composite-only private helpers.
+- For the first composite dashboard view, prior-window breakout context is exposed through marker metadata rather than four extra reference traces. That keeps the lower panel readable while still showing the current value, lookback, and prior threshold for both sides of the breakout.
+- The frontend stayed generic through the composite slice as well. The current page and chart were already capable of rendering a two-trace lower panel with trace-targeted markers, so no new page/chart branch was needed to support the composite indicator.
 - One real follow-up decision remains around defaults: the new QRS dashboard metadata currently follows the indicator-module default `map2 = 21`, while the live scan instances in `src/backend/app/security_scan/config/scan_settings.toml` currently use `map2 = 27`. Decide deliberately whether workbench defaults should represent indicator-type defaults or the most common configured scan-instance defaults before treating that value as stable across tooling.
 
 ### Phase 4 - Screener Dashboard Foundation
@@ -573,6 +591,7 @@ Exit criteria:
 - `roc_aggregate` compute returns score and MA traces for synthetic prices.
 - `scl_v4_x5` compute returns countdown and MA traces for synthetic OHLC prices.
 - `qrs_consist_excess` compute returns aligned benchmark-aware traces and clear overlap diagnostics for synthetic prices.
+- `scl_ma2_qrs_ma1_breakout` compute returns aligned `scl_ma2` and `qrs_ma1` traces plus strict dual-breakout signals for synthetic inputs.
 - Benchmark-aware adapters report missing benchmark data clearly.
 
 ### Frontend Tests
@@ -589,13 +608,14 @@ If the project has or adds frontend test tooling:
 - Test `AAPL` over a recent 1-year range.
 - Change `roc_lookback` and verify the chart changes.
 - Switch to `qrs_consist_excess` and verify the chart shows `QRS`, `MA1`, `MA2`, and `MA3` on one indicator panel.
+- Switch to `scl_ma2_qrs_ma1_breakout` and verify the chart shows `scl_ma2` and `qrs_ma1` on one indicator panel with dual breakout markers on both traces.
 - Remove one benchmark ticker or replace it with a symbol that has no data and verify the page surfaces a clear error rather than a blank success state.
 - Switch to `roc_aggregate` and verify multiple traces render.
 - Reload page and verify MRU persists.
 
 Latest validation:
-- Passed: `uv run pytest tests/test_scl_v4_x5.py tests/test_scl_ma2_qrs_ma1_breakout.py tests/security_scan/test_indicator_workbench.py tests/test_security_scan_api.py` from `src/backend`.
-- Passed: scoped TypeScript check for the dashboard frontend files with `src/frontend/node_modules/.bin/tsc --noEmit ...` from `src/frontend`.
+- Passed: `uv run pytest tests/test_scl_ma2_qrs_ma1_breakout.py tests/security_scan/test_indicator_workbench.py tests/test_security_scan_api.py` from `src/backend`.
+- Previously passed and still relevant for unchanged frontend code: scoped TypeScript check for the dashboard frontend files with `src/frontend/node_modules/.bin/tsc --noEmit ...` from `src/frontend`.
 - Not re-run in this session: direct HTTP smoke calls against a live backend/frontend process.
 - Blocked: full `npm run build` currently fails on an existing unrelated type error in `src/frontend/app/options/page.tsx` where `OptionContract.last` is referenced but not defined on the type.
 - Blocked: direct `npx eslint ...` cannot run because the frontend uses ESLint 9 but has no `eslint.config.(js|mjs|cjs)` file.
@@ -619,10 +639,14 @@ Reversibility:
 - Resolved for this slice: the frontend route is `/security-scan/indicators`, with backend metadata at `GET /security-scan/indicators` and compute at `POST /security-scan/indicator-dashboard/compute`.
 - Resolved for this slice: the first supported set now includes `scl_v4_x5` even though it is not currently configured as a top-level scan instance in `scan_settings.toml`. That was the right structural test because it exercises OHLC requirements and non-cross signal markers without bringing benchmark alignment into the same slice.
 - Resolved for this slice: parameter edits require an explicit recompute button.
+- Resolved for this slice: `scl_ma2_qrs_ma1_breakout` now uses the same public SCL/QRS compute seams as the dashboard instead of maintaining its own benchmark/date-alignment implementation.
+- Resolved for this slice: prior-window breakout context is visualized through marker metadata first, not through extra reference traces.
 - Should the dashboard `integer_list` contract stay stricter than the production indicator helpers? It currently requires JSON arrays for list settings even though some indicator internals still accept a scalar integer and coerce it to a one-item list.
+- Should benchmark-aware dashboard defaults keep representing indicator-type defaults, or should the workbench start exposing configured scan-instance defaults or presets? The active example is QRS `map2`, where module defaults still use `21` but the live configured scans use `27`.
 - Should the frontend support saving named parameter presets in `localStorage`, separate from MRU indicator types?
 - Should future multi-panel support be per-indicator-defined or user-configurable?
 - Should `roc` zero-cross visualization markers remain dashboard-owned defaults, or should future `roc` signal markers come only from explicit criteria metadata?
+- Should `src/backend/app/security_scan/indicator_adapters.py` stay as one file now that Phase 3 is complete, or is this the point where an adapter package would reduce change blast radius?
 - Should notebook callers that currently reach into private indicator helpers move onto the new public pure-compute functions as those functions appear, or should notebook-only series builders remain intentionally separate?
 - Should the tracked runtime artifacts `.coverage`, `src/backend/logs/backend.log`, and `src/backend/options.db` be removed from version control or moved to ignored local paths? Tests and local smoke runs modify them.
 

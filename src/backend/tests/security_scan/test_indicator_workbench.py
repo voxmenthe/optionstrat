@@ -5,6 +5,8 @@ from typing import Any
 
 import pytest
 
+from app.security_scan.criteria import SeriesPoint
+from app.security_scan.indicators import scl_ma2_qrs_ma1_breakout as breakout_indicator
 from app.security_scan.indicators import qrs_consist_excess as qrs_indicator
 from app.security_scan.indicator_workbench import (
     IndicatorDashboardComputeRequest,
@@ -13,6 +15,7 @@ from app.security_scan.indicator_workbench import (
     compute_indicator_dashboard,
     list_indicator_metadata,
 )
+from app.security_scan.signals import IndicatorSignal
 
 
 class FakeMarketDataService:
@@ -109,6 +112,21 @@ def _qrs_request(
     )
 
 
+def _breakout_request(
+    settings: dict[str, Any] | None = None,
+    benchmark_tickers: list[str] | None = None,
+) -> IndicatorDashboardComputeRequest:
+    return IndicatorDashboardComputeRequest(
+        ticker="tsla",
+        indicator_id="scl_ma2_qrs_ma1_breakout",
+        settings=settings or {"scl_ma2_window": 3, "qrs_ma1_window": 3},
+        start_date=date(2025, 1, 1),
+        end_date=date(2025, 1, 5),
+        interval="day",
+        benchmark_tickers=benchmark_tickers or ["spy", "qqq", "iwm"],
+    )
+
+
 def test_list_indicator_metadata_returns_dashboard_indicator_schemas() -> None:
     metadata = list_indicator_metadata()
 
@@ -117,6 +135,7 @@ def test_list_indicator_metadata_returns_dashboard_indicator_schemas() -> None:
         "roc_aggregate",
         "scl_v4_x5",
         "qrs_consist_excess",
+        "scl_ma2_qrs_ma1_breakout",
     ]
     metadata_by_id = {indicator.id: indicator for indicator in metadata.indicators}
 
@@ -197,6 +216,56 @@ def test_list_indicator_metadata_returns_dashboard_indicator_schemas() -> None:
         (parameter.key, parameter.type, parameter.min)
         for parameter in qrs_metadata.parameters
     ] == [
+        ("lookback", "integer", 1),
+        ("deadband_period", "integer", 1),
+        ("deadband_mult", "float", 0),
+        ("map1", "integer", 1),
+        ("map2", "integer", 1),
+        ("map3", "integer", 1),
+        ("cons_weight", "float", 0),
+        ("excess_weight", "float", 0),
+        ("ma_shift", "integer", 0),
+    ]
+
+    breakout_metadata = metadata_by_id["scl_ma2_qrs_ma1_breakout"]
+    assert breakout_metadata.default_settings == {
+        "scl_ma2_window": 12,
+        "lag1": 2,
+        "lag2": 3,
+        "lag3": 4,
+        "lag4": 5,
+        "lag5": 11,
+        "cd_offset1": 2,
+        "cd_offset2": 3,
+        "ma_period1": 5,
+        "ma_period2": 11,
+        "qrs_ma1_window": 5,
+        "lookback": 84,
+        "deadband_period": 20,
+        "deadband_mult": 0.25,
+        "map1": 7,
+        "map2": 21,
+        "map3": 56,
+        "cons_weight": 0.6,
+        "excess_weight": 0.4,
+        "ma_shift": 3,
+    }
+    assert breakout_metadata.requires_benchmarks is True
+    assert [
+        (parameter.key, parameter.type, parameter.min)
+        for parameter in breakout_metadata.parameters
+    ] == [
+        ("scl_ma2_window", "integer", 1),
+        ("lag1", "integer", 1),
+        ("lag2", "integer", 1),
+        ("lag3", "integer", 1),
+        ("lag4", "integer", 1),
+        ("lag5", "integer", 1),
+        ("cd_offset1", "integer", 1),
+        ("cd_offset2", "integer", 1),
+        ("ma_period1", "integer", 1),
+        ("ma_period2", "integer", 1),
+        ("qrs_ma1_window", "integer", 1),
         ("lookback", "integer", 1),
         ("deadband_period", "integer", 1),
         ("deadband_mult", "float", 0),
@@ -578,6 +647,145 @@ def test_compute_qrs_dashboard_raises_when_no_common_benchmark_dates_remain() ->
         )
 
 
+def test_compute_breakout_dashboard_returns_dual_trace_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = FakeMarketDataService(
+        prices_by_ticker={
+            "TSLA": [
+                {"date": "2025-01-01", "close": 10.0, "high": 11.0, "low": 9.0},
+                {"date": "2025-01-02", "close": 11.0, "high": 12.0, "low": 10.0},
+                {"date": "2025-01-03", "close": 12.0, "high": 13.0, "low": 11.0},
+                {"date": "2025-01-04", "close": 13.0, "high": 14.0, "low": 12.0},
+                {"date": "2025-01-05", "close": 14.0, "high": 15.0, "low": 13.0},
+            ],
+            "SPY": [{"date": f"2025-01-0{index}", "close": 100.0 + index} for index in range(1, 6)],
+            "QQQ": [{"date": f"2025-01-0{index}", "close": 200.0 + index} for index in range(1, 6)],
+            "IWM": [{"date": f"2025-01-0{index}", "close": 300.0 + index} for index in range(1, 6)],
+        }
+    )
+
+    def fake_compute_breakout(
+        *_args: Any,
+        **_kwargs: Any,
+    ) -> breakout_indicator.SclMa2QrsMa1BreakoutComputation:
+        return breakout_indicator.SclMa2QrsMa1BreakoutComputation(
+            resolved_settings={
+                "scl_ma2_window": 3,
+                "qrs_ma1_window": 3,
+                "ma_period2": 11,
+                "map1": 7,
+            },
+            benchmark_tickers=["SPY", "QQQ", "IWM"],
+            scl_ma2_series=[
+                SeriesPoint(date="2025-01-01", value=0.0),
+                SeriesPoint(date="2025-01-02", value=0.0),
+                SeriesPoint(date="2025-01-03", value=0.0),
+                SeriesPoint(date="2025-01-04", value=0.5),
+                SeriesPoint(date="2025-01-05", value=1.0),
+            ],
+            qrs_ma1_series=[
+                SeriesPoint(date="2025-01-01", value=0.0),
+                SeriesPoint(date="2025-01-02", value=0.0),
+                SeriesPoint(date="2025-01-03", value=0.0),
+                SeriesPoint(date="2025-01-04", value=0.75),
+                SeriesPoint(date="2025-01-05", value=2.0),
+            ],
+            signals=[
+                IndicatorSignal(
+                    signal_date="2025-01-05",
+                    signal_type="dual_breakout_up",
+                    metadata={
+                        "label": "scl_ma2_qrs_ma1_dual_breakout_up",
+                        "scl_series": "MA2",
+                        "scl_lookback": 3,
+                        "scl_current": 1.0,
+                        "scl_prior_high": 0.5,
+                        "qrs_series": "MA1",
+                        "qrs_lookback": 3,
+                        "qrs_current": 2.0,
+                        "qrs_prior_high": 0.75,
+                    },
+                )
+            ],
+            usable_ohlc_points=5,
+            scl_skipped_price_rows=0,
+            qrs_aligned_price_points=5,
+            qrs_dropped_price_points=0,
+            common_aligned_points=5,
+        )
+
+    monkeypatch.setattr(
+        breakout_indicator,
+        "compute_scl_ma2_qrs_ma1_breakout_computation",
+        fake_compute_breakout,
+    )
+
+    response = compute_indicator_dashboard(
+        _breakout_request(),
+        service,  # type: ignore[arg-type]
+    )
+
+    assert response.ticker == "TSLA"
+    assert response.indicator_id == "scl_ma2_qrs_ma1_breakout"
+    assert [trace.key for trace in response.indicator.panels[0].traces] == [
+        "scl_ma2",
+        "qrs_ma1",
+    ]
+    assert [signal.target_trace for signal in response.signals] == [
+        "scl_ma2",
+        "qrs_ma1",
+    ]
+    assert [signal.type for signal in response.signals] == [
+        "dual_breakout_up",
+        "dual_breakout_up",
+    ]
+    assert response.diagnostics.price_points == 5
+    assert response.diagnostics.indicator_points == 5
+    assert response.diagnostics.benchmark_tickers_used == ["SPY", "QQQ", "IWM"]
+    assert response.diagnostics.warnings == []
+    assert [call["ticker"] for call in service.calls] == ["TSLA", "SPY", "QQQ", "IWM"]
+
+
+def test_compute_breakout_dashboard_raises_when_no_common_dates_remain(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = FakeMarketDataService(
+        prices_by_ticker={
+            "TSLA": [
+                {"date": "2025-01-01", "close": 10.0, "high": 11.0, "low": 9.0},
+                {"date": "2025-01-02", "close": 11.0, "high": 12.0, "low": 10.0},
+            ],
+            "SPY": [{"date": "2025-01-01", "close": 100.0}],
+            "QQQ": [{"date": "2025-01-01", "close": 200.0}],
+            "IWM": [{"date": "2025-01-01", "close": 300.0}],
+        }
+    )
+
+    monkeypatch.setattr(
+        breakout_indicator,
+        "compute_scl_ma2_qrs_ma1_breakout_computation",
+        lambda *_args, **_kwargs: breakout_indicator.SclMa2QrsMa1BreakoutComputation(
+            resolved_settings={"scl_ma2_window": 3, "qrs_ma1_window": 3},
+            benchmark_tickers=["SPY", "QQQ", "IWM"],
+            scl_ma2_series=[],
+            qrs_ma1_series=[],
+            signals=[],
+            usable_ohlc_points=0,
+            scl_skipped_price_rows=0,
+            qrs_aligned_price_points=1,
+            qrs_dropped_price_points=1,
+            common_aligned_points=0,
+        ),
+    )
+
+    with pytest.raises(IndicatorNoDataError, match="No common dates remain"):
+        compute_indicator_dashboard(
+            _breakout_request(),
+            service,  # type: ignore[arg-type]
+        )
+
+
 def test_compute_roc_dashboard_rejects_invalid_lookback() -> None:
     service = FakeMarketDataService(
         [{"date": "2025-01-01", "close": 100.0}, {"date": "2025-01-02", "close": 101.0}]
@@ -636,5 +844,22 @@ def test_compute_scl_v4_x5_dashboard_rejects_invalid_lag() -> None:
     with pytest.raises(IndicatorSettingsValidationError, match="lag1 must be >= 1"):
         compute_indicator_dashboard(
             _scl_v4_x5_request({"lag1": 0}),
+            service,  # type: ignore[arg-type]
+        )
+
+
+def test_compute_breakout_dashboard_rejects_invalid_breakout_window() -> None:
+    service = FakeMarketDataService(
+        [
+            {"date": "2025-01-01", "close": 10.0, "high": 11.0, "low": 9.0},
+            {"date": "2025-01-02", "close": 11.0, "high": 12.0, "low": 10.0},
+        ]
+    )
+
+    with pytest.raises(
+        IndicatorSettingsValidationError, match="scl_ma2_window must be >= 1"
+    ):
+        compute_indicator_dashboard(
+            _breakout_request({"scl_ma2_window": 0, "qrs_ma1_window": 3}),
             service,  # type: ignore[arg-type]
         )

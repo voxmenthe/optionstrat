@@ -1,48 +1,106 @@
-2026-04-26 00:04:35,404 - app.main - INFO - Backend logging initialized. Log file: /Volumes/cdrive/repos/optionstrat/src/backend/logs/backend.log
-2026-04-26 00:04:36,115 - app.services.yfinance_provider - WARNING - Redis connection failed: Error 61 connecting to localhost:6379. Connection refused.. Falling back to database.
-2026-04-26 00:04:36,115 - app.services.volatility_service - INFO - VolatilityService initialized
-2026-04-26 00:04:36,115 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
-2026-04-26 00:04:36,334 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,335 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,336 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,337 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,338 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,340 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,341 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,341 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,342 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,343 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,345 - asyncio - DEBUG - Using selector: KqueueSelector
-2026-04-26 00:04:36,352 - app.main - INFO - REQUEST: GET /security-scan/indicators? from testclient
-2026-04-26 00:04:36,358 - app.main - INFO - RESPONSE: GET /security-scan/indicators - Status: 200 - Time: 0.0056s
-2026-04-26 00:04:36,359 - httpx - INFO - HTTP Request: GET http://testserver/security-scan/indicators "HTTP/1.1 200 OK"
-2026-04-26 00:04:36,364 - asyncio - DEBUG - Using selector: KqueueSelector
-2026-04-26 00:04:36,368 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
-2026-04-26 00:04:36,372 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,373 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 200 - Time: 0.0050s
-2026-04-26 00:04:36,374 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 200 OK"
-2026-04-26 00:04:36,378 - asyncio - DEBUG - Using selector: KqueueSelector
-2026-04-26 00:04:36,382 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
-2026-04-26 00:04:36,386 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,388 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 200 - Time: 0.0053s
-2026-04-26 00:04:36,389 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 200 OK"
-2026-04-26 00:04:36,393 - asyncio - DEBUG - Using selector: KqueueSelector
-2026-04-26 00:04:36,398 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
-2026-04-26 00:04:36,401 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,404 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 200 - Time: 0.0062s
-2026-04-26 00:04:36,405 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 200 OK"
-2026-04-26 00:04:36,410 - asyncio - DEBUG - Using selector: KqueueSelector
-2026-04-26 00:04:36,413 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
-2026-04-26 00:04:36,416 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,416 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 422 - Time: 0.0032s
-2026-04-26 00:04:36,417 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 422 Unprocessable Entity"
-2026-04-26 00:04:36,423 - asyncio - DEBUG - Using selector: KqueueSelector
-2026-04-26 00:04:36,428 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
-2026-04-26 00:04:36,430 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,431 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 422 - Time: 0.0035s
-2026-04-26 00:04:36,432 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 422 Unprocessable Entity"
-2026-04-26 00:04:36,437 - asyncio - DEBUG - Using selector: KqueueSelector
-2026-04-26 00:04:36,441 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
-2026-04-26 00:04:36,445 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
-2026-04-26 00:04:36,446 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 422 - Time: 0.0043s
-2026-04-26 00:04:36,448 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 422 Unprocessable Entity"
+2026-04-26 13:41:01,639 - app.main - INFO - Backend logging initialized. Log file: /Volumes/cdrive/repos/optionstrat/src/backend/logs/backend.log
+2026-04-26 13:41:03,772 - app.services.yfinance_provider - WARNING - Redis connection failed: Error 61 connecting to localhost:6379. Connection refused.. Falling back to database.
+2026-04-26 13:41:03,773 - app.services.volatility_service - INFO - VolatilityService initialized
+2026-04-26 13:41:03,773 - app.services.market_data - INFO - Using market data provider: YFinanceProvider
+2026-04-26 13:41:04,058 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,060 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,062 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,064 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,064 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,066 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,068 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,068 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,068 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,068 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,069 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,070 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,071 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,071 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,071 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,072 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,072 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,072 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,072 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,073 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,073 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,073 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,073 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,075 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,076 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,077 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,077 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,078 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,078 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,079 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,079 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,082 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,092 - app.main - INFO - REQUEST: GET /security-scan/indicators? from testclient
+2026-04-26 13:41:04,106 - app.main - INFO - RESPONSE: GET /security-scan/indicators - Status: 200 - Time: 0.0133s
+2026-04-26 13:41:04,109 - httpx - INFO - HTTP Request: GET http://testserver/security-scan/indicators "HTTP/1.1 200 OK"
+2026-04-26 13:41:04,118 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,125 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
+2026-04-26 13:41:04,130 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,133 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 200 - Time: 0.0076s
+2026-04-26 13:41:04,134 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 200 OK"
+2026-04-26 13:41:04,139 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,144 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
+2026-04-26 13:41:04,147 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,150 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 200 - Time: 0.0061s
+2026-04-26 13:41:04,151 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 200 OK"
+2026-04-26 13:41:04,156 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,160 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
+2026-04-26 13:41:04,166 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,169 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 200 - Time: 0.0082s
+2026-04-26 13:41:04,171 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 200 OK"
+2026-04-26 13:41:04,177 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,182 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
+2026-04-26 13:41:04,187 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,187 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,187 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,187 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,190 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 200 - Time: 0.0077s
+2026-04-26 13:41:04,191 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 200 OK"
+2026-04-26 13:41:04,198 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,203 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
+2026-04-26 13:41:04,209 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,209 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,210 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,210 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,216 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 200 - Time: 0.0124s
+2026-04-26 13:41:04,218 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 200 OK"
+2026-04-26 13:41:04,232 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,239 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
+2026-04-26 13:41:04,244 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,245 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 422 - Time: 0.0056s
+2026-04-26 13:41:04,247 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 422 Unprocessable Entity"
+2026-04-26 13:41:04,254 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,258 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
+2026-04-26 13:41:04,263 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,265 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 422 - Time: 0.0071s
+2026-04-26 13:41:04,272 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 422 Unprocessable Entity"
+2026-04-26 13:41:04,286 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,293 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
+2026-04-26 13:41:04,297 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,298 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 422 - Time: 0.0046s
+2026-04-26 13:41:04,299 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 422 Unprocessable Entity"
+2026-04-26 13:41:04,308 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,316 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
+2026-04-26 13:41:04,321 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,322 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 422 - Time: 0.0060s
+2026-04-26 13:41:04,323 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 422 Unprocessable Entity"
+2026-04-26 13:41:04,331 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,335 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
+2026-04-26 13:41:04,338 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,339 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,339 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,339 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,340 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 404 - Time: 0.0053s
+2026-04-26 13:41:04,341 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 404 Not Found"
+2026-04-26 13:41:04,347 - asyncio - DEBUG - Using selector: KqueueSelector
+2026-04-26 13:41:04,356 - app.main - INFO - REQUEST: POST /security-scan/indicator-dashboard/compute? from testclient
+2026-04-26 13:41:04,365 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,367 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,367 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,367 - app.security_scan.data_fetcher - INFO - security_scan.fetch_historical_prices
+2026-04-26 13:41:04,373 - app.main - INFO - RESPONSE: POST /security-scan/indicator-dashboard/compute - Status: 422 - Time: 0.0126s
+2026-04-26 13:41:04,374 - httpx - INFO - HTTP Request: POST http://testserver/security-scan/indicator-dashboard/compute "HTTP/1.1 422 Unprocessable Entity"

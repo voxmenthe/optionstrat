@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from math import isfinite
 from typing import Any, Callable
 
+from app.security_scan.indicators import scl_ma2_qrs_ma1_breakout as breakout_indicator
 from app.security_scan.indicators import qrs_consist_excess as qrs_consist_excess_indicator
 from app.security_scan.indicators import roc_aggregate as roc_aggregate_indicator
 from app.security_scan.indicators import roc as roc_indicator
@@ -253,6 +254,67 @@ def _qrs_signal_target_trace(signal_type: str) -> str:
     if signal_type.startswith("ma1_"):
         return "ma1"
     return "qrs"
+
+
+def _breakout_signal_label(signal_type: str) -> str:
+    labels = {
+        "dual_breakout_up": "Dual Breakout Up",
+        "dual_breakout_down": "Dual Breakout Down",
+    }
+    return labels.get(signal_type, _signal_type_label(signal_type))
+
+
+def _build_breakout_dashboard_signals(
+    signals: list[Any],
+) -> list[IndicatorDashboardSignal]:
+    dashboard_signals: list[IndicatorDashboardSignal] = []
+    for signal in signals:
+        label = _breakout_signal_label(signal.signal_type)
+        metadata = dict(signal.metadata)
+        if signal.signal_type.endswith("_up"):
+            threshold_key = "prior_high"
+        else:
+            threshold_key = "prior_low"
+
+        dashboard_signals.extend(
+            [
+                IndicatorDashboardSignal(
+                    date=signal.signal_date,
+                    type=signal.signal_type,
+                    label=label,
+                    target_trace="scl_ma2",
+                    metadata={
+                        "series": "SCL MA2",
+                        "lookback": metadata.get("scl_lookback"),
+                        "current_value": metadata.get("scl_current"),
+                        threshold_key: metadata.get(f"scl_{threshold_key}"),
+                        "paired_series": "QRS MA1",
+                        "paired_current": metadata.get("qrs_current"),
+                        f"paired_{threshold_key}": metadata.get(
+                            f"qrs_{threshold_key}"
+                        ),
+                    },
+                ),
+                IndicatorDashboardSignal(
+                    date=signal.signal_date,
+                    type=signal.signal_type,
+                    label=label,
+                    target_trace="qrs_ma1",
+                    metadata={
+                        "series": "QRS MA1",
+                        "lookback": metadata.get("qrs_lookback"),
+                        "current_value": metadata.get("qrs_current"),
+                        threshold_key: metadata.get(f"qrs_{threshold_key}"),
+                        "paired_series": "SCL MA2",
+                        "paired_current": metadata.get("scl_current"),
+                        f"paired_{threshold_key}": metadata.get(
+                            f"scl_{threshold_key}"
+                        ),
+                    },
+                ),
+            ]
+        )
+    return dashboard_signals
 
 
 def _compute_roc_dashboard(
@@ -543,6 +605,73 @@ def _compute_qrs_consist_excess_dashboard(
     )
 
 
+def _compute_scl_ma2_qrs_ma1_breakout_dashboard(
+    dashboard_input: IndicatorDashboardInput,
+) -> IndicatorDashboardOutput:
+    resolved_settings = resolve_adapter_settings(
+        SCL_MA2_QRS_MA1_BREAKOUT_DASHBOARD_ADAPTER,
+        dashboard_input.settings,
+    )
+    computation = breakout_indicator.compute_scl_ma2_qrs_ma1_breakout_computation(
+        dashboard_input.prices,
+        resolved_settings,
+        benchmark_prices_by_ticker=dashboard_input.benchmark_prices_by_ticker,
+        benchmark_tickers=dashboard_input.benchmark_tickers,
+    )
+    if computation.common_aligned_points == 0:
+        raise IndicatorDataError(
+            "No common dates remain after aligning SCL MA2 and QRS MA1 series. "
+            "Check high/low availability and benchmark overlap."
+        )
+
+    scl_ma2_points = _trace_points_from_series(computation.scl_ma2_series)
+    qrs_ma1_points = _trace_points_from_series(computation.qrs_ma1_series)
+
+    warnings: list[str] = []
+    if computation.scl_skipped_price_rows > 0:
+        warnings.append(
+            "Skipped "
+            f"{computation.scl_skipped_price_rows} price rows missing high/low fields while computing SCL MA2."
+        )
+    if computation.qrs_dropped_price_points > 0:
+        benchmarks = ", ".join(computation.benchmark_tickers)
+        warnings.append(
+            "Dropped "
+            f"{computation.qrs_dropped_price_points} price rows without full benchmark coverage across {benchmarks}."
+        )
+
+    return IndicatorDashboardOutput(
+        resolved_settings=computation.resolved_settings,
+        panels=[
+            IndicatorPanel(
+                id="main",
+                label="SCL MA2 + QRS MA1 Breakout",
+                traces=[
+                    IndicatorTrace(
+                        key="scl_ma2",
+                        label=f"SCL MA2 {int(computation.resolved_settings['ma_period2'])}",
+                        points=scl_ma2_points,
+                        color="#b45309",
+                    ),
+                    IndicatorTrace(
+                        key="qrs_ma1",
+                        label=f"QRS MA1 {int(computation.resolved_settings['map1'])}",
+                        points=qrs_ma1_points,
+                        color="#0f766e",
+                    ),
+                ],
+                reference_lines=[0.0],
+            )
+        ],
+        signals=_build_breakout_dashboard_signals(computation.signals),
+        diagnostics={
+            "indicator_points": len(scl_ma2_points),
+            "benchmark_tickers_used": list(computation.benchmark_tickers),
+            "warnings": warnings,
+        },
+    )
+
+
 ROC_DASHBOARD_ADAPTER = IndicatorDashboardAdapter(
     id="roc",
     label="Rate of Change",
@@ -827,12 +956,228 @@ QRS_CONSIST_EXCESS_DASHBOARD_ADAPTER = IndicatorDashboardAdapter(
     compute=_compute_qrs_consist_excess_dashboard,
 )
 
+SCL_MA2_QRS_MA1_BREAKOUT_DASHBOARD_ADAPTER = IndicatorDashboardAdapter(
+    id="scl_ma2_qrs_ma1_breakout",
+    label="SCL MA2 + QRS MA1 Breakout",
+    description="Composite benchmark-aware breakout view that overlays SCL MA2 and QRS MA1 and marks dates where both exceed their prior windows in the same direction.",
+    parameters=[
+        IndicatorParameter(
+            key="scl_ma2_window",
+            label="SCL MA2 Breakout Window",
+            type="integer",
+            default=12,
+            min=1,
+            required=True,
+            description="Prior-window length used when checking whether SCL MA2 breaks above or below its recent range.",
+        ),
+        IndicatorParameter(
+            key="lag1",
+            label="SCL Lag 1",
+            type="integer",
+            default=2,
+            min=1,
+            required=True,
+            description="First close-to-close comparison lag used in the SCL countdown sequence.",
+        ),
+        IndicatorParameter(
+            key="lag2",
+            label="SCL Lag 2",
+            type="integer",
+            default=3,
+            min=1,
+            required=True,
+            description="Second close-to-close comparison lag used in the SCL countdown sequence.",
+        ),
+        IndicatorParameter(
+            key="lag3",
+            label="SCL Lag 3",
+            type="integer",
+            default=4,
+            min=1,
+            required=True,
+            description="Third close-to-close comparison lag used in the SCL countdown sequence.",
+        ),
+        IndicatorParameter(
+            key="lag4",
+            label="SCL Lag 4",
+            type="integer",
+            default=5,
+            min=1,
+            required=True,
+            description="Fourth close-to-close comparison lag used in the SCL countdown sequence.",
+        ),
+        IndicatorParameter(
+            key="lag5",
+            label="SCL Lag 5",
+            type="integer",
+            default=11,
+            min=1,
+            required=True,
+            description="Fifth close-to-close comparison lag used in the SCL countdown sequence.",
+        ),
+        IndicatorParameter(
+            key="cd_offset1",
+            label="SCL Countdown Offset 1",
+            type="integer",
+            default=2,
+            min=1,
+            required=True,
+            description="First high/low comparison offset used in the SCL countdown adjustment.",
+        ),
+        IndicatorParameter(
+            key="cd_offset2",
+            label="SCL Countdown Offset 2",
+            type="integer",
+            default=3,
+            min=1,
+            required=True,
+            description="Second high/low comparison offset used in the SCL countdown adjustment.",
+        ),
+        IndicatorParameter(
+            key="ma_period1",
+            label="SCL MA Period 1",
+            type="integer",
+            default=5,
+            min=1,
+            required=True,
+            description="Window for the faster SCL moving-average overlay.",
+        ),
+        IndicatorParameter(
+            key="ma_period2",
+            label="SCL MA Period 2",
+            type="integer",
+            default=11,
+            min=1,
+            required=True,
+            description="Window for the slower SCL moving-average overlay that feeds the composite breakout test.",
+        ),
+        IndicatorParameter(
+            key="qrs_ma1_window",
+            label="QRS MA1 Breakout Window",
+            type="integer",
+            default=5,
+            min=1,
+            required=True,
+            description="Prior-window length used when checking whether QRS MA1 breaks above or below its recent range.",
+        ),
+        IndicatorParameter(
+            key="lookback",
+            label="QRS Lookback",
+            type="integer",
+            default=84,
+            min=1,
+            required=True,
+            description="Rolling window used to score benchmark-relative consistency and excess return.",
+        ),
+        IndicatorParameter(
+            key="deadband_period",
+            label="QRS Deadband Period",
+            type="integer",
+            default=20,
+            min=1,
+            required=True,
+            description="Rolling window used to estimate benchmark volatility for the QRS deadband gate.",
+        ),
+        IndicatorParameter(
+            key="deadband_mult",
+            label="QRS Deadband Multiplier",
+            type="float",
+            default=0.25,
+            min=0,
+            required=True,
+            description="Multiplier applied to benchmark volatility when deciding whether a day is directionally active.",
+        ),
+        IndicatorParameter(
+            key="map1",
+            label="QRS MA1 Period",
+            type="integer",
+            default=7,
+            min=1,
+            required=True,
+            description="Window for the fastest QRS moving-average overlay used by the composite breakout test.",
+        ),
+        IndicatorParameter(
+            key="map2",
+            label="QRS MA2 Period",
+            type="integer",
+            default=21,
+            min=1,
+            required=True,
+            description="Window for the middle QRS moving-average overlay.",
+        ),
+        IndicatorParameter(
+            key="map3",
+            label="QRS MA3 Period",
+            type="integer",
+            default=56,
+            min=1,
+            required=True,
+            description="Window for the slowest QRS moving-average overlay.",
+        ),
+        IndicatorParameter(
+            key="cons_weight",
+            label="QRS Consistency Weight",
+            type="float",
+            default=0.6,
+            min=0,
+            required=True,
+            description="Weight applied to the directional consistency component in the combined QRS score.",
+        ),
+        IndicatorParameter(
+            key="excess_weight",
+            label="QRS Excess Weight",
+            type="float",
+            default=0.4,
+            min=0,
+            required=True,
+            description="Weight applied to the normalized excess-return component in the combined QRS score.",
+        ),
+        IndicatorParameter(
+            key="ma_shift",
+            label="QRS MA Shift",
+            type="integer",
+            default=3,
+            min=0,
+            required=True,
+            description="Forward offset applied to the QRS moving-average overlays after smoothing.",
+        ),
+    ],
+    default_settings={
+        "scl_ma2_window": 12,
+        "lag1": 2,
+        "lag2": 3,
+        "lag3": 4,
+        "lag4": 5,
+        "lag5": 11,
+        "cd_offset1": 2,
+        "cd_offset2": 3,
+        "ma_period1": 5,
+        "ma_period2": 11,
+        "qrs_ma1_window": 5,
+        "lookback": 84,
+        "deadband_period": 20,
+        "deadband_mult": 0.25,
+        "map1": 7,
+        "map2": 21,
+        "map3": 56,
+        "cons_weight": 0.6,
+        "excess_weight": 0.4,
+        "ma_shift": 3,
+    },
+    requires_benchmarks=True,
+    supported_intervals=["day"],
+    default_benchmark_tickers=list(qrs_consist_excess_indicator.BENCHMARK_TICKERS),
+    required_benchmark_count=3,
+    compute=_compute_scl_ma2_qrs_ma1_breakout_dashboard,
+)
+
 
 DASHBOARD_ADAPTERS: dict[str, IndicatorDashboardAdapter] = {
     ROC_DASHBOARD_ADAPTER.id: ROC_DASHBOARD_ADAPTER,
     ROC_AGGREGATE_DASHBOARD_ADAPTER.id: ROC_AGGREGATE_DASHBOARD_ADAPTER,
     SCL_V4_X5_DASHBOARD_ADAPTER.id: SCL_V4_X5_DASHBOARD_ADAPTER,
     QRS_CONSIST_EXCESS_DASHBOARD_ADAPTER.id: QRS_CONSIST_EXCESS_DASHBOARD_ADAPTER,
+    SCL_MA2_QRS_MA1_BREAKOUT_DASHBOARD_ADAPTER.id: SCL_MA2_QRS_MA1_BREAKOUT_DASHBOARD_ADAPTER,
 }
 
 

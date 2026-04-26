@@ -1,0 +1,258 @@
+calibrated-artifact-judgment: finish the composite benchmark-aware dashboard slice
+
+This session was about closing the last real architectural gap in Phase 3 of the
+security-scan indicator dashboard. The dashboard already handled a simple
+single-trace indicator, a multi-trace close-only indicator, an OHLC-sensitive
+indicator, and the first benchmark-aware indicator. What it still did not handle
+was the composite case that had been hanging over the plan for several sessions:
+`scl_ma2_qrs_ma1_breakout`.
+
+That composite mattered for two reasons. On the product side, it is the first
+indicator in this workbench that is not merely benchmark-aware, but actually
+combines two indicator families into one decision rule. On the engineering side,
+it was the last place in this part of the codebase that still owned its own
+benchmark alignment and series extraction path instead of reusing the public
+helper seams we had already carved out for `scl_v4_x5` and
+`qrs_consist_excess`.
+
+The main goal, then, was not just to add one more adapter. It was to make sure
+the composite indicator stopped being a private special case. The code needed to
+land in the same additive architecture that the earlier slices had already
+validated: production indicators continue to expose `evaluate(prices, settings)
+-> list[IndicatorSignal]`, while the workbench layer depends on explicit
+computation helpers that return dated series and diagnostics suitable for
+charting.
+
+The core backend change lives in
+`src/backend/app/security_scan/indicators/scl_ma2_qrs_ma1_breakout.py`. That
+file now exposes `SclMa2QrsMa1BreakoutComputation` and
+`compute_scl_ma2_qrs_ma1_breakout_computation()`. The important design choice is
+what stayed inside that module and what moved out of it. The strict dual-breakout
+rule remains local, because that rule is the actual domain logic of the
+composite indicator. What disappeared was the duplicate plumbing around how SCL
+and QRS series get built.
+
+On the SCL side, the composite now takes `MA2` from
+`compute_scl_v4_x5_computation()` in
+`src/backend/app/security_scan/indicators/scl_v4_x5.py`. That means the
+composite no longer reaches into raw SCL outputs and reconstructs its own view
+of the series. It inherits the same resolved settings, OHLC filtering behavior,
+and skipped-row accounting that the standalone SCL dashboard slice already
+proved out.
+
+On the QRS side, the composite now takes `MA1` from the same public seam the
+dashboard uses for standalone QRS:
+`align_qrs_consist_excess_inputs()` plus
+`compute_qrs_consist_excess_computation()` in
+`src/backend/app/security_scan/indicators/qrs_consist_excess.py`. That is the
+real architectural payoff of this session. The composite no longer knows how to
+build benchmark close maps, no longer decides its own aligned date set, and no
+longer acts like a second QRS implementation with slightly different wiring.
+
+This is a meaningful blast-radius reduction even though the user-facing feature
+sounds small. Before this change, the codebase had two independent answers to
+the question “how do I align the stock series with three benchmark series for
+QRS logic?” Now there is one public answer, and both the standalone indicator
+and the composite consume it. If that alignment rule changes later, we have one
+place to change it and one conceptual model to test.
+
+The production scan path stayed intentionally conservative. `evaluate()` in
+`scl_ma2_qrs_ma1_breakout.py` still returns only the composite breakout signals.
+It still depends on `_context` injected by `scan_runner.py` for benchmark
+prices. It still uses strict breakout semantics rather than inclusive threshold
+tests. It still emits the same `dual_breakout_up` and `dual_breakout_down`
+signal types with the same `scl_*` and `qrs_*` metadata keys. That stability is
+important because `scan_runner.py` treats indicator failures and outputs as part
+of the load-bearing scan path, not as workbench-only diagnostics.
+
+The breakout logic itself also stayed deliberately local. I did not try to force
+it into `scl_v4_x5.py` or `qrs_consist_excess.py`, and I did not reuse
+`compute_prior_window_flags()` from SCL. That helper is useful for the SCL
+indicator’s own seven-bar flags, but its semantics are inclusive while the
+composite breakout rule is intentionally strict. Reusing it would have been a
+false simplification. This is exactly the kind of friction signal that is easy
+to miss if we optimize too hard for helper reuse rather than for behavioral
+clarity.
+
+Once the composite module had an honest computation helper, the dashboard side
+became straightforward. `src/backend/app/security_scan/indicator_adapters.py`
+now registers `scl_ma2_qrs_ma1_breakout` as a first-class adapter. It declares
+the full schema-driven parameter surface for both indicator families plus the two
+breakout windows, keeps the benchmark contract explicit with the same three-ticker
+default and exact-count rule used by QRS, and builds a single lower panel with
+two traces: `scl_ma2` and `qrs_ma1`.
+
+The signal visualization choice in this slice was intentionally minimal. The
+open question in the plan was whether to show prior highs and lows as extra
+reference traces, as lightweight diagnostics, or only as marker metadata. I
+chose marker metadata first. That keeps the chart readable. The lower panel
+already has two indicator traces and a zero line. Adding four more reference
+traces just to show prior breakout thresholds would have turned the first
+composite view into a clutter test instead of an indicator workbench.
+
+The marker strategy is also worth calling out. A composite breakout is one event,
+but it is anchored to two traces. The adapter handles that by expanding one
+production signal into two dashboard markers, one on `scl_ma2` and one on
+`qrs_ma1`, while keeping the event label aligned. This is a better fit for the
+existing chart contract than pretending the event belongs to only one trace. It
+lets the user see the breakout on both inputs without inventing another panel or
+another event model.
+
+One consequence of the way the frontend was originally designed is that this
+slice did not need new React code. That is a positive result, not an omission.
+The page at `src/frontend/app/security-scan/indicators/page.tsx` is already
+metadata-driven, and the chart component at
+`src/frontend/components/security-scan/IndicatorDashboardChart.tsx` already knows
+how to place markers on a lower-panel trace by `target_trace`. The composite
+indicator arrives as a bigger metadata payload and a different trace payload, but
+not as a new UI category.
+
+That is important evidence about the architecture. The same generic page now
+handles `roc`, `roc_aggregate`, `scl_v4_x5`, `qrs_consist_excess`, and a
+20-parameter benchmark-aware composite indicator without indicator-specific form
+branches. The contract is still pulling its weight. The pressure is now moving
+away from basic frontend flexibility and toward workflow questions such as
+defaults, presets, and eventual configured-instance discovery.
+
+The validation work in this session was tightly scoped to the touched surfaces.
+From `src/backend`, I ran
+`uv run pytest tests/test_scl_ma2_qrs_ma1_breakout.py tests/security_scan/test_indicator_workbench.py tests/test_security_scan_api.py`.
+That collected 35 tests and all 35 passed. The production composite unit tests
+now pin the new public helper seam instead of monkeypatching the raw SCL and QRS
+kernels directly, which means they will actually fail if the shared alignment or
+series-wiring path breaks in a future refactor.
+
+The workbench tests and route tests grew in the right places. They now assert
+stable metadata order with the composite adapter included, the full composite
+parameter schema, a successful dual-trace payload, the trace-targeted breakout
+markers, the no-common-date failure path, and a representative bad-setting
+response for `scl_ma2_window = 0`. That gives us contract coverage for both the
+indicator module and the workbench boundary without broadening the test scope
+into unrelated frontend or market-provider areas.
+
+I did not rerun live browser or direct HTTP smoke tests in this session. That is
+an intentional boundary, not an oversight. The backend contract changed; the
+frontend code did not. The latest scoped frontend confirmation is still the
+previous dashboard TypeScript check. We still have the same unrelated full-build
+blocker in `src/frontend/app/options/page.tsx`, where `OptionContract.last` is
+referenced even though the type does not define it, and the same lint blocker
+caused by the missing ESLint 9 flat config.
+
+The plan file at
+`PLANS/current-project-plans/security-scan-indicator-dashboard-plan.md` now
+records Phase 3 as complete rather than merely in progress. More importantly, it
+records the actual design decisions that are now repo-grounded: the composite
+module reuses the public SCL and QRS seams, the strict breakout rule stays local
+to the composite indicator, prior-window context is exposed through marker
+metadata first, and the frontend remained generic even through the composite
+slice.
+
+There is also a useful negative result here. I did not split
+`src/backend/app/security_scan/indicator_adapters.py` into a package yet, even
+though it is now large enough that the question is real. The reason is simple:
+the composite slice itself still fit the existing shape cleanly once the
+indicator-level helper was in place. A package split may still be the next right
+move, but it is now an architectural choice to make from a position of evidence,
+not a defensive maneuver made in the middle of uncertainty.
+
+Task structure assessment
+
+This was a well-formed task in one important way: it forced the implementation
+to stay anchored to the active plan and the actual checkout state. Naming the
+plan file and the recent commit artifacts prevented a common reward hack, where
+an agent treats “logical next step” as an excuse to skip the repo history and
+just build the most obvious missing feature.
+
+The main place this task could be made even sharper is around policy questions
+that sit adjacent to the implementation slice. The best example is the QRS
+default question around `map2 = 21` in the indicator module versus `map2 = 27`
+in the configured scan instances. That question is real, but it is orthogonal to
+the mechanical work of adding the composite adapter. If a future version of this
+task explicitly separated “implement the next slice” from “resolve policy
+question X if and only if the code forces it,” it would reduce the chance that a
+model burns effort on side debates or silently bakes in an unreviewed policy.
+
+Another improvement would be to state up front whether live smoke validation is
+expected in the same session when the frontend code itself does not change. The
+current instruction set strongly rewards full closure, which is good, but it can
+also tempt unnecessary live-run scope even when targeted tests already cover the
+changed layer and the UI contract is unchanged. A small note on validation depth
+would calibrate that better.
+
+Upcoming decisions
+
+1. The biggest remaining architectural question is whether
+   `src/backend/app/security_scan/indicator_adapters.py` should stay a single
+   file. After this slice it is still coherent, but only just. If the next
+   phase adds configured-instance discovery, richer signal hover semantics, or
+   more composite-specific logic, splitting by adapter family or by shared
+   helper family may reduce change blast radius.
+
+2. The default-value policy for benchmark-aware indicators is still unsettled.
+   The codebase now has enough evidence to make the question concrete. The
+   standalone QRS indicator still defaults `map2` to `21`, while the configured
+   scan instances for both QRS and the composite breakout use `27`. We should
+   decide whether the workbench is a pure indicator-type playground, a mirror of
+   the configured scan instances, or something that needs both concepts through
+   presets.
+
+3. The composite chart is readable with marker metadata only, but that is still
+   a choice worth pressure-testing with a live browser pass. If users cannot
+   quickly interpret the breakout basis from hover metadata alone, the next
+   refinement should be a small generic chart improvement rather than an
+   indicator-specific UI branch.
+
+4. The frontend is still gated by unrelated baseline issues. The dashboard page
+   itself did not need changes for this slice, but the repo still cannot offer a
+   clean full frontend build because of the pre-existing `OptionContract.last`
+   mismatch, and lint is still not a reliable gate because the ESLint 9 flat
+   config is missing. That keeps validation confidence lower than it should be.
+
+5. Tracked runtime artifacts remain an operational nuisance. Focused backend
+   validation still dirties `src/backend/.coverage` and
+   `src/backend/logs/backend.log`. That noise is easy to tolerate once, but it
+   adds friction to every session and makes real diffs harder to scan.
+
+Next best steps
+
+1. Run one live browser smoke pass with both dev servers up and specifically
+   inspect `qrs_consist_excess` and `scl_ma2_qrs_ma1_breakout`. The goal is not
+   contract validation anymore; it is visual calibration. Check whether the
+   dual-breakout markers are readable, whether the benchmark warnings are easy to
+   notice, and whether marker metadata alone is enough context for the composite
+   view. Estimated time: 20 to 30 minutes.
+
+2. Decide the benchmark-aware default policy before adding preset or instance
+   discovery. If the answer is “indicator-type defaults stay canonical,” then
+   document that clearly. If the answer is “configured scan instances are the
+   operational defaults users actually want,” then add an explicit preset or
+   instance path rather than quietly changing module defaults. Estimated time:
+   15 to 30 minutes for the decision, more if implemented immediately.
+
+3. Start Phase 4 by adding a narrow discovery endpoint for configured scan
+   instances or presets instead of expanding the page with more ad hoc control
+   logic. The natural first file targets are
+   `src/backend/app/security_scan/indicator_workbench.py`,
+   `src/backend/app/routes/security_scan.py`, and a small typed addition in
+   `src/frontend/lib/api/securityScanApi.ts`. Estimated time: half a session for
+   the first end-to-end contract.
+
+4. Reassess `indicator_adapters.py` after that first Phase 4 slice lands. If the
+   configured-instance or preset work starts mixing too many concerns into the
+   existing file, split at that point. Splitting now would be speculative;
+   splitting after the next concrete case will be evidence-based. Estimated time:
+   30 to 60 minutes if the split is justified.
+
+5. Fix the unrelated frontend validation blockers before too many more dashboard
+   UI changes accumulate. The minimum useful cleanup is the
+   `src/frontend/app/options/page.tsx` type mismatch and the ESLint 9 config
+   gap. Those are not dashboard features, but they are now the main reason we
+   cannot promote frontend validation from “scoped and local” to “routine and
+   project-wide.” Estimated time: likely one separate short session.
+
+This session matters because it turns the dashboard from a collection of
+indicator-specific experiments into a more defensible workbench contract. The
+composite benchmark-aware case was the last place where the architecture could
+have collapsed into special-purpose glue. It did not. The composite indicator now
+uses the same public seams as the rest of the workbench, the frontend still
+stays generic, and Phase 3 can be treated as complete rather than provisional.
